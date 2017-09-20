@@ -1,4 +1,4 @@
-# Mint tagger for Amazon Transactions
+# Mint Transactions Tagger for Amazon Purchases
 
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon.com"
 w/ category "Shopping"? Then this tool is for you!
