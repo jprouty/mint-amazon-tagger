@@ -3,6 +3,9 @@
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon.com"
 w/ category "Shopping"? Then this tool is for you!
 
+This tool DOES NOT require an Amazon store card/Visa. Any account that pays for
+your orders and is sync with Mint will do!
+
 This tool takes Amazon order reports and merges it with your existing Mint
 transactions. If it finds exact matches, it will either:
 
