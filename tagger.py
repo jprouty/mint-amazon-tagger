@@ -20,9 +20,7 @@ import time
 
 import getpass
 import keyring
-# import mintapi
-
-import api as mintapi
+import mintapi
 
 import category
 
