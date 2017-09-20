@@ -20,6 +20,8 @@ next run will wipe everything out.
 
 ## Getting started
 
+0. Clone this repository; `git clone git@github.com:jprouty/mint-amazon-tagger.git`
+
 1. Install the dependencies: `pip install -r requirements.txt`
 
 2. Install selenium and chromedriver. These tools help you acquire the
@@ -27,7 +29,13 @@ appropriate Mint login credentials:
 
 ```
 pip install selenium
-brew install chromedriver # or sudo apt-get install chromium-chromedriver on Ubuntu/Debian
+
+# Mac:
+brew install chromedriver
+
+# Ubuntu/Debian:
+# Also check out: https://askubuntu.com/questions/539498/where-does-chromedriver-install-to
+sudo apt-get install chromium-chromedriver
 ```
 
 3. Generate and download your Amazon Order History Reports.
