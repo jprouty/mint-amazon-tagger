@@ -1,3 +1,8 @@
+# Application specific:
+Mint Transactions Backup *.pickle
+Items.csv
+Orders.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -99,3 +104,13 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
