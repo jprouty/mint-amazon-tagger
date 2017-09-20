@@ -20,7 +20,7 @@ next run will wipe everything out.
 
 ## Getting started
 
-0. Clone this repository; `git clone git@github.com:jprouty/mint-amazon-tagger.git`
+0. Clone this repository: `git clone git@github.com:jprouty/mint-amazon-tagger.git; cd mint-amazon-tagger`
 
 1. Install the dependencies: `pip install -r requirements.txt`
 
