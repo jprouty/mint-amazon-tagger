@@ -20,7 +20,8 @@ import time
 
 import getpass
 import keyring
-import mintapi
+import mint_api as mintapi # Temporary until mintapi is fixed upstream.
+# import mintapi
 
 import category
 
