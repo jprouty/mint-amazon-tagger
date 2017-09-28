@@ -648,6 +648,96 @@ def tag_transactions(items, orders, trans, itemize):
     return result
 
 
+def print_dry_run(orig_trans_to_tagged):
+    logger.info('Dry run. Following are proposed changes:')
+
+    num_requests = 0
+    for (orig_trans, new_trans) in orig_trans_to_tagged:
+        logger.info('Current:  {} \t {} \t {} \t ${}'.format(
+            orig_trans['date'].strftime('%m/%d/%y'),
+            orig_trans['merchant'],
+            orig_trans['category'],
+            micro_usd_to_usd_string(orig_trans['amount'])))
+
+        if len(new_trans) == 1:
+            trans = new_trans[0]
+            logger.info('Proposed: {} \t {} \t {} \t ${} {}'.format(
+                trans['date'].strftime('%m/%d/%y'),
+                trans['merchant'],
+                trans['category'],
+                micro_usd_to_usd_string(trans['amount']),
+                'with details in "Notes"' if orig_trans['note'] != trans['note'] else ''))
+        else:
+            for (i, trans) in enumerate(new_trans):
+                logger.info('Proposed: {} \t {} \t {} \t ${}'.format(
+                    trans['date'].strftime('%m/%d/%y'),
+                    trans['merchant'],
+                    trans['category'],
+                    micro_usd_to_usd_string(trans['amount'])))
+
+
+def write_tags_to_mint(orig_trans_to_tagged, mint_client):
+    logger.info('Sending {} updates to Mint.'.format(len(orig_trans_to_tagged)))
+
+    start_time = time.time()
+    num_requests = 0
+    for (orig_trans, new_trans) in orig_trans_to_tagged:
+        if len(new_trans) == 1:
+            # Update the existing transaction.
+            trans = new_trans[0]
+            modify_trans = {
+                'task': 'txnedit',
+                'txnId': '{}:0'.format(trans['id']),
+                'note': trans['note'],
+                'merchant': trans['merchant'],
+                'category': trans['category'],
+                'catId': trans['categoryId'],
+                'token': mint_client.token,
+            }
+
+            logger.debug('Sending a "modify" transaction request: {}'.format(modify_trans))
+            response = mint_client.post(
+                '{}{}'.format(
+                    mintapi.api.MINT_ROOT_URL,
+                    UPDATE_TRANS_ENDPOINT),
+                data=modify_trans).text
+            logger.debug('Received response: {}'.format(response))
+            num_requests += 1
+        else:
+            # Split the existing transaction into many.
+            itemized_split = {
+                'txnId': '{}:0'.format(orig_trans['id']),
+                'task': 'split',
+                'data': '',  # Yup this is weird.
+                'token': mint_client.token,
+            }
+            for (i, trans) in enumerate(new_trans):
+                amount = micro_usd_to_usd_float(trans['amount'])
+                itemized_split['amount{}'.format(i)] = amount
+                itemized_split['percentAmount{}'.format(i)] = amount  # Yup. Weird!
+                itemized_split['category{}'.format(i)] = trans['category']
+                itemized_split['categoryId{}'.format(i)] = trans['categoryId']
+                itemized_split['merchant{}'.format(i)] = trans['merchant']
+                itemized_split['txnId{}'.format(i)] = 0  # Yup weird. Means new?
+
+            logger.debug('Sending a "split" transaction request: {}'.format(itemized_split))
+            response = mint_client.post(
+                '{}{}'.format(
+                    mintapi.api.MINT_ROOT_URL,
+                    UPDATE_TRANS_ENDPOINT),
+                data=itemized_split).text
+            logger.debug('Received response: {}'.format(response))
+            num_requests += 1
+
+    end_time = time.time()
+    dur_total_s = int(end_time - start_time)
+    dur_s = dur_total_s % 60
+    dur_m = (dur_total_s / 60) % 60
+    dur_h = (dur_total_s / 60 / 60)
+    dur = datetime.time(hour=dur_h, minute=dur_m, second=dur_s)
+    logger.info('Sent {} updates to Mint in {}'.format(num_requests, dur))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
@@ -669,11 +759,19 @@ def main():
         help='The "Orders and Shipments" Order History Report from Amazon')
 
     parser.add_argument(
-        '--itemize', type=bool, default=True,
-        help=('True will split Mint transactions into individual items with '
+        '--no_itemize', action='store_true',
+        help=('P will split Mint transactions into individual items with '
               'attempted categorization.'))
 
+    parser.add_argument(
+        '--dry_run', action='store_true',
+        help=('Do not modify Mint transaction; instead print the proposed '
+              'changes to console.'))
+
     args = parser.parse_args()
+
+    if args.dry_run:
+        logger.info('Dry Run; no modifications being sent to Mint.')
 
     email = args.mint_email
     password = args.mint_password
@@ -715,7 +813,7 @@ def main():
     # Reuse the stored ius_session and thx_guid if this script has run in the
     # last 15 minutes.
     if (last_ius_session and last_thx_guid and last_login_time and
-            int(time.time()) - int(last_login_time) < 15 * 60):
+            int(time.time()) - int(last_login_time) < 15 * 60) and False:
         logger.info('Using previous session tokens.')
         mint_client = mintapi.Mint.create(
             email, password, last_ius_session, last_thx_guid)
@@ -770,7 +868,7 @@ def main():
 
     logger.info('Matching Amazon pruchases to Mint transactions.')
     orig_trans_to_tagged = tag_transactions(
-        amazon_items, amazon_orders, mint_transactions, args.itemize)
+        amazon_items, amazon_orders, mint_transactions, not args.no_itemize)
 
     for (orig_trans, new_trans) in orig_trans_to_tagged:
         # Assert old trans amount == sum new trans amount
@@ -786,68 +884,10 @@ def main():
         # TODO: removing the filters earlier on and track splits
         # (re-constituting the original charge).
 
-    logger.info('Sending {} updates to Mint.'.format(len(orig_trans_to_tagged)))
-
-    start_time = time.time()
-    num_requests = 0
-    for (orig_trans, new_trans) in orig_trans_to_tagged:
-        if len(new_trans) == 1:
-            # Update the existing transaction.
-            trans = new_trans[0]
-            assert trans['id'] == orig_trans['id']
-            # Amount shouldn't be changing.
-            assert abs(trans['amount'] - orig_trans['amount']) < MICRO_USD_EPS
-            modify_trans = {
-                'task': 'txnedit',
-                'txnId': '{}:0'.format(trans['id']),
-                'note': trans['note'],
-                'merchant': trans['merchant'],
-                'category': trans['category'],
-                'catId': trans['categoryId'],
-                'token': mint_client.token,
-            }
-
-            logger.debug('Sending a "modify" transaction request: {}'.format(modify_trans))
-            response = mint_client.post(
-                '{}{}'.format(
-                    mintapi.api.MINT_ROOT_URL,
-                    UPDATE_TRANS_ENDPOINT),
-                data=modify_trans).text
-            logger.debug('Received response: {}'.format(response))
-            num_requests += 1
-        else:
-            # Split the existing transaction into many.
-            itemized_split = {
-                'txnId': '{}:0'.format(orig_trans['id']),
-                'task': 'split',
-                'data': '',  # Yup this is weird.
-                'token': mint_client.token,
-            }
-            for (i, trans) in enumerate(new_trans):
-                amount = micro_usd_to_usd_float(trans['amount'])
-                itemized_split['amount{}'.format(i)] = amount
-                itemized_split['percentAmount{}'.format(i)] = amount  # Yup. Weird!
-                itemized_split['category{}'.format(i)] = trans['category']
-                itemized_split['categoryId{}'.format(i)] = trans['categoryId']
-                itemized_split['merchant{}'.format(i)] = trans['merchant']
-                itemized_split['txnId{}'.format(i)] = 0  # Yup weird. Means new?
-
-            logger.debug('Sending a "split" transaction request: {}'.format(itemized_split))
-            response = mint_client.post(
-                '{}{}'.format(
-                    mintapi.api.MINT_ROOT_URL,
-                    UPDATE_TRANS_ENDPOINT),
-                data=itemized_split).text
-            logger.debug('Received response: {}'.format(response))
-            num_requests += 1
-
-    end_time = time.time()
-    dur_total_s = int(end_time - start_time)
-    dur_s = dur_total_s % 60
-    dur_m = (dur_total_s / 60) % 60
-    dur_h = (dur_total_s / 60 / 60)
-    dur = datetime.time(hour=dur_h, minute=dur_m, second=dur_s)
-    logger.info('Sent {} updates to Mint in {}'.format(num_requests, dur))
+    if args.dry_run:
+        print_dry_run(orig_trans_to_tagged)
+    else:
+        write_tags_to_mint(orig_trans_to_tagged, mint_client)
 
 
 if __name__ == '__main__':
