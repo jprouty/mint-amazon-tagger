@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # This script takes Amazon "Order History Reports" and annotates your Mint
 # transactions based on actual items in each purchase. It can handle orders
@@ -654,7 +654,7 @@ def print_dry_run(orig_trans_to_tagged):
 
     num_requests = 0
     for (orig_trans, new_trans) in orig_trans_to_tagged:
-        logger.info('Current:  {} \t {} \t {} \t ${}'.format(
+        logger.info('Current:  {} \t {} \t {} \t {}'.format(
             orig_trans['date'].strftime('%m/%d/%y'),
             orig_trans['merchant'],
             orig_trans['category'],
@@ -662,7 +662,7 @@ def print_dry_run(orig_trans_to_tagged):
 
         if len(new_trans) == 1:
             trans = new_trans[0]
-            logger.info('Proposed: {} \t {} \t {} \t ${} {}'.format(
+            logger.info('Proposed: {} \t {} \t {} \t {} {}'.format(
                 trans['date'].strftime('%m/%d/%y'),
                 trans['merchant'],
                 trans['category'],
@@ -804,34 +804,30 @@ def main():
     amazon_items = sorted(amazon_items, order_date_cmp)
     amazon_orders = sorted(amazon_orders, order_date_cmp)
 
-    last_ius_session = keyring.get_password(
-        KEYRING_SERVICE_NAME, '{}_ius_session'.format(email))
-    last_thx_guid = keyring.get_password(
-        KEYRING_SERVICE_NAME, '{}_thx_guid'.format(email))
+    last_pickled_session_cookies = keyring.get_password(
+        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
     last_login_time = keyring.get_password(
         KEYRING_SERVICE_NAME, '{}_last_login'.format(email))
 
-    # Reuse the stored ius_session and thx_guid if this script has run in the
-    # last 15 minutes.
-    if (last_ius_session and last_thx_guid and last_login_time and
-            int(time.time()) - int(last_login_time) < 15 * 60) and False:
-        logger.info('Using previous session tokens.')
-        mint_client = mintapi.Mint.create(
-            email, password, last_ius_session, last_thx_guid)
-    else:
-        # Requires chromedriver.
-        logger.info('Logging in via chromedriver')
-        mint_client = mintapi.Mint.create(email, password)
+    session_cookies = None
+
+    # Reuse the stored session_cookies if this script has run in the last 15
+    # minutes.
+    if (last_pickled_session_cookies and last_login_time and
+            int(time.time()) - int(last_login_time) < 15 * 60):
+        session_cookies = pickle.loads(last_pickled_session_cookies)
+
+    logger.info('Using previous session tokens.'
+                if session_cookies
+                else 'Logging in via chromedriver')
+    mint_client = mintapi.Mint.create(email, password)  # , session_cookies)
 
     logger.info('Login successful!')
     # On success, save off password, session tokens, and login time to keyring.
     keyring.set_password(KEYRING_SERVICE_NAME, email, password)
     keyring.set_password(
-        KEYRING_SERVICE_NAME, '{}_ius_session'.format(email),
-        mint_client.cookies['ius_session'])
-    keyring.set_password(
-        KEYRING_SERVICE_NAME, '{}_thx_guid'.format(email),
-        mint_client.cookies['thx_guid'])
+        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
+        pickle.dumps(mint_client.cookies))
     keyring.set_password(
         KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
         str(int(time.time())))
@@ -844,8 +840,6 @@ def main():
 
     # Only get transactions as new as the oldest Amazon order.
     oldest_order_date = min([o['Order Date'] for o in amazon_orders])
-    # This may be broken for you until this is fixed and shipped:
-    # https://github.com/mrooney/mintapi/pull/115
     start_date_str = oldest_order_date.strftime('%m/%d/%y')
     logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
     mint_transactions = pythonify_mint_dict(mint_client.get_transactions_json(

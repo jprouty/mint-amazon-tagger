@@ -18,6 +18,11 @@ try:
 except:
         from urllib3.poolmanager import PoolManager
 
+try:
+    from Cookie import SimpleCookie  # Python 2
+except ImportError:
+    from http.cookies import SimpleCookie  # Python 3
+
 import xmltodict
 
 try:
@@ -61,17 +66,17 @@ class Mint(requests.Session):
     request_id = 42  # magic number? random number?
     token = None
 
-    def __init__(self, email=None, password=None, ius_session=None, thx_guid=None):
+    def __init__(self, email=None, password=None, session_cookies=None):
         requests.Session.__init__(self)
         self.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9) AppleWebKit/537.71 (KHTML, like Gecko) Version/7.0 Safari/537.71'})
         self.mount('https://', MintHTTPSAdapter())
         if email and password:
-            self.login_and_get_token(email, password, ius_session, thx_guid)
+            self.login_and_get_token(email, password, session_cookies)
 
     @classmethod
-    def create(cls, email, password, ius_session=None, thx_guid=None):  # {{{
+    def create(cls, email, password, session_cookies=None):  # {{{
         mint = Mint()
-        mint.login_and_get_token(email, password, ius_session, thx_guid)
+        mint.login_and_get_token(email, password, session_cookies)
         return mint
 
     @classmethod
@@ -116,7 +121,7 @@ class Mint(requests.Session):
                     (url, content_type, expected_content_type))
         return result
 
-    def login_and_get_token(self, email, password, ius_session, thx_guid):  # {{{
+    def login_and_get_token(self, email, password, session_cookies=None):  # {{{
         # 0: Check to see if we're already logged in.
         if self.token is not None:
             return
@@ -131,13 +136,8 @@ class Mint(requests.Session):
         data = {'username': email, 'password': password}
 
         # Extract ius_token/thx_guid using browser if not provided manually
-        if not ius_session:
+        if not session_cookies:
             session_cookies = self.get_session_cookies(**data)
-        else:
-            session_cookies = {
-                'ius_session': ius_session,
-                'thx_guid': thx_guid
-            }
         self.cookies.update(session_cookies)
 
         self.get('https://pf.intuit.com/fp/tags?js=0&org_id=v60nf4oj&session_id=' + self.cookies['ius_session'])
@@ -194,15 +194,10 @@ class Mint(requests.Session):
         while not driver.current_url.startswith('https://mint.intuit.com/overview.event'):
             time.sleep(1)
 
-        # get ius_session cookie by going to accounts.intuit.com
+        # Get session cookies by going to accounts.intuit.com
         driver.get("http://accounts.intuit.com")
 
-        COOKIE_LIST = set([
-            'incap_ses_726_966665',
-            'ius_session',
-        ])
-
-        cookies = dict([(d['name'], d['value']) for d in driver.get_cookies() if d['name'] in COOKIE_LIST])
+        cookies = dict([(d['name'], d['value']) for d in driver.get_cookies()])
         driver.close()
 
         return cookies
@@ -666,8 +661,9 @@ def main():
     cmdline.add_argument('--keyring', action='store_true',
                          help='Use OS keyring for storing password '
                          'information')
-    cmdline.add_argument('--session', help='ius_session cookie')
-    cmdline.add_argument('--thx_guid', help='thx_guid cookie')
+    cmdline.add_argument('--raw_session_cookies',
+                         help='The "cookie: param=value; param2=value2;" from '
+                         'a browser session.')
 
     options = cmdline.parse_args()
 
@@ -710,7 +706,21 @@ def main():
                 options.net_worth]):
         options.accounts = True
 
-    mint = Mint.create(email, password, ius_session=options.session, thx_guid=options.thx_guid)
+    session_cookies = None
+    if options.raw_session_cookies:
+        sc = SimpleCookie()
+        raw_cookies = options.raw_session_cookies
+        # When copy and pasting from chrome, there is no space between "cookie"
+        # and "param1", e.g. "cookie:param1=value;". This causes the parser in
+        # the SimpleCookie library to choke. Instead, simply strip the optional
+        # prefix 'cookie:', and SimpleCookie will handle it alright, including
+        # any leading whitespace.
+        if options.raw_session_cookies.lower().startswith('cookie:'):
+            raw_cookies = options.raw_session_cookies[7:]
+        sc.load()
+        session_cookies = dict([(k, morsel.value) for k, morsel in sc.items()])
+
+    mint = Mint.create(email, password, session_cookies=session_cookies)
 
     data = None
     if options.accounts and options.budgets:
