@@ -20,8 +20,11 @@ import time
 
 import getpass
 import keyring
-import mint_api as mintapi # Temporary until mintapi is fixed upstream.
+# Temporary until mintapi is fixed upstream.
+import mint_api as mintapi
+from mint_api import MINT_ROOT_URL
 # import mintapi
+# from mintapi.api import MINT_ROOT_URL
 
 import category
 
@@ -699,7 +702,7 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
             logger.debug('Sending a "modify" transaction request: {}'.format(modify_trans))
             response = mint_client.post(
                 '{}{}'.format(
-                    mintapi.api.MINT_ROOT_URL,
+                    MINT_ROOT_URL,
                     UPDATE_TRANS_ENDPOINT),
                 data=modify_trans).text
             logger.debug('Received response: {}'.format(response))
@@ -724,7 +727,7 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
             logger.debug('Sending a "split" transaction request: {}'.format(itemized_split))
             response = mint_client.post(
                 '{}{}'.format(
-                    mintapi.api.MINT_ROOT_URL,
+                    MINT_ROOT_URL,
                     UPDATE_TRANS_ENDPOINT),
                 data=itemized_split).text
             logger.debug('Received response: {}'.format(response))
