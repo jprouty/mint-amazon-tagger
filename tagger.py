@@ -9,6 +9,7 @@
 # https://www.amazon.com/gp/b2b/reports
 
 import argparse
+import codecs
 from collections import defaultdict
 import copy
 import csv
@@ -175,7 +176,7 @@ def get_item_title(item, target_length):
     if qty > 1:
         base_str = str(qty) + 'x'
     # Remove non-ASCII characters from the title.
-    clean_title = filter(lambda x: x in printable, item['Title'])
+    clean_title = ''.join(filter(lambda x: x in printable, item['Title']))
     return truncate_title(clean_title, target_length, base_str)
 
 
@@ -432,7 +433,7 @@ def tag_transactions(items, orders, trans, itemize):
 
         # More expensive items are always more interesting when it comes to
         # budgeting, so show those first (for both itemized and concatted).
-        items = sorted(items, lambda x, y: cmp(y['Item Total'], x['Item Total']))
+        items = sorted(items, key=lambda item: item['Item Total'], reverse=True)
 
         new_transactions = []
 
@@ -655,7 +656,6 @@ def tag_transactions(items, orders, trans, itemize):
 def print_dry_run(orig_trans_to_tagged):
     logger.info('Dry run. Following are proposed changes:')
 
-    num_requests = 0
     for (orig_trans, new_trans) in orig_trans_to_tagged:
         logger.info('Current:  {} \t {} \t {} \t {}'.format(
             orig_trans['date'].strftime('%m/%d/%y'),
@@ -802,10 +802,8 @@ def main():
         list(csv.DictReader(args.orders_csv)))
 
     # Sort everything for good measure/consistency/stable ordering.
-    def order_date_cmp(x, y):
-        return cmp(x['Order Date'], y['Order Date'])
-    amazon_items = sorted(amazon_items, order_date_cmp)
-    amazon_orders = sorted(amazon_orders, order_date_cmp)
+    amazon_items = sorted(amazon_items, key=lambda item: item['Order Date'])
+    amazon_orders = sorted(amazon_orders, key=lambda order: order['Order Date'])
 
     last_pickled_session_cookies = keyring.get_password(
         KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
@@ -818,19 +816,21 @@ def main():
     # minutes.
     if (last_pickled_session_cookies and last_login_time and
             int(time.time()) - int(last_login_time) < 15 * 60):
-        session_cookies = pickle.loads(last_pickled_session_cookies)
+        session_cookies = pickle.loads(codecs.decode(last_pickled_session_cookies.encode(), "base64"))
 
+    # Session cookies are not working at the moment due to the new auth flow.
+    session_cookies = None
     logger.info('Using previous session tokens.'
                 if session_cookies
                 else 'Logging in via chromedriver')
-    mint_client = mintapi.Mint.create(email, password)  # , session_cookies)
+    mint_client = mintapi.Mint.create(email, password, session_cookies)
 
     logger.info('Login successful!')
     # On success, save off password, session tokens, and login time to keyring.
     keyring.set_password(KEYRING_SERVICE_NAME, email, password)
     keyring.set_password(
         KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
-        pickle.dumps(mint_client.cookies))
+        codecs.encode(pickle.dumps(mint_client.cookies), "base64").decode())
     keyring.set_password(
         KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
         str(int(time.time())))
@@ -854,7 +854,7 @@ def main():
         int(time.time()))
     logger.info('Prior to modifying Mint Transactions, they have been backed '
                 'up (picked) to: {}'.format(mint_backup_filename))
-    with open(mint_backup_filename, 'w') as f:
+    with open(mint_backup_filename, 'wb') as f:
         pickle.dump(mint_transactions, f)
 
     # Comment above and use the following when debugging tag_transactions:
