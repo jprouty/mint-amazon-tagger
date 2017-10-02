@@ -315,32 +315,37 @@ def tag_transactions(items, orders, trans, itemize):
 
     result = []
 
+    # Skip t if the original description doesn't contain 'amazon'
+    trans = [t for t in trans if 'amazon' in t['omerchant'].lower()]
+    num_amazon_in_desc = len(trans)
+    trans = [t for t in trans if not t['isPending']]
+    num_pending = num_amazon_in_desc - len(trans)
+    trans = [t for t in trans if t['isDebit']]
+    num_credits = num_amazon_in_desc - num_pending - len(trans)
+
+    # Reconsistitute Mint splits/itemizations into the parent transaction.
+    parent_id_to_trans = defaultdict(list)
+    num_already_itemized += len(parent_id_to_trans)
+    not_split = []
     for t in trans:
-        # Skip t if the original description doesn't contain 'amazon'
-        if 'amazon' not in t['omerchant'].lower():
-            continue
-        num_amazon_in_desc += 1
-
-        if t['isPending']:
-            num_pending += 1
-            continue
-
-        # TODO: Allow for reprocessing/tagging existing transactions.
         if t['isChild']:
-            num_already_itemized += 1
-            continue
+            parent_id_to_trans[t['pid']].append(t)
+        else:
+            not_split.append(t)
 
-        if t['merchant'].startswith(MERCHANT_PREFIX):
-            num_already_tagged += 1
-            continue
+    trans = not_split
+    for p_id, children in parent_id_to_trans.items():
+        parent = copy.deepcopy(children[0])
 
-        # TODO: Handle refunds differently.
-        if not t['isDebit']:
-            num_credits += 1
-            # Use the mint category: 'Returned Purchase'
-            logger.debug('Skipping refund: {0}'.format(t))
-            continue
+        parent['id'] = p_id
+        parent['isChild'] = False
+        del parent['pid']
+        parent['amount'] = sum_amounts(children)
+        parent['CHILDREN'] = children
 
+        trans.append(parent)
+
+    for t in trans:
         # Find an exact match in orders that matches the transaction cost.
         charge = t['amount']
         if charge not in charged_to_orders:
@@ -656,7 +661,7 @@ def print_dry_run(orig_trans_to_tagged):
     logger.info('Dry run. Following are proposed changes:')
 
     num_requests = 0
-    for (orig_trans, new_trans) in orig_trans_to_tagged:
+    for orig_trans, new_trans in orig_trans_to_tagged:
         logger.info('Current:  {} \t {} \t {} \t {}'.format(
             orig_trans['date'].strftime('%m/%d/%y'),
             orig_trans['merchant'],
@@ -673,7 +678,7 @@ def print_dry_run(orig_trans_to_tagged):
                 'with details in "Notes"' if orig_trans['note'] != trans['note'] else ''))
         else:
             for (i, trans) in enumerate(new_trans):
-                logger.info('Proposed: {} \t {} \t {} \t ${}'.format(
+                logger.info('Proposed: {} \t {} \t {} \t {}'.format(
                     trans['date'].strftime('%m/%d/%y'),
                     trans['merchant'],
                     trans['category'],
@@ -807,60 +812,60 @@ def main():
     amazon_items = sorted(amazon_items, order_date_cmp)
     amazon_orders = sorted(amazon_orders, order_date_cmp)
 
-    last_pickled_session_cookies = keyring.get_password(
-        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
-    last_login_time = keyring.get_password(
-        KEYRING_SERVICE_NAME, '{}_last_login'.format(email))
+    # last_pickled_session_cookies = keyring.get_password(
+    #     KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
+    # last_login_time = keyring.get_password(
+    #     KEYRING_SERVICE_NAME, '{}_last_login'.format(email))
 
-    session_cookies = None
+    # session_cookies = None
 
-    # Reuse the stored session_cookies if this script has run in the last 15
-    # minutes.
-    if (last_pickled_session_cookies and last_login_time and
-            int(time.time()) - int(last_login_time) < 15 * 60):
-        session_cookies = pickle.loads(last_pickled_session_cookies)
+    # # Reuse the stored session_cookies if this script has run in the last 15
+    # # minutes.
+    # if (last_pickled_session_cookies and last_login_time and
+    #         int(time.time()) - int(last_login_time) < 15 * 60):
+    #     session_cookies = pickle.loads(last_pickled_session_cookies)
 
-    logger.info('Using previous session tokens.'
-                if session_cookies
-                else 'Logging in via chromedriver')
-    mint_client = mintapi.Mint.create(email, password)  # , session_cookies)
+    # logger.info('Using previous session tokens.'
+    #             if session_cookies
+    #             else 'Logging in via chromedriver')
+    # mint_client = mintapi.Mint.create(email, password)  # , session_cookies)
 
-    logger.info('Login successful!')
-    # On success, save off password, session tokens, and login time to keyring.
-    keyring.set_password(KEYRING_SERVICE_NAME, email, password)
-    keyring.set_password(
-        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
-        pickle.dumps(mint_client.cookies))
-    keyring.set_password(
-        KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
-        str(int(time.time())))
+    # logger.info('Login successful!')
+    # # On success, save off password, session tokens, and login time to keyring.
+    # keyring.set_password(KEYRING_SERVICE_NAME, email, password)
+    # keyring.set_password(
+    #     KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
+    #     pickle.dumps(mint_client.cookies))
+    # keyring.set_password(
+    #     KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
+    #     str(int(time.time())))
 
-    # Create a map of Mint category name to category id.
-    logger.info('Creating Mint Category Map.')
-    mint_category_name_to_id = dict([
-        (cat_dict['name'], cat_id)
-        for (cat_id, cat_dict) in mint_client.get_categories().items()])
+    # # Create a map of Mint category name to category id.
+    # logger.info('Creating Mint Category Map.')
+    # mint_category_name_to_id = dict([
+    #     (cat_dict['name'], cat_id)
+    #     for (cat_id, cat_dict) in mint_client.get_categories().items()])
 
-    # Only get transactions as new as the oldest Amazon order.
-    oldest_order_date = min([o['Order Date'] for o in amazon_orders])
-    start_date_str = oldest_order_date.strftime('%m/%d/%y')
-    logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
-    mint_transactions = pythonify_mint_dict(mint_client.get_transactions_json(
-        start_date=start_date_str,
-        include_investment=False,
-        skip_duplicates=True))
+    # # Only get transactions as new as the oldest Amazon order.
+    # oldest_order_date = min([o['Order Date'] for o in amazon_orders])
+    # start_date_str = oldest_order_date.strftime('%m/%d/%y')
+    # logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
+    # mint_transactions = pythonify_mint_dict(mint_client.get_transactions_json(
+    #     start_date=start_date_str,
+    #     include_investment=False,
+    #     skip_duplicates=True))
 
-    mint_backup_filename = 'Mint Transactions Backup {}.pickle'.format(
-        int(time.time()))
-    logger.info('Prior to modifying Mint Transactions, they have been backed '
-                'up (picked) to: {}'.format(mint_backup_filename))
-    with open(mint_backup_filename, 'w') as f:
-        pickle.dump(mint_transactions, f)
+    # mint_backup_filename = 'Mint Transactions Backup {}.pickle'.format(
+    #     int(time.time()))
+    # logger.info('Prior to modifying Mint Transactions, they have been backed '
+    #             'up (picked) to: {}'.format(mint_backup_filename))
+    # with open(mint_backup_filename, 'w') as f:
+    #     pickle.dump(mint_transactions, f)
 
     # Comment above and use the following when debugging tag_transactions:
-    # mint_transactions = []
-    # with open('Mint Transactions Backup 1505948039.pickle', 'r') as f:
-    #     mint_transactions = pickle.load(f)
+    mint_transactions = []
+    with open('Mint Transactions Backup 1506714914.pickle', 'r') as f:
+        mint_transactions = pickle.load(f)
 
     print_amazon_stats(amazon_items, amazon_orders)
 
@@ -868,24 +873,36 @@ def main():
     orig_trans_to_tagged = tag_transactions(
         amazon_items, amazon_orders, mint_transactions, not args.no_itemize)
 
-    for (orig_trans, new_trans) in orig_trans_to_tagged:
+    for orig_trans, new_trans in orig_trans_to_tagged:
         # Assert old trans amount == sum new trans amount
         assert abs(sum_amounts([orig_trans]) - sum_amounts(new_trans)) < MICRO_USD_EPS
 
+    # for orig_trans, new_trans in orig_trans_to_tagged:
         # Assert new transactions have valid categories and update the
         # categoryId based on name.
-        for trans in new_trans:
-            assert trans['category'] in mint_category_name_to_id
-            trans['categoryId'] = mint_category_name_to_id[trans['category']]
+        # for trans in new_trans:
+        #     assert trans['category'] in mint_category_name_to_id
+        #     trans['categoryId'] = mint_category_name_to_id[trans['category']]
 
+    filtered = []
+    for orig_trans, new_trans in orig_trans_to_tagged:
         # Filter out unchanged entries to avoid duplicate work.
-        # TODO: removing the filters earlier on and track splits
-        # (re-constituting the original charge).
+        if (len(new_trans) == 1 and 'CHILDREN' not in orig_trans
+                and orig_trans['merchant'] == new_trans[0]['merchant']
+                and orig_trans['category'] == new_trans[0]['category']
+                and orig_trans['note'] == new_trans[0]['note']):
+            continue
+        if ('CHILDREN' in orig_trans and len(orig_trans['CHILDREN']) == len(new_trans)):
+            # Add more rigor here:
+            continue
+        filtered.append((orig_trans, new_trans))
+
+    logger.info('Transactions ignored; tags unchanged: {}'.format(len(orig_trans_to_tagged) - len(filtered)))
 
     if args.dry_run:
-        print_dry_run(orig_trans_to_tagged)
+        print_dry_run(filtered)
     else:
-        write_tags_to_mint(orig_trans_to_tagged, mint_client)
+        write_tags_to_mint(filtered, mint_client)
 
 
 if __name__ == '__main__':
