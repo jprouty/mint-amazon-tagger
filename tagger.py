@@ -320,8 +320,6 @@ def tag_transactions(items, orders, trans, itemize):
     num_amazon_in_desc = len(trans)
     trans = [t for t in trans if not t['isPending']]
     num_pending = num_amazon_in_desc - len(trans)
-    trans = [t for t in trans if t['isDebit']]
-    num_credits = num_amazon_in_desc - num_pending - len(trans)
 
     # Reconsistitute Mint splits/itemizations into the parent transaction.
     parent_id_to_trans = defaultdict(list)
@@ -341,9 +339,12 @@ def tag_transactions(items, orders, trans, itemize):
         parent['isChild'] = False
         del parent['pid']
         parent['amount'] = sum_amounts(children)
+        parent['isDebit'] = parent['amount'] > 0
         parent['CHILDREN'] = children
 
         trans.append(parent)
+
+    trans = [t for t in trans if t['isDebit']]
 
     for t in trans:
         # Find an exact match in orders that matches the transaction cost.
