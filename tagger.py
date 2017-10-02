@@ -9,6 +9,7 @@
 # https://www.amazon.com/gp/b2b/reports
 
 import argparse
+import codecs
 from collections import defaultdict
 import copy
 import csv
@@ -175,7 +176,7 @@ def get_item_title(item, target_length):
     if qty > 1:
         base_str = str(qty) + 'x'
     # Remove non-ASCII characters from the title.
-    clean_title = filter(lambda x: x in printable, item['Title'])
+    clean_title = ''.join(filter(lambda x: x in printable, item['Title']))
     return truncate_title(clean_title, target_length, base_str)
 
 
@@ -438,7 +439,7 @@ def tag_transactions(items, orders, trans, itemize):
 
         # More expensive items are always more interesting when it comes to
         # budgeting, so show those first (for both itemized and concatted).
-        items = sorted(items, lambda x, y: cmp(y['Item Total'], x['Item Total']))
+        items = sorted(items, key=lambda item: item['Item Total'], reverse=True)
 
         new_transactions = []
 
@@ -808,60 +809,60 @@ def main():
         list(csv.DictReader(args.orders_csv)))
 
     # Sort everything for good measure/consistency/stable ordering.
-    def order_date_cmp(x, y):
-        return cmp(x['Order Date'], y['Order Date'])
-    amazon_items = sorted(amazon_items, order_date_cmp)
-    amazon_orders = sorted(amazon_orders, order_date_cmp)
+    amazon_items = sorted(amazon_items, key=lambda item: item['Order Date'])
+    amazon_orders = sorted(amazon_orders, key=lambda order: order['Order Date'])
 
-    # last_pickled_session_cookies = keyring.get_password(
-    #     KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
-    # last_login_time = keyring.get_password(
-    #     KEYRING_SERVICE_NAME, '{}_last_login'.format(email))
+    last_pickled_session_cookies = keyring.get_password(
+        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
+    last_login_time = keyring.get_password(
+        KEYRING_SERVICE_NAME, '{}_last_login'.format(email))
 
-    # session_cookies = None
+    session_cookies = None
 
-    # # Reuse the stored session_cookies if this script has run in the last 15
-    # # minutes.
-    # if (last_pickled_session_cookies and last_login_time and
-    #         int(time.time()) - int(last_login_time) < 15 * 60):
-    #     session_cookies = pickle.loads(last_pickled_session_cookies)
+    # Reuse the stored session_cookies if this script has run in the last 15
+    # minutes.
+    if (last_pickled_session_cookies and last_login_time and
+            int(time.time()) - int(last_login_time) < 15 * 60):
+        session_cookies = pickle.loads(codecs.decode(last_pickled_session_cookies.encode(), "base64"))
 
-    # logger.info('Using previous session tokens.'
-    #             if session_cookies
-    #             else 'Logging in via chromedriver')
-    # mint_client = mintapi.Mint.create(email, password)  # , session_cookies)
+    # Session cookies are not working at the moment due to the new auth flow.
+    session_cookies = None
+    logger.info('Using previous session tokens.'
+                if session_cookies
+                else 'Logging in via chromedriver')
+    mint_client = mintapi.Mint.create(email, password, session_cookies)
 
-    # logger.info('Login successful!')
-    # # On success, save off password, session tokens, and login time to keyring.
-    # keyring.set_password(KEYRING_SERVICE_NAME, email, password)
-    # keyring.set_password(
-    #     KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
-    #     pickle.dumps(mint_client.cookies))
-    # keyring.set_password(
-    #     KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
-    #     str(int(time.time())))
+    logger.info('Login successful!')
+    # On success, save off password, session tokens, and login time to keyring.
+    keyring.set_password(KEYRING_SERVICE_NAME, email, password)
+    keyring.set_password(
+        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
+        codecs.encode(pickle.dumps(mint_client.cookies), "base64").decode())
+    keyring.set_password(
+        KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
+        str(int(time.time())))
 
-    # # Create a map of Mint category name to category id.
-    # logger.info('Creating Mint Category Map.')
-    # mint_category_name_to_id = dict([
-    #     (cat_dict['name'], cat_id)
-    #     for (cat_id, cat_dict) in mint_client.get_categories().items()])
+    # Create a map of Mint category name to category id.
+    logger.info('Creating Mint Category Map.')
+    mint_category_name_to_id = dict([
+        (cat_dict['name'], cat_id)
+        for (cat_id, cat_dict) in mint_client.get_categories().items()])
 
-    # # Only get transactions as new as the oldest Amazon order.
-    # oldest_order_date = min([o['Order Date'] for o in amazon_orders])
-    # start_date_str = oldest_order_date.strftime('%m/%d/%y')
-    # logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
-    # mint_transactions = pythonify_mint_dict(mint_client.get_transactions_json(
-    #     start_date=start_date_str,
-    #     include_investment=False,
-    #     skip_duplicates=True))
+    # Only get transactions as new as the oldest Amazon order.
+    oldest_order_date = min([o['Order Date'] for o in amazon_orders])
+    start_date_str = oldest_order_date.strftime('%m/%d/%y')
+    logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
+    mint_transactions = pythonify_mint_dict(mint_client.get_transactions_json(
+        start_date=start_date_str,
+        include_investment=False,
+        skip_duplicates=True))
 
-    # mint_backup_filename = 'Mint Transactions Backup {}.pickle'.format(
-    #     int(time.time()))
-    # logger.info('Prior to modifying Mint Transactions, they have been backed '
-    #             'up (picked) to: {}'.format(mint_backup_filename))
-    # with open(mint_backup_filename, 'w') as f:
-    #     pickle.dump(mint_transactions, f)
+    mint_backup_filename = 'Mint Transactions Backup {}.pickle'.format(
+        int(time.time()))
+    logger.info('Prior to modifying Mint Transactions, they have been backed '
+                'up (picked) to: {}'.format(mint_backup_filename))
+    with open(mint_backup_filename, 'wb') as f:
+        pickle.dump(mint_transactions, f)
 
     # Comment above and use the following when debugging tag_transactions:
     mint_transactions = []
