@@ -59,7 +59,7 @@ CENT_MICRO_USD = 10000
 
 DOLLAR_EPS = 0.0001
 
-MERCHANT_PREFIX = 'Amazon.com: '
+DEFAULT_MERCHANT_PREFIX = 'Amazon.com: '
 
 KEYRING_SERVICE_NAME = 'mintapi'
 
@@ -82,6 +82,7 @@ def pythonify_amazon_dict(dicts):
             d[dk] = parse_amazon_date(d[dk])
         if 'Quantity' in keys:
             d['Quantity'] = int(d['Quantity'])
+        # DNS: !!!!!!
     return dicts
 
 
@@ -99,6 +100,7 @@ def pythonify_mint_dict(dicts):
         if not d['isDebit']:
             amount *= -1
         d['amount'] = amount
+
     return dicts
 
 
@@ -231,7 +233,32 @@ def print_amazon_stats(items, orders):
         micro_usd_to_usd_string(max(per_item_totals))))
 
 
-def tag_transactions(items, orders, trans, itemize):
+class MintTransWrapper(object):
+    """A wrapper for Mint tranactions, primarily for change detection."""
+    def __init__(self, d):
+        self.d = d
+
+    def get_tuple(self):
+        # TODO: Add the 'note' field once itemized transactions include notes.
+        return (
+            self.d['merchant'],
+            micro_usd_to_usd_string(self.d['amount']),  # str avoids float cmp
+            self.d['category'])
+
+    def __repr__(self):
+        return repr(self.get_tuple())
+
+    def __hash__(self):
+        return hash(self.get_tuple())
+
+    def __eq__(self, other):
+        return self.get_tuple() == other.get_tuple()
+
+    def __ne__(self, other):
+        return not(self == other)
+
+
+def tag_transactions(items, orders, trans, itemize, description_prefix):
     """Matches up Mint transactions with Amazon orders and itemizes the orders.
 
     Args:
@@ -601,7 +628,7 @@ def tag_transactions(items, orders, trans, itemize):
             # Prefix 'Amazon.com: ' to all itemized transactions for easy
             # keyword searching within Mint.
             for nt in new_transactions:
-                nt['merchant'] = MERCHANT_PREFIX + nt['merchant']
+                nt['merchant'] = description_prefix + nt['merchant']
 
             # Turns out the first entry is typically displayed last in
             # the Mint UI. Reverse everything for ideal readability.
@@ -612,7 +639,7 @@ def tag_transactions(items, orders, trans, itemize):
             # notes. Category is untouched when there's more than one item
             # (this is why itemizing is better!).
             trun_len = (88 - 2 * len(items)) / len(items)
-            title = MERCHANT_PREFIX + (', '.join(
+            title = description_prefix + (', '.join(
                 [truncate_title(nt['merchant'], trun_len)
                  for nt in new_transactions
                  if nt['merchant'] not in ('Promotion(s)', 'Shipping', 'Tax adjustment')]))
@@ -642,9 +669,9 @@ def tag_transactions(items, orders, trans, itemize):
         'Orders requiring itemization quantity tinkering: {}\n'
         'Orders w/ Incorrect tax itemization: {}\n'
         'Orders w/ Misc charges: {}\n'
-        'Transactions successfully tagged/itemized: {}'.format(
+        'Transactions w/ proposed tags/itemized: {}'.format(
             num_amazon_in_desc,
-            MERCHANT_PREFIX,
+            description_prefix,
             num_already_tagged,
             num_already_itemized,
             num_credits,
@@ -662,7 +689,6 @@ def tag_transactions(items, orders, trans, itemize):
 def print_dry_run(orig_trans_to_tagged):
     logger.info('Dry run. Following are proposed changes:')
 
-    num_requests = 0
     for orig_trans, new_trans in orig_trans_to_tagged:
         logger.info('Current:  {} \t {} \t {} \t {}'.format(
             orig_trans['date'].strftime('%m/%d/%y'),
@@ -779,6 +805,23 @@ def main():
         help=('Do not modify Mint transaction; instead print the proposed '
               'changes to console.'))
 
+    parser.add_argument(
+        '--retag_changed', action='store_true',
+        help=('For transactions that have been previously tagged by this '
+              'script, override any edits (like adjusting the category). This '
+              'feature works by looking for "Amazon.com: " at the start of a '
+              'transaction. If the user changes the description, then the '
+              'tagger won\'t know to leave it alone.'))
+
+    parser.add_argument(
+        '--description_prefix', type=str,
+        default=DEFAULT_MERCHANT_PREFIX,
+        help=('The prefix to use when updating the description for each Mint '
+              'transaction. Default is "Amazon.com: ". This is nice as it '
+              'makes transactions still retrieval by searching "amazon". It '
+              'is also used to detecting if a transaction has already been '
+              'tagged by this tool.'))
+
     args = parser.parse_args()
 
     if args.dry_run:
@@ -865,41 +908,56 @@ def main():
         pickle.dump(mint_transactions, f)
 
     # Comment above and use the following when debugging tag_transactions:
-    mint_transactions = []
-    with open('Mint Transactions Backup 1506714914.pickle', 'r') as f:
-        mint_transactions = pickle.load(f)
+    # mint_transactions = []
+    # with open('Mint Transactions Backup 1506714914.pickle', 'r') as f:
+    #     mint_transactions = pickle.load(f)
 
     print_amazon_stats(amazon_items, amazon_orders)
 
     logger.info('Matching Amazon pruchases to Mint transactions.')
     orig_trans_to_tagged = tag_transactions(
-        amazon_items, amazon_orders, mint_transactions, not args.no_itemize)
+        amazon_items, amazon_orders, mint_transactions, not args.no_itemize,
+        args.description_prefix)
 
     for orig_trans, new_trans in orig_trans_to_tagged:
         # Assert old trans amount == sum new trans amount
         assert abs(sum_amounts([orig_trans]) - sum_amounts(new_trans)) < MICRO_USD_EPS
 
-    # for orig_trans, new_trans in orig_trans_to_tagged:
+    for orig_trans, new_trans in orig_trans_to_tagged:
         # Assert new transactions have valid categories and update the
         # categoryId based on name.
-        # for trans in new_trans:
-        #     assert trans['category'] in mint_category_name_to_id
-        #     trans['categoryId'] = mint_category_name_to_id[trans['category']]
+        for trans in new_trans:
+            assert trans['category'] in mint_category_name_to_id
+            trans['categoryId'] = mint_category_name_to_id[trans['category']]
 
-    filtered = []
-    for orig_trans, new_trans in orig_trans_to_tagged:
-        # Filter out unchanged entries to avoid duplicate work.
-        if (len(new_trans) == 1 and 'CHILDREN' not in orig_trans
-                and orig_trans['merchant'] == new_trans[0]['merchant']
-                and orig_trans['category'] == new_trans[0]['category']
-                and orig_trans['note'] == new_trans[0]['note']):
-            continue
-        if ('CHILDREN' in orig_trans and len(orig_trans['CHILDREN']) == len(new_trans)):
-            # Add more rigor here:
-            continue
-        filtered.append((orig_trans, new_trans))
+    def original_and_new_are_diff(item):
+        orig_trans, new_trans = item
+        orig = set(
+            [MintTransWrapper(orig_trans)]
+            if 'CHILDREN' not in orig_trans
+            else [MintTransWrapper(t) for t in orig_trans['CHILDREN']])
+        new = set([MintTransWrapper(t) for t in new_trans])
 
-    logger.info('Transactions ignored; tags unchanged: {}'.format(len(orig_trans_to_tagged) - len(filtered)))
+        return orig != new
+
+    # Filter out unchanged entries to avoid duplicate work.
+    filtered = list(filter(original_and_new_are_diff, orig_trans_to_tagged))
+    logger.info('Transactions ignored; already tagged & up to date: {}'.format(len(orig_trans_to_tagged) - len(filtered)))
+
+    def orig_missing_prefix(item):
+        orig_trans, _ = item
+        return not orig_trans['merchant'].startswith(args.description_prefix)
+
+    # The user doesn't want any changes from last run if the original
+    # transaction already starts with the merchant prefix.
+    if not args.retag_changed:
+        num_before = len(filtered)
+        filtered = list(filter(orig_missing_prefix, filtered))
+        logger.info(
+            'Transactions ignored; previous tagged based on prefix: {}'.format(
+                num_before - len(filtered)))
+
+    logger.info('Transactions to be updated: {}'.format(len(filtered)))
 
     if args.dry_run:
         print_dry_run(filtered)
