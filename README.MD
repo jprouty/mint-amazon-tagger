@@ -21,13 +21,17 @@ The tagger will _NOT_ retag or touch transactions that have already been
 tagged. So feel free to adjust categories after the fact without fear that the
 next run will wipe everything out.
 
-## Getting started
+## Getting started ##
 
-0. Clone this repository: `git clone git@github.com:jprouty/mint-amazon-tagger.git; cd mint-amazon-tagger`
+### Setup ###
 
-1. Install the dependencies: `pip install -r requirements.txt`
+1. Clone this repository: `git clone git@github.com:jprouty/mint-amazon-tagger.git; cd mint-amazon-tagger`
 
-2. Install selenium and chromedriver. These tools help you acquire the
+2. Make sure python3 is setup! python2 is not supported.
+
+3. Install the dependencies: `python3 -m pip install -r requirements.txt`
+
+4. Install selenium and chromedriver. These tools help you acquire the
 appropriate Mint login credentials:
 
 ```
@@ -41,7 +45,11 @@ brew install chromedriver
 sudo apt-get install chromium-chromedriver
 ```
 
-3. Generate and download your Amazon Order History Reports.
+### Running the script ###
+
+1. Update the repository for maximum success: `git pull`
+
+2. Generate and download your Amazon Order History Reports.
 
 a. Login and visit [Amazon Order History
 Reports](https://www.amazon.com/gp/b2b/reports)
@@ -52,10 +60,10 @@ date ranges are the same.
 c. Download the completed reports. Let's called them
 `Items.csv Orders.csv Refunds.csv` for this walk-through.
 
-4. Run the tagger:
+3. Run the tagger:
 `./tagger.py Items.csv Orders.csv Refunds.csv --mint_email yourEmail@here.com`
 
-5. Sit back and relax! The runtime depends on the speed of your machine,
+4. Sit back and relax! The runtime depends on the speed of your machine,
 quality of internet connection, and total number of transactions. For
 reference, my machine did about 14k Mint transactions, finding 2k Amazon
 matches in under 10 minutes.
