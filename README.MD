@@ -3,14 +3,13 @@
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon.com"
 w/ category "Shopping"? Then this tool is for you!
 
-This tool DOES NOT require an Amazon store card/Visa. Any account that pays for
-your orders and is sync with Mint will do!
+This tool DOES NOT require an Amazon store card/Visa. All you need is to pay for
+your Amazon orders with an account that is sync'ed with Mint.
 
 This tool takes Amazon order reports and merges it with your existing Mint
 transactions. If it finds exact matches, it will either:
 
 - Update the transaction description/category if there was only 1 item
-
 - Split the transaction, one line-item per item in the order
 
 The tagger will try to guess the best Mint category for you. It does this by
