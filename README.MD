@@ -46,14 +46,14 @@ sudo apt-get install chromium-chromedriver
 a. Login and visit [Amazon Order History
 Reports](https://www.amazon.com/gp/b2b/reports)
 
-b. "Request Report" for both "Items" and "Orders and shipments". Make sure the
+b. "Request Report" for "Items", "Orders and shipments", and "Refunds". Make sure the
 date ranges are the same.
 
-c. Download the completed reports. Let's called them `Items.csv` and
-`Orders.csv` for this walk-through.
+c. Download the completed reports. Let's called them
+`Items.csv Orders.csv Refunds.csv` for this walk-through.
 
 4. Run the tagger:
-`./tagger.py Items.csv Orders.csv --mint_email yourEmail@here.com`
+`./tagger.py Items.csv Orders.csv Refunds.csv --mint_email yourEmail@here.com`
 
 5. Sit back and relax! The runtime depends on the speed of your machine,
 quality of internet connection, and total number of transactions. For

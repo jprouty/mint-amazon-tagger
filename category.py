@@ -2,6 +2,9 @@
 # The default Mint category.
 DEFAULT_MINT_CATEGORY = 'Shopping'
 
+# The default return category.
+DEFAULT_MINT_RETURN_CATEGORY = 'Returned Purchase'
+
 # A category mapping of Amazon Order History "Categories" into Mint "Categories".
 AMAZON_TO_MINT_CATEGORY = {
     'Accessory': DEFAULT_MINT_CATEGORY,
