@@ -41,7 +41,7 @@ pip install selenium
 brew install chromedriver
 
 # Ubuntu/Debian:
-# Also check out: https://askubuntu.com/questions/539498/where-does-chromedriver-install-to
+# See also: https://askubuntu.com/questions/539498/where-does-chromedriver-install-to #
 sudo apt-get install chromium-chromedriver
 ```
 
