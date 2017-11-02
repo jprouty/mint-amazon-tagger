@@ -1012,20 +1012,20 @@ MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
 def get_trans_and_categories_from_pickle(pickle_epoch):
     logger.info('Restoring from pickle backup epoch: {}.'.format(
         pickle_epoch))
-    with open(MINT_TRANS_PICKLE_FMT, 'rb') as f:
-        mint_transactions = pickle.load(f)
-    with open(MINT_TRANS_PICKLE_FMT, 'rb') as f:
-        mint_cats = pickle.load(f)
+    with open(MINT_TRANS_PICKLE_FMT.format(pickle_epoch), 'rb') as f:
+        trans = pickle.load(f)
+    with open(MINT_CATS_PICKLE_FMT.format(pickle_epoch), 'rb') as f:
+        cats = pickle.load(f)
 
-    return mint_transactions, mint_cats
+    return trans, cats
 
 def dump_trans_and_categories(trans, cats, pickle_epoch):
     logger.info(
         'Backing up Mint Transactions prior to editing. '
         'Pickle epoch: {}'.format(pickle_epoch))
-    with open(MINT_TRANS_PICKLE_FMT.format(epochpickle_epoch), 'wb') as f:
+    with open(MINT_TRANS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
         pickle.dump(trans, f)
-    with open(MINT_CATS_PICKLE_FMT.format(epochpickle_epoch), 'wb') as f:
+    with open(MINT_CATS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
         pickle.dump(cats, f)
 
 def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
@@ -1035,7 +1035,7 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
         (cat_dict['name'], cat_id)
         for (cat_id, cat_dict) in mint_client.get_categories().items()])
 
-    start_date_str = oldest_order_date.strftime('%m/%d/%y')
+    start_date_str = oldest_trans_date.strftime('%m/%d/%y')
     logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
     transactions = pythonify_mint_dict(mint_client.get_transactions_json(
         start_date=start_date_str,
@@ -1046,9 +1046,19 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
 
 
 def sanity_check_and_filter_tags(
-        orig_trans_to_tagged, mint_category_name_to_id, get_prefix):
+        orig_trans_to_tagged, mint_category_name_to_id, get_prefix,
+        args, stats):
     # Assert old trans amount == sum new trans amount.
     for orig_trans, new_trans in orig_trans_to_tagged:
+        if abs(
+            sum_amounts([orig_trans]) - sum_amounts(new_trans)) >= MICRO_USD_EPS:
+            from pprint import pprint
+            print(sum_amounts([orig_trans]))
+            print(sum_amounts(new_trans))
+
+            pprint(orig_trans)
+            pprint(new_trans)
+
         assert abs(
             sum_amounts([orig_trans]) - sum_amounts(new_trans)) < MICRO_USD_EPS
 
@@ -1192,7 +1202,8 @@ def main():
         mint_transactions, not args.no_itemize, get_prefix, stats)
 
     filtered = sanity_check_and_filter_tags(
-        orig_trans_to_tagged, mint_category_name_to_id, get_prefix)
+        orig_trans_to_tagged, mint_category_name_to_id, get_prefix,
+        args, stats)
 
     log_processing_stats(stats, get_prefix)
 
