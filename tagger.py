@@ -926,71 +926,7 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
     logger.info('Sent {} updates to Mint in {}'.format(num_requests, dur))
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Tag Mint transactions based on itemized Amazon history.')
-
-    parser.add_argument(
-        '--mint_email', default=None,
-        help=('Mint e-mail address for login. If not provided here, will be '
-              'prompted for user.'))
-    parser.add_argument(
-        '--mint_password', default=None,
-        help=('Mint password for login. If not provided here, will be prompted '
-              'for.'))
-
-    parser.add_argument(
-        'items_csv', type=argparse.FileType('r'),
-        help='The "Items" Order History Report from Amazon')
-    parser.add_argument(
-        'orders_csv', type=argparse.FileType('r'),
-        help='The "Orders and Shipments" Order History Report from Amazon')
-    parser.add_argument(
-        '--refunds_csv', type=argparse.FileType('r'),
-        help='The "Refunds" Order History Report from Amazon. '
-             'This is optional.')
-
-    parser.add_argument(
-        '--no_itemize', action='store_true',
-        help=('P will split Mint transactions into individual items with '
-              'attempted categorization.'))
-
-    parser.add_argument(
-        '--dry_run', action='store_true',
-        help=('Do not modify Mint transaction; instead print the proposed '
-              'changes to console.'))
-
-    parser.add_argument(
-        '--retag_changed', action='store_true',
-        help=('For transactions that have been previously tagged by this '
-              'script, override any edits (like adjusting the category). This '
-              'feature works by looking for "Amazon.com: " at the start of a '
-              'transaction. If the user changes the description, then the '
-              'tagger won\'t know to leave it alone.'))
-
-    parser.add_argument(
-        '--description_prefix', type=str,
-        default=DEFAULT_MERCHANT_PREFIX,
-        help=('The prefix to use when updating the description for each Mint '
-              'transaction. Default is "Amazon.com: ". This is nice as it '
-              'makes transactions still retrieval by searching "amazon". It '
-              'is also used to detecting if a transaction has already been '
-              'tagged by this tool.'))
-
-    parser.add_argument(
-        '--description_return_prefix', type=str,
-        default=DEFAULT_MERCHANT_REFUND_PREFIX,
-        help=('The prefix to use when updating the description for each Mint '
-              'transaction. Default is "Amazon.com refund: ". This is nice as '
-              'it makes transactions still retrieval by searching "amazon". '
-              'It is also used to detecting if a transaction has already been '
-              'tagged by this tool.'))
-
-    args = parser.parse_args()
-
-    if args.dry_run:
-        logger.info('Dry Run; no modifications being sent to Mint.')
-
+def get_mint_client(args):
     email = args.mint_email
     password = args.mint_password
 
@@ -1006,30 +942,6 @@ def main():
     if not email or not password:
         logger.error('Missing Mint email or password.')
         exit(1)
-
-    # Parse out Amazon reports (csv files). Do this first so any issues here
-    # percolate before going to the cloudz for Mint.
-    logger.info('Processing Amazon csv\'s.')
-    amazon_items = pythonify_amazon_dict(
-        list(csv.DictReader(args.items_csv)))
-    amazon_orders = pythonify_amazon_dict(
-        list(csv.DictReader(args.orders_csv)))
-    amazon_refunds = []
-    if args.refunds_csv:
-        amazon_refunds = pythonify_amazon_dict(
-            list(csv.DictReader(args.refunds_csv)))
-
-    # Refunds are rad: AMZN doesn't total the tax + sub-total for you.
-    for ar in amazon_refunds:
-        ar['Total Refund Amount'] = (
-            ar['Refund Amount'] + ar['Refund Tax Amount'])
-
-    # Sort everything for good measure/consistency/stable ordering.
-    amazon_items = sorted(amazon_items, key=lambda item: item['Order Date'])
-    amazon_orders = sorted(amazon_orders, key=lambda order: order['Order Date'])
-    amazon_refunds = sorted(amazon_refunds, key=lambda order: order['Order Date'])
-
-    log_amazon_stats(amazon_items, amazon_orders, amazon_refunds)
 
     last_pickled_session_cookies = keyring.get_password(
         KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
@@ -1064,52 +976,85 @@ def main():
         KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
         str(int(time.time())))
 
+    return mint_client
+
+
+def parse_amazon_csv(args):
+    # Parse out Amazon reports (csv files). Do this first so any issues here
+    # percolate before going to the cloudz for Mint.
+    logger.info('Processing Amazon csv\'s.')
+    amazon_items = pythonify_amazon_dict(
+        list(csv.DictReader(args.items_csv)))
+    amazon_orders = pythonify_amazon_dict(
+        list(csv.DictReader(args.orders_csv)))
+    amazon_refunds = []
+    if args.refunds_csv:
+        amazon_refunds = pythonify_amazon_dict(
+            list(csv.DictReader(args.refunds_csv)))
+
+    # Refunds are rad: AMZN doesn't total the tax + sub-total for you.
+    for ar in amazon_refunds:
+        ar['Total Refund Amount'] = (
+            ar['Refund Amount'] + ar['Refund Tax Amount'])
+
+    # Sort everything for good measure/consistency/stable ordering.
+    amazon_items = sorted(amazon_items, key=lambda item: item['Order Date'])
+    amazon_orders = sorted(amazon_orders, key=lambda order: order['Order Date'])
+    amazon_refunds = sorted(amazon_refunds, key=lambda order: order['Order Date'])
+
+    return amazon_items, amazon_orders, amazon_refunds
+
+
+MINT_TRANS_PICKLE_FMT = 'Mint {} Transactions.pickle'
+MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
+
+
+def get_trans_and_categories_from_pickle(pickle_epoch):
+    logger.info('Restoring from pickle backup epoch: {}.'.format(
+        pickle_epoch))
+    with open(MINT_TRANS_PICKLE_FMT, 'rb') as f:
+        mint_transactions = pickle.load(f)
+    with open(MINT_TRANS_PICKLE_FMT, 'rb') as f:
+        mint_cats = pickle.load(f)
+
+    return mint_transactions, mint_cats
+
+def dump_trans_and_categories(trans, cats, pickle_epoch):
+    logger.info(
+        'Backing up Mint Transactions prior to editing. '
+        'Pickle epoch: {}'.format(pickle_epoch))
+    with open(MINT_TRANS_PICKLE_FMT.format(epochpickle_epoch), 'wb') as f:
+        pickle.dump(trans, f)
+    with open(MINT_CATS_PICKLE_FMT.format(epochpickle_epoch), 'wb') as f:
+        pickle.dump(cats, f)
+
+def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
     # Create a map of Mint category name to category id.
     logger.info('Creating Mint Category Map.')
-    mint_category_name_to_id = dict([
+    categories = dict([
         (cat_dict['name'], cat_id)
         for (cat_id, cat_dict) in mint_client.get_categories().items()])
 
-    # Only get transactions as new as the oldest Amazon order.
-    oldest_order_date = min(
-        min([o['Order Date'] for o in amazon_orders]),
-        min([o['Order Date'] for o in amazon_refunds]))
     start_date_str = oldest_order_date.strftime('%m/%d/%y')
     logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
-    mint_transactions = pythonify_mint_dict(mint_client.get_transactions_json(
+    transactions = pythonify_mint_dict(mint_client.get_transactions_json(
         start_date=start_date_str,
         include_investment=False,
         skip_duplicates=True))
 
-    mint_backup_filename = 'Mint Transactions Backup {}.pickle'.format(
-        int(time.time()))
-    logger.info('Prior to modifying Mint Transactions, they have been backed '
-                'up (pickled) to: {}'.format(mint_backup_filename))
-    with open(mint_backup_filename, 'wb') as f:
-        pickle.dump(mint_transactions, f)
+    return transactions, categories
 
-    # Comment above and use the following when debugging tag_transactions:
-    # mint_transactions = []
-    # with open('Mint Transactions Backup 1509573650.pickle', 'rb') as f:
-    #     mint_transactions = pickle.load(f)
 
-    def get_prefix(is_debit):
-        return (args.description_prefix if is_debit
-                    else args.description_return_prefix)
-
-    logger.info('\nMatching Amazon pruchases to Mint transactions.')
-    stats = Counter()
-    orig_trans_to_tagged = tag_transactions(
-        amazon_items, amazon_orders, amazon_refunds,
-        mint_transactions, not args.no_itemize, get_prefix, stats)
-
+def sanity_check_and_filter_tags(
+        orig_trans_to_tagged, mint_category_name_to_id, get_prefix):
+    # Assert old trans amount == sum new trans amount.
     for orig_trans, new_trans in orig_trans_to_tagged:
-        # Assert old trans amount == sum new trans amount.
-        assert abs(sum_amounts([orig_trans]) - sum_amounts(new_trans)) < MICRO_USD_EPS
+        assert abs(
+            sum_amounts([orig_trans]) - sum_amounts(new_trans)) < MICRO_USD_EPS
 
+    # Assert new transactions have valid categories and update the categoryId
+    # based on name.
     for orig_trans, new_trans in orig_trans_to_tagged:
-        # Assert new transactions have valid categories and update the
-        # categoryId based on name.
         for trans in new_trans:
             assert trans['category'] in mint_category_name_to_id
             trans['categoryId'] = mint_category_name_to_id[trans['category']]
@@ -1141,12 +1086,123 @@ def main():
         stats['already_has_prefix'] = num_before - len(filtered)
 
     stats['to_be_updated'] = len(filtered)
+    return filtered
+
+
+def define_args(parser):
+    parser.add_argument(
+        '--mint_email', default=None,
+        help=('Mint e-mail address for login. If not provided here, will be '
+              'prompted for user.'))
+    parser.add_argument(
+        '--mint_password', default=None,
+        help=('Mint password for login. If not provided here, will be prompted '
+              'for.'))
+
+    parser.add_argument(
+        'items_csv', type=argparse.FileType('r'),
+        help='The "Items" Order History Report from Amazon')
+    parser.add_argument(
+        'orders_csv', type=argparse.FileType('r'),
+        help='The "Orders and Shipments" Order History Report from Amazon')
+    parser.add_argument(
+        '--refunds_csv', type=argparse.FileType('r'),
+        help='The "Refunds" Order History Report from Amazon. '
+             'This is optional.')
+
+    parser.add_argument(
+        '--no_itemize', action='store_true',
+        help=('P will split Mint transactions into individual items with '
+              'attempted categorization.'))
+
+    parser.add_argument(
+        '--pickled_epoch', type=int,
+        help=('Do not fetch categories or transactions from Mint. Use this '
+              'pickled epoch instead. If coupled with --dry_run, no '
+              'connection to Mint is established.'))
+
+    parser.add_argument(
+        '--dry_run', action='store_true',
+        help=('Do not modify Mint transaction; instead print the proposed '
+              'changes to console.'))
+
+    parser.add_argument(
+        '--retag_changed', action='store_true',
+        help=('For transactions that have been previously tagged by this '
+              'script, override any edits (like adjusting the category). This '
+              'feature works by looking for "Amazon.com: " at the start of a '
+              'transaction. If the user changes the description, then the '
+              'tagger won\'t know to leave it alone.'))
+
+    parser.add_argument(
+        '--description_prefix', type=str,
+        default=DEFAULT_MERCHANT_PREFIX,
+        help=('The prefix to use when updating the description for each Mint '
+              'transaction. Default is "Amazon.com: ". This is nice as it '
+              'makes transactions still retrieval by searching "amazon". It '
+              'is also used to detecting if a transaction has already been '
+              'tagged by this tool.'))
+    parser.add_argument(
+        '--description_return_prefix', type=str,
+        default=DEFAULT_MERCHANT_REFUND_PREFIX,
+        help=('The prefix to use when updating the description for each Mint '
+              'transaction. Default is "Amazon.com refund: ". This is nice as '
+              'it makes transactions still retrieval by searching "amazon". '
+              'It is also used to detecting if a transaction has already been '
+              'tagged by this tool.'))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Tag Mint transactions based on itemized Amazon history.')
+    define_args(parser)
+    args = parser.parse_args()
+
+    if args.dry_run:
+        logger.info('Dry Run; no modifications being sent to Mint.')
+
+    amazon_items, amazon_orders, amazon_refunds = parse_amazon_csv(args)
+    log_amazon_stats(amazon_items, amazon_orders, amazon_refunds)
+
+    mint_client = None
+    if args.pickled_epoch:
+        mint_transactions, mint_category_name_to_id = (
+            get_trans_and_categories_from_pickle(args.pickled_epoch))
+    else:
+        mint_client = get_mint_client(args)
+
+        # Only get transactions as new as the oldest Amazon order.
+        oldest_trans_date = min(
+            min([o['Order Date'] for o in amazon_orders]),
+            min([o['Order Date'] for o in amazon_refunds]))
+        mint_transactions, mint_category_name_to_id = (
+            get_trans_and_categories_from_mint(mint_client, oldest_trans_date))
+        epoch = int(time.time())
+        dump_trans_and_categories(
+            mint_transactions, mint_category_name_to_id, epoch)
+
+    def get_prefix(is_debit):
+        return (args.description_prefix if is_debit
+                    else args.description_return_prefix)
+
+    logger.info('\nMatching Amazon pruchases to Mint transactions.')
+    stats = Counter()
+    orig_trans_to_tagged = tag_transactions(
+        amazon_items, amazon_orders, amazon_refunds,
+        mint_transactions, not args.no_itemize, get_prefix, stats)
+
+    filtered = sanity_check_and_filter_tags(
+        orig_trans_to_tagged, mint_category_name_to_id, get_prefix)
 
     log_processing_stats(stats, get_prefix)
 
     if args.dry_run:
         print_dry_run(filtered)
     else:
+        # Ensure we have a Mint client.
+        if not mint_client:
+            mint_client = get_mint_client(args)
+
         write_tags_to_mint(filtered, mint_client)
 
 
