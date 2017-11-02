@@ -885,6 +885,9 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
             num_requests += 1
         else:
             # Split the existing transaction into many.
+            # If the existing transaction is a:
+            #   - credit: positive amount is credit, negative debit
+            #   - debit: positive amount is debit, negative credit
             itemized_split = {
                 'txnId': '{}:0'.format(orig_trans['id']),
                 'task': 'split',
@@ -892,7 +895,12 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
                 'token': mint_client.token,
             }
             for (i, trans) in enumerate(new_trans):
-                amount = micro_usd_to_usd_float(trans['amount'])
+                amount = trans['amount']
+                # Based on the comment above, if the original transaction is a
+                # credit, flip the amount sign for things to work out!
+                if not orig_trans['isDebit']:
+                    amount *= -1
+                amount = micro_usd_to_usd_float(amount)
                 itemized_split['amount{}'.format(i)] = amount
                 itemized_split['percentAmount{}'.format(i)] = amount  # Yup. Weird!
                 itemized_split['category{}'.format(i)] = trans['category']
@@ -1076,13 +1084,13 @@ def main():
     mint_backup_filename = 'Mint Transactions Backup {}.pickle'.format(
         int(time.time()))
     logger.info('Prior to modifying Mint Transactions, they have been backed '
-                'up (picked) to: {}'.format(mint_backup_filename))
+                'up (pickled) to: {}'.format(mint_backup_filename))
     with open(mint_backup_filename, 'wb') as f:
         pickle.dump(mint_transactions, f)
 
     # Comment above and use the following when debugging tag_transactions:
     # mint_transactions = []
-    # with open('Mint Transactions Backup 1509499838.pickle', 'rb') as f:
+    # with open('Mint Transactions Backup 1509573650.pickle', 'rb') as f:
     #     mint_transactions = pickle.load(f)
 
     def get_prefix(is_debit):
