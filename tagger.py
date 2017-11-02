@@ -264,9 +264,9 @@ def log_processing_stats(stats, prefix):
         '\nTransactions w/ matching order information: {}\n'
         'Transactions w/ matching refund information: {}\n'
 
-        '\nOrders ignored: itemization quantity tinkering needed: {}\n'
-        'Orders ignored: Incorrect tax itemization: {}\n'
-        'Orders ignored: Misc charges: {}\n'
+        '\nOrder fix-up: itemization quantity tinkering: {}\n'
+        'Order fix-up: incorrect tax itemization: {}\n'
+        'Order fix-up: has a misc charges (e.g. gift wrap): {}\n'
 
         '\nTransactions w/ proposed tags/itemized: {}\n'
 
@@ -361,10 +361,10 @@ def tag_as_order(
         #   b) No tracking number is required. This is almost always a
         #      digital good/download.
         if order_id not in order_id_to_items:
-            None
+            return None
         items = order_id_to_items[order_id]
         if not items:
-            None
+            return None
 
         item = None
         for i in items:
@@ -380,7 +380,7 @@ def tag_as_order(
 
         if not item:
             stats['orders_need_combinatoric_adjustment'] += 1
-            None
+            return None
 
         items = [item]
     else:
@@ -431,12 +431,12 @@ def tag_as_order(
                     break
             if not found_quantity:
                 # Unable to adjust this order. Drop it.
-                None
+                return None
         else:
             # TODO: Find the combination of items that add up to the
             # sub-total amount.
             stats['orders_need_combinatoric_adjustment'] += 1
-            None
+            return None
 
     # Itemize line-items:
     for i in items:
