@@ -1207,6 +1207,11 @@ def main():
 
     log_processing_stats(stats, get_prefix)
 
+    if not filtered:
+        logger.info(
+            'All done; no new tags to be updated at this point in time!.')
+        exit(0)
+
     if args.dry_run:
         print_dry_run(filtered)
     else:
