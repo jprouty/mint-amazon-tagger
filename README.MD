@@ -57,7 +57,7 @@ b. "Request Report" for "Items", "Orders and shipments", and "Refunds". Make sur
 date ranges are the same.
 
 c. Download the completed reports. Let's called them
-`Items.csv Orders.csv Refunds.csv` for this walk-through.
+`Items.csv Orders.csv --refunds_csv Refunds.csv` for this walk-through.
 
 3. Run the tagger:
 `./tagger.py Items.csv Orders.csv Refunds.csv --mint_email yourEmail@here.com`
