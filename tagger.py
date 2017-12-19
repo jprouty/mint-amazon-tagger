@@ -23,10 +23,8 @@ import sys
 import getpass
 import keyring
 # Temporary until mintapi is fixed upstream.
-import mint_api as mintapi
-from mint_api import MINT_ROOT_URL
-# import mintapi
-# from mintapi.api import MINT_ROOT_URL
+import mintapifuture.mintapi
+from mintapifuture.mintapi..api import MINT_ROOT_URL
 
 import category
 
@@ -244,14 +242,15 @@ def log_amazon_stats(items, orders, refunds):
         micro_usd_to_usd_string(sum(per_item_totals) / len(items)),
         micro_usd_to_usd_string(max(per_item_totals))))
 
-    first_refund_date = min([r['Refund Date'] for r in refunds if r['Refund Date']])
-    last_refund_date = max([r['Refund Date'] for r in refunds if r['Refund Date']])
-    logger.info('\n{} refunds dating from {} to {}'.format(len(refunds), first_refund_date, last_refund_date))
+    if refunds:
+        first_refund_date = min([r['Refund Date'] for r in refunds if r['Refund Date']])
+        last_refund_date = max([r['Refund Date'] for r in refunds if r['Refund Date']])
+        logger.info('\n{} refunds dating from {} to {}'.format(len(refunds), first_refund_date, last_refund_date))
 
-    per_refund_totals = [r['Total Refund Amount'] for r in refunds]
+        per_refund_totals = [r['Total Refund Amount'] for r in refunds]
 
-    logger.info('{} total refunded'.format(
-        micro_usd_to_usd_string(sum(per_refund_totals))))
+        logger.info('{} total refunded'.format(
+            micro_usd_to_usd_string(sum(per_refund_totals))))
 
 
 def log_processing_stats(stats, prefix):
@@ -1182,9 +1181,11 @@ def main():
         mint_client = get_mint_client(args)
 
         # Only get transactions as new as the oldest Amazon order.
-        oldest_trans_date = min(
-            min([o['Order Date'] for o in amazon_orders]),
-            min([o['Order Date'] for o in amazon_refunds]))
+        oldest_trans_date = min([o['Order Date'] for o in amazon_orders])
+        if amazon_refunds:
+            oldest_trans_date = min(
+                oldest_trans_date,
+                min([o['Order Date'] for o in amazon_refunds]))
         mint_transactions, mint_category_name_to_id = (
             get_trans_and_categories_from_mint(mint_client, oldest_trans_date))
         epoch = int(time.time())
