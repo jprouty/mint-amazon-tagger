@@ -23,8 +23,7 @@ import sys
 import getpass
 import keyring
 # Temporary until mintapi is fixed upstream.
-import mintapifuture.mintapi
-from mintapifuture.mintapi..api import MINT_ROOT_URL
+from mintapifuture.mintapi.api import Mint, MINT_ROOT_URL
 
 import category
 
@@ -942,38 +941,13 @@ def get_mint_client(args):
         logger.error('Missing Mint email or password.')
         exit(1)
 
-    last_pickled_session_cookies = keyring.get_password(
-        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email))
-    last_login_time = keyring.get_password(
-        KEYRING_SERVICE_NAME, '{}_last_login'.format(email))
-
-    session_cookies = None
-
-    # Reuse the stored session_cookies if this script has run in the last 15
-    # minutes.
-    if (last_pickled_session_cookies and last_login_time and
-            int(time.time()) - int(last_login_time) < 15 * 60):
-        session_cookies = pickle.loads(codecs.decode(last_pickled_session_cookies.encode(), "base64"))
-
-    # Reusing session_cookies isn't working in Python2. SAD
-    #    if sys.version_info < (3, 0):
-    session_cookies = None
-
-    logger.info('Using previous session tokens.'
-                if session_cookies
-                else 'Logging in via chromedriver')
-    mint_client = mintapi.Mint.create(email, password, session_cookies)
+    logger.info('Logging in via chromedriver')
+    mint_client = Mint.create(email, password)
 
     logger.info('Login successful!')
 
-    # On success, save off password, session tokens, and login time to keyring.
+    # On success, save off password to keyring.
     keyring.set_password(KEYRING_SERVICE_NAME, email, password)
-    keyring.set_password(
-        KEYRING_SERVICE_NAME, '{}_session_cookies'.format(email),
-        codecs.encode(pickle.dumps(mint_client.cookies), "base64").decode())
-    keyring.set_password(
-        KEYRING_SERVICE_NAME, '{}_last_login'.format(email),
-        str(int(time.time())))
 
     return mint_client
 

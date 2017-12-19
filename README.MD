@@ -57,12 +57,16 @@ b. "Request Report" for "Items", "Orders and shipments", and "Refunds". Make sur
 date ranges are the same.
 
 c. Download the completed reports. Let's called them
-`Items.csv Orders.csv --refunds_csv Refunds.csv` for this walk-through.
+`Items.csv Orders.csv Refunds.csv` for this walk-through. Note that
+Refunds is optional! Yay.
 
-3. Run the tagger:
-`./tagger.py Items.csv Orders.csv Refunds.csv --mint_email yourEmail@here.com`
+3. (Optional) Do a dry run! Make sure everything looks right first. Run:
+`./tagger.py Items.csv Orders.csv --refunds Refunds.csv --dry_run --mint_email yourEmail@here.com`
 
-4. Sit back and relax! The runtime depends on the speed of your machine,
+4. Run the tagger:
+`./tagger.py Items.csv Orders.csv --refunds Refunds.csv --mint_email yourEmail@here.com`
+
+5. Sit back and relax! The runtime depends on the speed of your machine,
 quality of internet connection, and total number of transactions. For
 reference, my machine did about 14k Mint transactions, finding 2k Amazon
 matches in under 10 minutes.
