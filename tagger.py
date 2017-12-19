@@ -9,7 +9,7 @@
 # https://www.amazon.com/gp/b2b/reports
 
 import argparse
-import codecs
+import atexit
 from collections import defaultdict, Counter
 import copy
 import csv
@@ -18,7 +18,6 @@ import logging
 import pickle
 import string
 import time
-import sys
 
 import getpass
 import keyring
@@ -159,10 +158,12 @@ def adjust_amazon_item_quantity(item, new_quantity):
 
     assert new_quantity > 0
     assert new_quantity <= original_quantity
-    assert item['Purchase Price Per Unit'] * original_quantity == item['Item Subtotal']
+    assert (item['Purchase Price Per Unit'] * original_quantity ==
+            item['Item Subtotal'])
 
     item['Item Subtotal'] = item['Purchase Price Per Unit'] * new_quantity
-    item['Item Subtotal Tax'] = (item['Item Subtotal Tax'] / original_quantity) * new_quantity
+    item['Item Subtotal Tax'] = (
+        item['Item Subtotal Tax'] / original_quantity) * new_quantity
     item['Item Total'] = item['Item Subtotal'] + item['Item Subtotal Tax']
     item['Quantity'] = new_quantity
 
@@ -203,7 +204,10 @@ def truncate_title(title, target_length, base_str=None):
 
 
 def get_notes_header(order):
-    return 'Amazon order id: {}\nOrder date: {}\nShip date: {}\nTracking: {}'.format(
+    return ('Amazon order id: {}\n'
+            'Order date: {}\n'
+            'Ship date: {}\n'
+            'Tracking: {}').format(
         order['Order ID'],
         order['Order Date'],
         order['Shipment Date'],
@@ -211,7 +215,10 @@ def get_notes_header(order):
 
 
 def get_refund_notes_header(refund):
-    return 'Amazon refund for order id: {}\nOrder date: {}\nRefund date: {}\nRefund reason: {}'.format(
+    return ('Amazon refund for order id: {}\n'
+            'Order date: {}\n'
+            'Refund date: {}\n'
+            'Refund reason: {}').format(
         refund['Order ID'],
         refund['Order Date'],
         refund['Refund Date'],
@@ -226,7 +233,8 @@ def log_amazon_stats(items, orders, refunds):
     logger.info('\nAmazon Stats:')
     first_order_date = min([o['Order Date'] for o in orders])
     last_order_date = max([o['Order Date'] for o in orders])
-    logger.info('\n{} orders & {} items dating from {} to {}'.format(len(orders), len(items), first_order_date, last_order_date))
+    logger.info('\n{} orders & {} items dating from {} to {}'.format(
+        len(orders), len(items), first_order_date, last_order_date))
 
     per_item_totals = [i['Item Total'] for i in items]
     per_order_totals = [o['Total Charged'] for o in orders]
@@ -242,9 +250,12 @@ def log_amazon_stats(items, orders, refunds):
         micro_usd_to_usd_string(max(per_item_totals))))
 
     if refunds:
-        first_refund_date = min([r['Refund Date'] for r in refunds if r['Refund Date']])
-        last_refund_date = max([r['Refund Date'] for r in refunds if r['Refund Date']])
-        logger.info('\n{} refunds dating from {} to {}'.format(len(refunds), first_refund_date, last_refund_date))
+        first_refund_date = min(
+            [r['Refund Date'] for r in refunds if r['Refund Date']])
+        last_refund_date = max(
+            [r['Refund Date'] for r in refunds if r['Refund Date']])
+        logger.info('\n{} refunds dating from {} to {}'.format(
+            len(refunds), first_refund_date, last_refund_date))
 
         per_refund_totals = [r['Total Refund Amount'] for r in refunds]
 
@@ -406,14 +417,15 @@ def tag_as_order(
     items_sum = sum([i['Item Subtotal'] for i in items])
     order_total = order['Subtotal']
     if abs(items_sum - order_total) > DOLLAR_EPS:
-        # Uh oh, the sub-totals weren't equal. Try to fix, skip is not possible.
+        # Uh oh, the sub-totals weren't equal. Try to fix, skip is not
+        # possible.
         if len(items) == 1:
             # If there's only one item, typically the quantity in this
-            # charge/shipment was less than the total quantity ordered.
-            # Copy this item as this case is highly like that the item
-            # spans multiple shipments. Having the original item w/ the
-            # original quantity is quite useful for the other half of the
-            # order.
+            # charge/shipment was less than the total quantity
+            # ordered.  Copy this item as this case is highly like
+            # that the item spans multiple shipments. Having the
+            # original item w/ the original quantity is quite useful
+            # for the other half of the order.
             found_quantity = False
             items[0] = item = copy.deepcopy(items[0])
             quantity = item['Quantity']
@@ -456,7 +468,8 @@ def tag_as_order(
         # Shipping has tax. Include this in the shipping line item, as this
         # is how the order items are done. Unfortunately, this isn't broken
         # out anywhere, so compute it.
-        ship_tax = order['Tax Charged'] - sum([i['Item Subtotal Tax'] for i in items])
+        ship_tax = order['Tax Charged'] - sum(
+            [i['Item Subtotal Tax'] for i in items])
 
         ship['merchant'] = 'Shipping'
         ship['category'] = 'Shipping'
@@ -516,7 +529,9 @@ def tag_as_order(
             # Rounding forces the extremes to be corrected, but when
             # roughly equal, will take from the more expensive items (as
             # those are ordered first).
-            tax_rate_per_item = [round(i['Item Subtotal Tax'] * 100.0 / i['Item Subtotal'], 1) for i in items]
+            tax_rate_per_item = [
+                round(i['Item Subtotal Tax'] * 100.0 / i['Item Subtotal'], 1)
+                for i in items]
             while abs(tax_diff) > MICRO_USD_EPS:
                 if tax_diff > 0:
                     min_idx = None
@@ -530,16 +545,20 @@ def tag_as_order(
                     new_transactions[min_idx]['amount'] += CENT_MICRO_USD
                     tax_diff -= CENT_MICRO_USD
                     tax_rate_per_item[min_idx] = round(
-                        items[min_idx]['Item Subtotal Tax'] * 100.0 / items[min_idx]['Item Subtotal'], 1)
+                        items[min_idx]['Item Subtotal Tax'] * 100.0 /
+                        items[min_idx]['Item Subtotal'], 1)
                 else:
-                    # Find the highest taxed item (by rate) and discount it a penny.
-                    (max_idx, _) = max(enumerate(tax_rate_per_item), key=lambda x: x[1])
+                    # Find the highest taxed item (by rate) and
+                    # discount it a penny.
+                    (max_idx, _) = max(
+                        enumerate(tax_rate_per_item), key=lambda x: x[1])
                     items[max_idx]['Item Subtotal Tax'] -= CENT_MICRO_USD
                     items[max_idx]['Item Total'] -= CENT_MICRO_USD
                     new_transactions[max_idx]['amount'] -= CENT_MICRO_USD
                     tax_diff += CENT_MICRO_USD
                     tax_rate_per_item[max_idx] = round(
-                        items[max_idx]['Item Subtotal Tax'] * 100.0 / items[max_idx]['Item Subtotal'], 1)
+                        items[max_idx]['Item Subtotal Tax'] * 100.0 /
+                        items[max_idx]['Item Subtotal'], 1)
         else:
             # The only examples seen at this point are due to gift wrap
             # fees. There must be other corner cases, so let's itemize with a
@@ -665,7 +684,7 @@ def unsplit_transactions(trans, stats):
 
 
 def tag_transactions(
-    items, orders, refunds, trans, itemize, prefix, stats):
+        items, orders, refunds, trans, itemize, prefix, stats):
     """Matches up Mint transactions with Amazon orders and itemizes the orders.
 
     Args:
@@ -807,19 +826,22 @@ def summarize_new_trans(t, new_trans, prefix):
     # When not itemizing, create a description by concating the items. Store
     # the full information in the transaction notes. Category is untouched when
     # there's more than one item (this is why itemizing is better!).
-    trun_len = (100 - len(prefix) - 2 * len(items)) / len(items)
+    trun_len = (100 - len(prefix) - 2 * len(new_trans)) / len(new_trans)
     title = prefix + (', '.join(
         [truncate_title(nt['merchant'], trun_len)
          for nt in new_trans
-         if nt['merchant'] not in ('Promotion(s)', 'Shipping', 'Tax adjustment')]))
-    notes = get_notes_header(order) + '\nItem(s):\n' + '\n'.join(
-        [' - ' + nt['merchant']
-         for nt in new_trans])
+         if nt['merchant'] not in
+         ('Promotion(s)', 'Shipping', 'Tax adjustment')]))
+    notes = '{}\nItem(s):\n{}'.format(
+        new_trans[0]['note'],
+        '\n'.join(
+            [' - ' + nt['merchant']
+             for nt in new_trans]))
 
     summary_trans = copy.deepcopy(t)
     summary_trans['merchant'] = title
-    if len(items) == 1:
-        summary_trans['category'] = new_trans['category']
+    if len(new_trans) == 1:
+        summary_trans['category'] = new_trans[0]['category']
     else:
         summary_trans['category'] = category.DEFAULT_MINT_CATEGORY
     summary_trans['note'] = notes
@@ -843,7 +865,8 @@ def print_dry_run(orig_trans_to_tagged):
                 micro_usd_to_usd_string(trans['amount']),
                 trans['category'],
                 trans['merchant'],
-                'with details in "Notes"' if orig_trans['note'] != trans['note'] else ''))
+                ('with details in "Notes"'
+                 if orig_trans['note'] != trans['note'] else '')))
         else:
             for i, trans in enumerate(new_trans):
                 logger.info('{}Proposed: {} \t {} \t {} \t {}'.format(
@@ -855,7 +878,8 @@ def print_dry_run(orig_trans_to_tagged):
 
 
 def write_tags_to_mint(orig_trans_to_tagged, mint_client):
-    logger.info('Sending {} updates to Mint.'.format(len(orig_trans_to_tagged)))
+    logger.info('Sending {} updates to Mint.'.format(
+        len(orig_trans_to_tagged)))
 
     start_time = time.time()
     num_requests = 0
@@ -873,7 +897,8 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
                 'token': mint_client.token,
             }
 
-            logger.debug('Sending a "modify" transaction request: {}'.format(modify_trans))
+            logger.debug('Sending a "modify" transaction request: {}'.format(
+                modify_trans))
             response = mint_client.post(
                 '{}{}'.format(
                     MINT_ROOT_URL,
@@ -900,13 +925,16 @@ def write_tags_to_mint(orig_trans_to_tagged, mint_client):
                     amount *= -1
                 amount = micro_usd_to_usd_float(amount)
                 itemized_split['amount{}'.format(i)] = amount
-                itemized_split['percentAmount{}'.format(i)] = amount  # Yup. Weird!
+                # Yup. Weird:
+                itemized_split['percentAmount{}'.format(i)] = amount
                 itemized_split['category{}'.format(i)] = trans['category']
                 itemized_split['categoryId{}'.format(i)] = trans['categoryId']
                 itemized_split['merchant{}'.format(i)] = trans['merchant']
-                itemized_split['txnId{}'.format(i)] = 0  # Yup weird. Means new?
+                # Yup weird. '0' means new?
+                itemized_split['txnId{}'.format(i)] = 0
 
-            logger.debug('Sending a "split" transaction request: {}'.format(itemized_split))
+            logger.debug('Sending a "split" transaction request: {}'.format(
+                itemized_split))
             response = mint_client.post(
                 '{}{}'.format(
                     MINT_ROOT_URL,
@@ -972,8 +1000,10 @@ def parse_amazon_csv(args):
 
     # Sort everything for good measure/consistency/stable ordering.
     amazon_items = sorted(amazon_items, key=lambda item: item['Order Date'])
-    amazon_orders = sorted(amazon_orders, key=lambda order: order['Order Date'])
-    amazon_refunds = sorted(amazon_refunds, key=lambda order: order['Order Date'])
+    amazon_orders = sorted(
+        amazon_orders, key=lambda order: order['Order Date'])
+    amazon_refunds = sorted(
+        amazon_refunds, key=lambda order: order['Order Date'])
 
     return amazon_items, amazon_orders, amazon_refunds
 
@@ -992,6 +1022,7 @@ def get_trans_and_categories_from_pickle(pickle_epoch):
 
     return trans, cats
 
+
 def dump_trans_and_categories(trans, cats, pickle_epoch):
     logger.info(
         'Backing up Mint Transactions prior to editing. '
@@ -1001,6 +1032,7 @@ def dump_trans_and_categories(trans, cats, pickle_epoch):
     with open(MINT_CATS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
         pickle.dump(cats, f)
 
+
 def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
     # Create a map of Mint category name to category id.
     logger.info('Creating Mint Category Map.')
@@ -1009,7 +1041,8 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
         for (cat_id, cat_dict) in mint_client.get_categories().items()])
 
     start_date_str = oldest_trans_date.strftime('%m/%d/%y')
-    logger.info('Fetching all Mint transactions since {}.'.format(start_date_str))
+    logger.info('Fetching all Mint transactions since {}.'.format(
+        start_date_str))
     transactions = pythonify_mint_dict(mint_client.get_transactions_json(
         start_date=start_date_str,
         include_investment=False,
@@ -1024,7 +1057,8 @@ def sanity_check_and_filter_tags(
     # Assert old trans amount == sum new trans amount.
     for orig_trans, new_trans in orig_trans_to_tagged:
         if abs(
-            sum_amounts([orig_trans]) - sum_amounts(new_trans)) >= MICRO_USD_EPS:
+            sum_amounts(
+                [orig_trans]) - sum_amounts(new_trans)) >= MICRO_USD_EPS:
             from pprint import pprint
             print(sum_amounts([orig_trans]))
             print(sum_amounts(new_trans))
@@ -1079,8 +1113,8 @@ def define_args(parser):
               'prompted for user.'))
     parser.add_argument(
         '--mint_password', default=None,
-        help=('Mint password for login. If not provided here, will be prompted '
-              'for.'))
+        help=('Mint password for login. If not provided here, will be '
+              'prompted for.'))
 
     parser.add_argument(
         'items_csv', type=argparse.FileType('r'),
@@ -1148,6 +1182,13 @@ def main():
     log_amazon_stats(amazon_items, amazon_orders, amazon_refunds)
 
     mint_client = None
+
+    def close_mint_client():
+        if mint_client:
+            mint_client.close()
+
+    atexit.register(close_mint_client)
+
     if args.pickled_epoch:
         mint_transactions, mint_category_name_to_id = (
             get_trans_and_categories_from_pickle(args.pickled_epoch))
@@ -1168,7 +1209,7 @@ def main():
 
     def get_prefix(is_debit):
         return (args.description_prefix if is_debit
-                    else args.description_return_prefix)
+                else args.description_return_prefix)
 
     logger.info('\nMatching Amazon pruchases to Mint transactions.')
     stats = Counter()
