@@ -26,12 +26,11 @@ next run will wipe everything out.
 
 1. Clone this repository: `git clone git@github.com:jprouty/mint-amazon-tagger.git; cd mint-amazon-tagger`
 
-2. Make sure python3 is setup! python2 is not supported.
+2. Make sure python3 is setup! python2 is so old; just get outta there.
 
 3. Install the dependencies: `python3 -m pip install -r requirements.txt`
 
-4. Install selenium and chromedriver. These tools help you acquire the
-appropriate Mint login credentials:
+4. Install selenium and chromedriver. This script runs "within" a chrome webdriver instance! Cool right?
 
 ```
 pip install selenium
