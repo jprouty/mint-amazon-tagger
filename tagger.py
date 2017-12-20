@@ -23,6 +23,7 @@ import getpass
 import keyring
 # Temporary until mintapi is fixed upstream.
 from mintapifuture.mintapi.api import Mint, MINT_ROOT_URL
+import readchar
 
 import category
 
@@ -849,14 +850,22 @@ def summarize_new_trans(t, new_trans, prefix):
 
 
 def print_dry_run(orig_trans_to_tagged):
-    logger.info('Dry run. Following are proposed changes:')
-
     for orig_trans, new_trans in orig_trans_to_tagged:
-        logger.info('\nCurrent:  {} \t {} \t {} \t {}'.format(
-            orig_trans['date'].strftime('%m/%d/%y'),
-            micro_usd_to_usd_string(orig_trans['amount']),
-            orig_trans['category'],
-            orig_trans['merchant']))
+        if 'CHILDREN' in orig_trans:
+            for i, trans in enumerate(orig_trans['CHILDREN']):
+                logger.info('{}{}) Current: {} \t {} \t {} \t {}'.format(
+                    '\n' if i == 0 else '',
+                    i + 1,
+                    trans['date'].strftime('%m/%d/%y'),
+                    micro_usd_to_usd_string(trans['amount']),
+                    trans['category'],
+                    trans['merchant']))
+        else:
+            logger.info('\nCurrent:  {} \t {} \t {} \t {}'.format(
+                orig_trans['date'].strftime('%m/%d/%y'),
+                micro_usd_to_usd_string(orig_trans['amount']),
+                orig_trans['category'],
+                orig_trans['merchant']))
 
         if len(new_trans) == 1:
             trans = new_trans[0]
@@ -868,9 +877,10 @@ def print_dry_run(orig_trans_to_tagged):
                 ('with details in "Notes"'
                  if orig_trans['note'] != trans['note'] else '')))
         else:
-            for i, trans in enumerate(new_trans):
-                logger.info('{}Proposed: {} \t {} \t {} \t {}'.format(
+            for i, trans in enumerate(reversed(new_trans)):
+                logger.info('{}{}) Proposed: {} \t {} \t {} \t {}'.format(
                     '\n' if i == 0 else '',
+                    i + 1,
                     trans['date'].strftime('%m/%d/%y'),
                     micro_usd_to_usd_string(trans['amount']),
                     trans['category'],
@@ -1094,14 +1104,27 @@ def sanity_check_and_filter_tags(
         orig_trans, _ = item
         return not orig_trans['merchant'].startswith(
             get_prefix(orig_trans['isDebit']))
-
+    
+    def prompt_if_has_prefix(item):
+        orig_trans, new_trans = item
+        if not orig_trans['merchant'].startswith(
+            get_prefix(orig_trans['isDebit'])):
+            return True
+        logger.info('\nTransaction already tagged:')
+        print_dry_run([item])
+        logger.info('\nUpdate tag to proposed? [Yn] ')
+        action = readchar.readchar()
+        return action in ('Y', 'y', '\r', '\n')
+    
+    num_before = len(filtered)
+    if args.prompt_retag:
+        filtered = list(filter(prompt_if_has_prefix, filtered))
     # The user doesn't want any changes from last run if the original
     # transaction already starts with the merchant prefix.
-    if not args.retag_changed:
-        num_before = len(filtered)
+    elif not args.retag_changed:
         filtered = list(filter(orig_missing_prefix, filtered))
-        stats['already_has_prefix'] = num_before - len(filtered)
 
+    stats['already_has_prefix'] = num_before - len(filtered)
     stats['to_be_updated'] = len(filtered)
     return filtered
 
@@ -1143,6 +1166,13 @@ def define_args(parser):
         help=('Do not modify Mint transaction; instead print the proposed '
               'changes to console.'))
 
+    parser.add_argument(
+        '--prompt_retag', action='store_true',
+        help=('For transactions that have been previously tagged by this '
+              'script, override any edits (like adjusting the category) but '
+              'only after confirming each change. More gentle than '
+              '--retag_changed'))
+    
     parser.add_argument(
         '--retag_changed', action='store_true',
         help=('For transactions that have been previously tagged by this '
@@ -1229,6 +1259,7 @@ def main():
         exit(0)
 
     if args.dry_run:
+        logger.info('Dry run. Following are proposed changes:')
         print_dry_run(filtered)
     else:
         # Ensure we have a Mint client.

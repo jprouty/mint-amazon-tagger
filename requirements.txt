@@ -1,4 +1,5 @@
 chromedriver
 keyring
 mintapi
+readchar
 selenium
