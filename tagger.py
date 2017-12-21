@@ -271,8 +271,8 @@ def log_processing_stats(stats, prefix):
         'Transactions ignored: is pending: {}\n'
         'Transactions ignored: item quantity mismatch: {}\n'
 
-        '\nTransactions w/ matching order information: {}\n'
-        'Transactions w/ matching refund information: {}\n'
+        '\nTransactions w/ matching order information: {} (unmatched orders: {})\n'
+        'Transactions w/ matching refund information: {} (unmatched refunds: {})\n'
 
         '\nOrder fix-up: itemization quantity tinkering: {}\n'
         'Order fix-up: incorrect tax itemization: {}\n'
@@ -288,7 +288,9 @@ def log_processing_stats(stats, prefix):
             stats['pending'],
             stats['orders_need_combinatoric_adjustment'],
             stats['order_match'],
+            stats['order_unmatch'],
             stats['refund_match'],
+            stats['refund_unmatch'],
             stats['quanity_adjust'],
             stats['items_tax_adjust'],
             stats['misc_charge'],
@@ -332,7 +334,8 @@ def tag_as_order(
     closest_match = None
     closest_match_num_days = 365  # Large number
     for o in matched_orders:
-        num_days = (t['odate'] - o['Shipment Date']).days
+        an_order = next(d for d in o if d['Shipment Date'])
+        num_days = (t['odate'] - an_order['Shipment Date']).days
         # TODO: consider o even if it has a matched_transaction if this
         # transaction is closer.
         if (abs(num_days) < 4 and
@@ -350,10 +353,29 @@ def tag_as_order(
     logger.debug(
         'Found a match: {0} for transaction: {1}'.format(
             closest_match, t))
-    order = closest_match
+    orders = closest_match
     # Prevent future transactions matching up against this order.
-    order['MATCHED_TRANSACTION'] = t
+    new_trans = []
+    t['MATCHED_ORDER_ID'] = orders[0]['Order ID']
+    for o in orders:
+        o['MATCHED_TRANSACTION'] = t
+        o['MATCH_TYPE'] = 'Multi' if len(orders) > 1 else 'Single'
+        new_trans.extend(
+            tag_order(t, o, tracking_to_items, order_id_to_items, stats) or [])
+        
+    if sum_amounts([t]) - sum_amounts(new_trans) >= MICRO_USD_EPS:
+        # Had an issue with one of the orders! Unmark the transaction & orders.
+        stats['item_mismatch'] += 1
+        for o in orders:
+            del o['MATCHED_TRANSACTION']
+            del o['MATCH_TYPE']
+        del t['MATCHED_ORDER_ID']
+        return []
 
+    return new_trans
+
+
+def tag_order(t, order, tracking_to_items, order_id_to_items, stats):
     # Use the shipping no. (and also verify the order number) to cross
     # reference/find all the items in that shipment.
     # Order number cannot be used alone, as multiple shipments (and thus
@@ -513,7 +535,7 @@ def tag_as_order(
     # original (this now includes things like: tax, promotions, and
     # shipping).
     itemized_sum = sum_amounts(new_transactions)
-    itemized_diff = t['amount'] - itemized_sum
+    itemized_diff = order['Total Charged'] - itemized_sum
     if abs(itemized_diff) > MICRO_USD_EPS:
         itemized_tax = sum([i['Item Subtotal Tax'] for i in items])
         tax_diff = order['Tax Before Promotions'] - itemized_tax
@@ -583,6 +605,7 @@ def tag_as_refund(t, refunds, stats):
     # within 3 days of the date of the refund.
     closest_match = None
     closest_match_num_days = 365  # Large number
+
     for r in refunds:
         a_refund = next(d for d in r if d['Refund Date'])
         if not a_refund:
@@ -607,8 +630,10 @@ def tag_as_refund(t, refunds, stats):
             closest_match, t))
     refunds = closest_match
     # Prevent future transactions matching up against these refund(s).
+    t['MATCHED_ORDER_ID'] = refunds[0]['Order ID']
     for r in refunds:
         r['MATCHED_TRANSACTION'] = t
+        r['MATCH_TYPE'] = 'Multi' if len(refunds) > 1 else 'Single'
 
     # Group items by and use Quantity
     refunds = collapse_items_into_quantity(refunds)
@@ -716,11 +741,22 @@ def tag_transactions(
         and validated with an Amazon order and properly itemized (or
         summarized).
     """
-    # A multi-map from charged amount to orders.
+    # A multi-map from charged amount to a list of orders.
     amount_to_orders = defaultdict(list)
     for o in orders:
         charged = o['Total Charged']
-        amount_to_orders[charged].append(o)
+        amount_to_orders[charged].append([o])
+
+    # Collapse orders from the same order ID and same ship date into one:
+    same_day_to_orders = defaultdict(list)
+    for o in orders:
+        key = '{}_{}'.format(o['Order ID'], o['Shipment Date'])
+        same_day_to_orders[key].append(o)
+    for os in same_day_to_orders.values():
+        if len(os) == 1:
+            continue
+        orders_total = sum([o['Total Charged'] for o in os])
+        amount_to_orders[orders_total].append(os)
 
     # A multi-map from tracking id to items.
     # Note: on lookup, be sure to restrict results to just one order id, as
@@ -736,7 +772,7 @@ def tag_transactions(
         id = i['Order ID']
         order_id_to_items[id].append(i)
 
-    # A multi-map from refunded amount to refund(s).
+    # A multi-map from refunded amount to a list of refunds.
     # This will get weird, as AMZN likes to break out refunds on a per item
     # basis (you send back 3 of item X, you'll see 3 rows of items X w/
     # quantity 1).
@@ -1247,6 +1283,66 @@ def main():
         amazon_items, amazon_orders, amazon_refunds,
         mint_transactions, not args.no_itemize, get_prefix, stats)
 
+    stats['order_unmatch'] = len(
+        [o for o in amazon_orders if 'MATCHED_TRANSACTION' not in o])
+    stats['refund_unmatch'] = len(
+        [r for r in amazon_refunds if 'MATCHED_TRANSACTION' not in r])
+
+    # for o in amazon_orders:
+    #     if o['Order ID'] == '111-3029857-7370651' and 'MATCHED_TRANSACTION' not in o:
+    #         pprint.pprint(o)
+
+    # for t in mint_transactions:
+    #     if t['amount'] == 10740000:
+    #         pprint.pprint(t)
+    
+    unmatched = [o for o in amazon_orders if 'MATCHED_TRANSACTION' not in o]
+    unmatched_by_id = defaultdict(list)
+    for o in amazon_orders:
+        if 'MATCHED_TRANSACTION' not in o:
+            oid = o['Order ID']
+            unmatched_by_id[oid].append(o)
+
+    num_unmatched_in_trans = 0
+    num_unmatched_and_close = 0
+    num_unmatched_same_day = 0
+    for o in unmatched_by_id.values():
+        total_amt = sum([a['Total Charged'] for a in o])
+        for t in mint_transactions:
+            if t['amount'] == total_amt:
+                # print(len(o))
+                num_unmatched_in_trans += 1
+                an_order = next(od for od in o if od['Shipment Date'])
+                num_days = (t['odate'] - an_order['Shipment Date']).days
+                if 1 == len(Counter([od['Shipment Date'] for od in o if od['Shipment Date']])):
+                    num_unmatched_same_day += 1
+                              
+                # if t['amount'] == 39980000:
+                #     print(len(o))
+                #     print(num_days)
+                #     pprint.pprint(t)
+                #     pprint.pprint(o)
+
+                
+                if abs(num_days) < 4:
+                    num_unmatched_and_close += 1
+                    # exit(1)
+                    
+
+    print(num_unmatched_in_trans)
+    print(num_unmatched_and_close)
+    print(num_unmatched_same_day)
+
+    # for t in mint_transactions:
+    #     if t['amount'] == 39980000:
+    #         pprint.pprint(t)
+       
+
+    # 55 unique by order id
+    # ~10 that only have 1 order
+    # pprint.pprint(Counter([o['Order ID'] for o in amazon_orders if 'MATCHED_TRANSACTION' not in o]))
+#    pprint.pprint(unmatched[45:50])
+    
     filtered = sanity_check_and_filter_tags(
         orig_trans_to_tagged, mint_category_name_to_id, get_prefix,
         args, stats)
