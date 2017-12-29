@@ -11,14 +11,10 @@
 import argparse
 import atexit
 from collections import defaultdict, Counter
-import copy
-import csv
-import datetime
 import itertools
 import logging
 import pickle
 from pprint import pprint
-import string
 import time
 
 import getpass
@@ -61,7 +57,7 @@ def main():
 
     # Only keep orders that have items.
     orders = [o for o in orders if o.items]
-    
+
     refunds = [] if not args.refunds_csv else amazon.Refund.parse_from_csv(args.refunds_csv)
 
     mint_client = None
@@ -103,14 +99,38 @@ def main():
 
     # Match orders.
     match_transactions(trans, orders)
-    unmatched_trans = [t for t in trans if not t.matched]
 
+    unmatched_trans = [t for t in trans if not t.orders]
+        
     # Match refunds.
     match_transactions(unmatched_trans, refunds)
 
-    matched_trans = [t for t in trans if t.matched]
-    print(len(matched_trans))
+    unmatched_orders = [o for o in orders if not o.matched]
+    unmatched_trans = [t for t in trans if not t.orders]
+    unmatched_refunds = [r for r in refunds if not r.matched]
+
+    num_gift_card = len([o for o in unmatched_orders
+                         if 'Gift Certificate' in o.payment_instrument_type])
+
+    matched_orders = [o for o in orders if o.matched]
+    matched_trans = [t for t in trans if t.orders]
+    matched_refunds = [r for r in refunds if r.matched]
+
+    merged_orders = []
+    merged_refunds = []
     
+    # Collapse per-item into quantities so it presents nicely.
+    for t in matched_trans:
+        if t.is_debit:
+            t.orders = amazon.Order.merge_orders(t.orders)
+            t.orders[0].fix_itemized_tax()
+            merged_orders.extend(t.orders)
+        else:
+            t.orders = amazon.Refund.merge_refunds(t.orders)
+            merged_refunds.extend(t.orders)
+
+        new_transactions = t.orders[0].to_mint_transactions(t)
+
     
 def mark_best_as_matched(t, list_of_orders_or_refunds):
     if not list_of_orders_or_refunds:
@@ -170,9 +190,6 @@ def match_transactions(unmatched_trans, unmatched_orders):
 
     for t in unmatched_trans:
         mark_best_as_matched(t, amount_to_orders[t.amount])
-
-    unmatched_orders = [o for o in unmatched_orders if not o.matched]
-    unmatched_trans = [t for t in unmatched_trans if not t.orders]
 
     
 def get_mint_client(args):
@@ -244,7 +261,6 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
         skip_duplicates=True)
 
     return transactions, categories
-
 
 
 def define_args(parser):
