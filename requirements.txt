@@ -1,5 +1,5 @@
 chromedriver
 keyring
-mintapi
 readchar
 selenium
+selenium-requests
