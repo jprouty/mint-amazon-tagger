@@ -7,7 +7,8 @@ import string
 
 from algorithm_u import algorithm_u
 import category
-from currency import micro_usd_nearly_equal, parse_usd_as_micro_usd, CENT_MICRO_USD, MICRO_USD_EPS
+from currency import micro_usd_nearly_equal, micro_usd_to_usd_string, parse_usd_as_micro_usd, CENT_MICRO_USD, MICRO_USD_EPS
+from mint import truncate_title
 
 PRINTABLE = set(string.printable)
 
@@ -21,24 +22,6 @@ def get_title(amzn_obj, target_length):
     # Remove non-ASCII characters from the title.
     clean_title = ''.join(filter(lambda x: x in PRINTABLE, amzn_obj.title))
     return truncate_title(clean_title, target_length, base_str)
-
-
-def truncate_title(title, target_length, base_str=None):
-    words = []
-    if base_str:
-        words.extend([w for w in base_str.split(' ') if w])
-        target_length -= len(base_str)
-    for word in title.split(' '):
-        if len(word) / 2 < target_length:
-            words.append(word)
-            target_length -= len(word) + 1
-        else:
-            break
-    truncated = ' '.join(words)
-    # Remove any trailing symbol-y crap.
-    while truncated and truncated[-1] in ',.-()[]{}\/|~!@#$%^&*_+=`\'" ':
-        truncated = truncated[:-1]
-    return truncated
 
 
 CURRENCY_FIELD_NAMES = set([
@@ -101,11 +84,6 @@ def parse_amazon_date(date_str):
 
 
 def associate_items_with_orders(orders, items):
-    # Remove items from cancelled orders.
-    items = [i for i in items if not i.is_cancelled()]
-    # Make more Items such that every item is quantity 1.
-    items = [si for i in items for si in i.split_by_quantity()]
-
     items_by_oid = defaultdict(list)
     for i in items:
         items_by_oid[i.order_id].append(i)
@@ -122,7 +100,7 @@ def associate_items_with_orders(orders, items):
         assert subtotal_equal
         
         if len(orders) == 1:
-            orders[0].set_items(oid_items)
+            orders[0].set_items(oid_items, assert_unmatched=True)
             continue
 
         # First try to divy up the items by tracking.
@@ -138,7 +116,7 @@ def associate_items_with_orders(orders, items):
                     Item.sum_subtotals(items),
                     order.subtotal):
                 # A perfect fit.
-                order.set_items(items)
+                order.set_items(items, assert_unmatched=True)
                 # Remove the selected items.
                 oid_items = [i for i in oid_items if i not in items]
         # Remove orders that have items.
@@ -158,7 +136,7 @@ def associate_items_with_orders(orders, items):
                     subtotals_with_groupings[i][0],
                     orders[i].subtotal) for i in range(len(orders))]):
                 for idx, order in enumerate(orders):
-                    order.set_items(subtotals_with_groupings[idx][1])
+                    order.set_items(subtotals_with_groupings[idx][1], assert_unmatched=True)
                 break
 
 
@@ -166,6 +144,7 @@ ORDER_MERGE_FIELDS = {
     'shipping_charge',
     'subtotal',
     'tax_before_promotions',
+    'tax_charged',
     'total_charged',
     'total_promotions',
 }
@@ -187,6 +166,12 @@ class Order:
     def sum_subtotals(orders):
         return sum([o.subtotal for o in orders])
 
+    def total_by_items(self):
+        return Item.sum_totals(self.items) + self.shipping_charge - self.total_promotions
+
+    def total_by_subtotals(self):
+        return self.subtotal + self.tax_charged + self.shipping_charge - self.total_promotions
+
     def transact_date(self):
         return self.shipment_date
 
@@ -197,8 +182,13 @@ class Order:
         self.matched = True
         self.trans_id = trans.id
     
-    def set_items(self, items):
+    def set_items(self, items, assert_unmatched=False):
         self.items = items
+        for i in items:
+            if assert_unmatched:
+                assert not i.matched
+            i.matched = True
+            i.order = self
 
     def get_note(self):
         return (
@@ -211,66 +201,90 @@ class Order:
                 self.shipment_date,
                 self.tracking)
 
-    def fix_itemized_tax(self):
-        # Check that the total of the itemized transactions equals that of the
-        # original (this now includes things like: tax, promotions, and
-        # shipping).
-        itemized_sum = Item.sum_totals(self.items) + self.shipping_charge - self.total_promotions
+    def attribute_subtotal_diff_to_misc_charge(self):
+        diff = self.total_charged - self.total_by_subtotals()
+        if diff < MICRO_USD_EPS:
+            return False
+
+        self.subtotal += diff
+
+        adjustment = deepcopy(self.items[0])
+        adjustment.title = 'Misc Charge (Gift wrap, etc)'
+        adjustment.category = 'Shopping'
+        adjustment.quantity = 1
+        adjustment.item_total = diff
+        adjustment.item_subtotal = diff
+        adjustment.item_subtotal_tax = 0
+
+        self.items.append(adjustment)
+        return True
+
+    def attribute_itemized_diff_to_shipping_tax(self):
+        # Shipping [sometimes] has tax. Include this in the shipping charge.
+        # Unfortunately Amazon doesn't provide this anywhere; it must be
+        # inferred as of now.
+        if not self.shipping_charge:
+            return False
+
+        diff = self.total_charged - self.total_by_items()
+        if diff < MICRO_USD_EPS:
+            return False
+
+        self.shipping_charge += diff
+
+        self.tax_charged -= diff
+        self.tax_before_promotions -= diff
+
+        return True
+
+    def attribute_itemized_diff_to_per_item_tax(self):
+        itemized_sum = self.total_by_items()
         itemized_diff = self.total_charged - itemized_sum
-        if abs(itemized_diff) > MICRO_USD_EPS:
-            itemized_tax = Item.sum_subtotals_tax(self.items)
-            tax_diff = self.tax_before_promotions - itemized_tax
-            if itemized_diff - tax_diff < MICRO_USD_EPS:
-                # Well, that's funny. The per-item tax was not computed
-                # correctly; the tax miscalculation matches the itemized
-                # difference. Sometimes AMZN is bad at math (lol). To keep the
-                # line items adding up correctly, add a new tax miscalculation
-                # adjustment, as it's nearly impossibly to find the correct
-                # item to adjust (unless there's only one).
+        if abs(itemized_diff) < MICRO_USD_EPS:
+            return False
 
-                # Not the optimal algorithm... but works.
-                # Rounding forces the extremes to be corrected, but when
-                # roughly equal, will take from the more expensive items (as
-                # those are ordered first).
-                tax_rate_per_item = [
-                    round(i.item_subtotal_tax * 100.0 / i.item_subtotal, 1)
-                    for i in self.items]
-                while abs(tax_diff) > MICRO_USD_EPS:
-                    if abs(tax_diff) < CENT_MICRO_USD:
-                        # If the difference is under a penny, round that
-                        # partial cent to the first item.
-                        adjust_amount = tax_diff
-                        adjust_idx = 0
-                    elif tax_diff > 0:
-                        adjust_idx = None
-                        min_rate = None
-                        for (idx, rate) in enumerate(tax_rate_per_item):
-                            if rate != 0 and (not min_rate or rate < min_rate):
-                                adjust_idx = idx
-                                min_rate = rate
-                        adjust_amount = CENT_MICRO_USD
-                    else:
-                        # Find the highest taxed item (by rate) and discount it
-                        # a penny.
-                        (adjust_idx, _) = max(
-                            enumerate(tax_rate_per_item), key=lambda x: x[1])
-                        adjust_amount = -CENT_MICRO_USD
+        itemized_tax = Item.sum_subtotals_tax(self.items)
+        tax_diff = self.tax_charged - itemized_tax
+        if itemized_diff - tax_diff > MICRO_USD_EPS:
+            return False
 
-                    self.items[adjust_idx].item_subtotal_tax += adjust_amount
-                    self.items[adjust_idx].item_total += adjust_amount
-                    tax_diff -= adjust_amount
-                    tax_rate_per_item[adjust_idx] = round(
-                        self.items[adjust_idx].item_subtotal_tax * 100.0 /
-                        self.items[adjust_idx].item_subtotal, 1)
+        # The per-item tax was not computed correctly; the tax miscalculation
+        # matches the itemized difference. Sometimes AMZN is bad at math (lol),
+        # and most of the time it's a smiply rounding error. To keep the line
+        # items adding up correctly, spread the tax difference across the
+        # items.
+        tax_rate_per_item = [
+            round(i.item_subtotal_tax * 100.0 / i.item_subtotal, 1)
+            for i in self.items]
+        while abs(tax_diff) > MICRO_USD_EPS:
+            if abs(tax_diff) < CENT_MICRO_USD:
+                # If the difference is under a penny, round that
+                # partial cent to the first item.
+                adjust_amount = tax_diff
+                adjust_idx = 0
+            elif tax_diff > 0:
+                adjust_idx = None
+                min_rate = None
+                for (idx, rate) in enumerate(tax_rate_per_item):
+                    if rate != 0 and (not min_rate or rate < min_rate):
+                        adjust_idx = idx
+                        min_rate = rate
+                adjust_amount = CENT_MICRO_USD
             else:
-                adjustment = deepcopy(self.items[-1])
-                adjustment.title = 'Misc Charge (Gift wrap, etc)'
-                adjustment.category = 'Shopping'
-                adjustment.amount = itemized_diff
+                # Find the highest taxed item (by rate) and discount it
+                # a penny.
+                (adjust_idx, _) = max(
+                    enumerate(tax_rate_per_item), key=lambda x: x[1])
+                adjust_amount = -CENT_MICRO_USD
 
-                self.items.append(adjustment)
+            self.items[adjust_idx].item_subtotal_tax += adjust_amount
+            self.items[adjust_idx].item_total += adjust_amount
+            tax_diff -= adjust_amount
+            tax_rate_per_item[adjust_idx] = round(
+                self.items[adjust_idx].item_subtotal_tax * 100.0 /
+                self.items[adjust_idx].item_subtotal, 1)
+        return True
 
-    
     def to_mint_transactions(self, t):
         new_transactions = []
         
@@ -280,45 +294,34 @@ class Order:
 
         # Itemize line-items:
         for i in items:
-            item = deepcopy(t)
-            item.merchant = i.get_title(88)
-            item.category = category.AMAZON_TO_MINT_CATEGORY.get(
-                i.category, category.DEFAULT_MINT_CATEGORY)
-            item.amount = i.item_total
-            item.isDebit = True
-            item.note = self.get_note()
-
+            item = t.split(
+                amount=i.item_total,
+                category=category.AMAZON_TO_MINT_CATEGORY.get(
+                    i.category, category.DEFAULT_MINT_CATEGORY),
+                desc=i.get_title(88),
+                note=self.get_note())
             new_transactions.append(item)
 
         # Itemize the shipping cost, if any.
         ship = None
         if self.shipping_charge:
-            ship = deepcopy(t)
-
-            # Shipping has tax. Include this in the shipping line item, as this
-            # is how the order items are done. Unfortunately, this isn't broken
-            # out anywhere, so compute it.
-            ship_tax = self.tax_charged - sum(
-                [i.item_subtotal_tax for i in items])
-
-            ship.merchant = 'Shipping'
-            ship.category = 'Shipping'
-            ship.amount = self.shipping_charge + ship_tax
-            ship.isDebit = True
-            ship.note = self.get_note()
+            ship = t.split(
+                amount=self.shipping_charge,
+                category='Shipping',
+                desc='Shipping',
+                note=self.get_note())
 
             new_transactions.append(ship)
 
         # All promotion(s) as one line-item.
         promo = None
         if self.total_promotions:
-            promo = deepcopy(t)
-            promo.merchant = 'Promotion(s)'
-            promo.category = category.DEFAULT_MINT_CATEGORY
-            promo.amount = -self.total_promotions
-            promo.isDebit = False
-            promo.note = self.get_note()
-
+            promo = t.split(
+                amount=-self.total_promotions,
+                category=category.DEFAULT_MINT_CATEGORY,
+                desc='Promotion(s)',
+                note=self.get_note(),
+                isDebit=False)
             new_transactions.append(promo)
 
         # If there was a promo that matches the shipping cost, it's nearly
@@ -326,44 +329,37 @@ class Order:
         # the promo instead as 'Shipping', which will cancel out in Mint
         # trends.
 
-        # Also, check if tax was computed before or after the promotion was
-        # applied. If the latter, attribute the difference to the
-        # promotion. This only applies if the promotion is not free shipping.
-        #
-        # TODO: Clean this up. Turns out Amazon doesn't correctly set
-        # 'Tax Before Promotions' now adays. Not sure why?!
-        tax_diff = self.tax_before_promotions - self.tax_charged
-        if promo and ship and abs(promo.amount) == ship.amount:
+        if promo and ship and micro_usd_nearly_equal(-promo.amount, ship.amount):
             promo.category = 'Shipping'
-        elif promo and tax_diff:
-            promo.amount = promo.amount - tax_diff
 
         return new_transactions
 
     @classmethod
-    def merge_orders(cls, orders):
+    def merge(cls, orders):
         if len(orders) == 1:
             result = orders[0]
-            result.set_items(Item.merge_items(result.items))
-            return [result]
+            result.set_items(Item.merge(result.items))
+            return result
         
         result = deepcopy(orders[0])
-        result.set_items(Item.merge_items([i for o in orders for i in o.items ]))
+        result.set_items(Item.merge([i for o in orders for i in o.items ]))
         for key in ORDER_MERGE_FIELDS:
             result.__dict__[key] = sum([o.__dict__[key] for o in orders])
-        return [result]
+        return result
 
     def __repr__(self):
-        return pformat(self.__dict__)
+        return 'Order ({id}): Total {total}\tSubtotal {subtotal}\tTax {tax}\tPromo {promo}\tShip {ship}\tItems: \n{items}'.format(
+            id=self.order_id, total=micro_usd_to_usd_string(self.total_charged), subtotal=micro_usd_to_usd_string(self.subtotal), tax=micro_usd_to_usd_string(self.tax_charged), promo=micro_usd_to_usd_string(self.total_promotions), ship=micro_usd_to_usd_string(self.shipping_charge), items=pformat(self.items))
 
 
 class Item:
-    is_matched = False
+    matched = False
     order = None
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
-        
+        self.__dict__['original_item_subtotal_tax'] = self.item_subtotal_tax
+
     @classmethod
     def parse_from_csv(cls, csv_file):
         return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
@@ -396,13 +392,12 @@ class Item:
                 self.order_date,
                 self.shipment_date,
                 self.tracking)
-    
+
     def set_quantity(self, new_quantity):
         """Sets the quantity of this item and updates all prices."""
         original_quantity = self.quantity
 
         assert new_quantity > 0
-        assert new_quantity <= original_quantity
         subtotal_equal = micro_usd_nearly_equal(
             self.purchase_price_per_unit * original_quantity,
             self.item_subtotal)
@@ -423,17 +418,16 @@ class Item:
         return [deepcopy(self) for i in range(orig_qty)]
 
     @classmethod
-    def merge_items(cls, items):
+    def merge(cls, items):
         """Collapses identical items by using quantity."""
-        if all([i.quantity == 1 for i in items]):
+        if len(items) < 2:
             return items
         unique_items = defaultdict(list)
         for i in items:
-            pprint(i)
-            exit(1)
-            key = '{}-{}'.format(
+            key = '{}-{}-{}'.format(
                 i.title,
-                i.asin_isbn)
+                i.asin_isbn,
+                i.item_subtotal)
             unique_items[key].append(i)
         results = []
         for same_items in unique_items.values():
@@ -448,8 +442,9 @@ class Item:
         return results
     
     def __repr__(self):
-        return pformat(self.__dict__)
-    
+        return '{qty} of Item: Total {total}\tSubtotal {subtotal}\tTax {tax} {desc}'.format(
+            qty=self.quantity, total=micro_usd_to_usd_string(self.item_total), subtotal=micro_usd_to_usd_string(self.item_subtotal), tax=micro_usd_to_usd_string(self.item_subtotal_tax), desc=self.title)
+
 
 class Refund:
     matched = False
@@ -461,7 +456,11 @@ class Refund:
         fields['total_refund_amount'] = (
             fields['refund_amount'] + fields['refund_tax_amount'])
         self.__dict__.update(fields)
-        
+
+    @staticmethod
+    def sum_total_refunds(refunds):
+        return sum([r.total_refund_amount for r in refunds])
+
     @classmethod
     def parse_from_csv(cls, csv_file):
         return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
@@ -490,20 +489,19 @@ class Refund:
                 self.refund_date,
                 self.refund_reason)
 
-
-    def to_mint_transactions(self, t):
-        item = deepcopy(t)
-        item.merchant = self.get_title(88)
-        item.category = category.AMAZON_TO_MINT_CATEGORY.get(
-            self.category, category.DEFAULT_MINT_RETURN_CATEGORY)
-        item.amount = -self.total_refund_amount
-        item.isDebit = False
-        item.note = self.get_note()
-        return [t]
+    def to_mint_transaction(self, t):
+        result = t.split(
+            desc=self.get_title(88),
+            category=category.AMAZON_TO_MINT_CATEGORY.get(
+                self.category, category.DEFAULT_MINT_RETURN_CATEGORY),
+            amount=-self.total_refund_amount,
+            note = self.get_note(),
+            isDebit=False)
+        return result
 
 
     @staticmethod
-    def merge_refunds(refunds):
+    def merge(refunds):
         """Collapses identical items by using quantity."""
         if len(refunds) <= 1:
             return refunds
@@ -533,5 +531,5 @@ class Refund:
         return results
 
     def __repr__(self):
-        return pformat(self.__dict__)
-
+        return '{qty} of Refund: Total {total}\tSubtotal {subtotal}\tTax {tax} {desc}'.format(
+            qty=self.quantity, total=micro_usd_to_usd_string(self.total_refund_amount), subtotal=micro_usd_to_usd_string(self.refund_amount), tax=micro_usd_to_usd_string(self.refund_tax_amount), desc=self.title)

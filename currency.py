@@ -9,6 +9,7 @@ DOLLAR_EPS = 0.0001
 def micro_usd_nearly_equal(micro_a, micro_b):
     return abs(micro_a - micro_b) < MICRO_USD_EPS
 
+
 def round_usd(curr):
     return round(curr + DOLLAR_EPS, 2)
 
@@ -23,7 +24,7 @@ def micro_usd_to_usd_float(micro_usd):
 
 def micro_usd_to_usd_string(micro_usd):
     return '{}${:.2f}'.format(
-        '' if micro_usd > 0 else '-',
+        '' if micro_usd >= 0 else '-',
         micro_usd_to_usd_float(abs(micro_usd)))
 
 

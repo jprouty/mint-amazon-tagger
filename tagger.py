@@ -25,6 +25,7 @@ import readchar
 
 import amazon
 import category
+from currency import micro_usd_nearly_equal, micro_usd_to_usd_string
 import mint
 
 
@@ -50,15 +51,35 @@ def main():
     if args.dry_run:
         logger.info('Dry Run; no modifications being sent to Mint.')
 
+    # Initialize the stats. Explicitly initialize stats that might not be
+    # accumulated (conditionals).
+    stats = Counter(
+        adjust_itemized_tax=0,
+        already_up_to_date=0,
+        misc_charge=0,
+        new_tag=0,
+        no_retag=0,
+        retag=0,
+        user_skipped_retag=0,
+    )
+
     orders = amazon.Order.parse_from_csv(args.orders_csv)  
     items = amazon.Item.parse_from_csv(args.items_csv)
+
+    # Remove items from cancelled orders.
+    items = [i for i in items if not i.is_cancelled()]
+    # Make more Items such that every item is quantity 1.
+    items = [si for i in items for si in i.split_by_quantity()]
+
     logger.info('Matching Amazon Items with Orders')
     amazon.associate_items_with_orders(orders, items)
 
-    # Only keep orders that have items.
-    orders = [o for o in orders if o.items]
-
     refunds = [] if not args.refunds_csv else amazon.Refund.parse_from_csv(args.refunds_csv)
+
+    log_amazon_stats(items, orders, refunds)
+
+    # Only match orders that have items.
+    orders = [o for o in orders if o.items]
 
     mint_client = None
 
@@ -92,16 +113,19 @@ def main():
 
     trans = mint.Transaction.parse_from_json(mint_transactions_json)
     trans = mint.Transaction.unsplit(trans)
+    stats['trans'] = len(trans)
     # Skip t if the original description doesn't contain 'amazon'
     trans = [t for t in trans if 'amazon' in t.omerchant.lower()]
+    stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
+    stats['pending'] = stats['amazon_in_desc'] - len(trans)
 
     # Match orders.
     match_transactions(trans, orders)
 
     unmatched_trans = [t for t in trans if not t.orders]
-        
+
     # Match refunds.
     match_transactions(unmatched_trans, refunds)
 
@@ -111,27 +135,106 @@ def main():
 
     num_gift_card = len([o for o in unmatched_orders
                          if 'Gift Certificate' in o.payment_instrument_type])
+    num_unshipped = len([o for o in unmatched_orders if not o.shipment_date])
 
     matched_orders = [o for o in orders if o.matched]
     matched_trans = [t for t in trans if t.orders]
     matched_refunds = [r for r in refunds if r.matched]
 
+    stats['trans_unmatch'] = len(unmatched_trans)
+    stats['order_unmatch'] = len(unmatched_orders)
+    stats['refund_unmatch'] = len(unmatched_refunds)
+    stats['trans_match'] = len(matched_trans)
+    stats['order_match'] = len(matched_orders)
+    stats['refund_match'] = len(matched_refunds)
+    stats['skipped_orders_gift_card'] = num_gift_card
+    stats['skipped_orders_unshipped'] = num_unshipped
+
     merged_orders = []
     merged_refunds = []
-    
-    # Collapse per-item into quantities so it presents nicely.
+
+    updates = []
     for t in matched_trans:
         if t.is_debit:
-            t.orders = amazon.Order.merge_orders(t.orders)
-            t.orders[0].fix_itemized_tax()
-            merged_orders.extend(t.orders)
+            order = amazon.Order.merge(t.orders)
+            merged_orders.extend(orders)
+
+            if order.attribute_subtotal_diff_to_misc_charge():
+                stats['misc_charge'] += 1
+            # It's nice when "free" shipping cancels out with the shipping
+            # promo, even though there is tax on said free shipping. Spread
+            # that out across the items instead.
+            # if order.attribute_itemized_diff_to_shipping_tax():
+            #     stats['add_shipping_tax'] += 1
+            if order.attribute_itemized_diff_to_per_item_tax():
+                stats['adjust_itemized_tax'] += 1
+
+            assert micro_usd_nearly_equal(t.amount, order.total_charged)
+            assert micro_usd_nearly_equal(t.amount, order.total_by_subtotals())
+            assert micro_usd_nearly_equal(t.amount, order.total_by_items())
+
+            new_transactions = order.to_mint_transactions(t)
+
         else:
-            t.orders = amazon.Refund.merge_refunds(t.orders)
-            merged_refunds.extend(t.orders)
+            refunds = amazon.Refund.merge(t.orders)
+            merged_refunds.extend(refunds)
 
-        new_transactions = t.orders[0].to_mint_transactions(t)
+            new_transactions = [r.to_mint_transaction(t) for r in refunds]
 
-    
+        assert micro_usd_nearly_equal(t.amount, mint.Transaction.sum_amounts(new_transactions))
+
+        for nt in new_transactions:
+             nt.update_category_id(mint_category_name_to_id)
+
+        prefix = get_prefix(t.is_debit)
+        if args.no_itemize:
+            new_transactions = mint.summarize_new_trans(t, new_transactions, prefix)
+        else:
+            new_transactions = mint.itemize_new_trans(new_transactions, prefix)
+
+        if mint.Transaction.old_and_new_are_identical(t, new_transactions):
+            stats['already_up_to_date'] += 1
+            continue
+
+        if t.merchant.startswith(prefix):
+            if args.prompt_retag:
+                logger.info('\nTransaction already tagged:')
+                print_dry_run([(t, new_transactions)]) ###
+                logger.info('\nUpdate tag to proposed? [Yn] ')
+                action = readchar.readchar()
+                if action == '':
+                    exit(1)
+                if action not in ('Y', 'y', '\r', '\n'):
+                    stats['user_skipped_retag'] += 1
+                    continue
+                stats['retag'] += 1
+            elif not args.retag_changed:
+                stats['no_retag'] += 1
+                continue
+            else:
+                stats['retag'] += 1
+        else:
+            stats['new_tag'] += 1
+        updates.append((t, new_transactions))
+
+    log_processing_stats(stats)
+
+    if not updates:
+        logger.info(
+            'All done; no new tags to be updated at this point in time!.')
+        exit(0)
+
+    if args.dry_run:
+        logger.info('Dry run. Following are proposed changes:')
+        print_dry_run(updates)
+    else:
+        # Ensure we have a Mint client.
+        if not mint_client:
+            mint_client = get_mint_client(args)
+
+        # write_tags_to_mint(filtered, mint_client)
+
+
 def mark_best_as_matched(t, list_of_orders_or_refunds):
     if not list_of_orders_or_refunds:
         return
@@ -261,6 +364,101 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
         skip_duplicates=True)
 
     return transactions, categories
+
+
+def log_amazon_stats(items, orders, refunds):
+    logger.info('\nAmazon Stats:')
+    first_order_date = min([o.order_date for o in orders])
+    last_order_date = max([o.order_date for o in orders])
+    logger.info('\n{} orders with {} matching items'.format(
+        len([o for o in orders if o.items]),
+        len([i for i in items if i.matched])))
+    logger.info('{} unmatched orders and {} unmatched items'.format(
+        len([o for o in orders if not o.items]),
+        len([i for i in items if not i.matched])))
+    logger.info('Orders ranging from {} to {}'.format(first_order_date, last_order_date))
+
+    per_item_totals = [i.item_total for i in items]
+    per_order_totals = [o.total_charged for o in orders]
+
+    logger.info('{} total spend'.format(
+        micro_usd_to_usd_string(sum(per_order_totals))))
+
+    logger.info('{} avg order total (range: {} - {})'.format(
+        micro_usd_to_usd_string(sum(per_order_totals) / len(orders)),
+        micro_usd_to_usd_string(min(per_order_totals)),
+        micro_usd_to_usd_string(max(per_order_totals))))
+    logger.info('{} avg item price (range: {} - {})'.format(
+        micro_usd_to_usd_string(sum(per_item_totals) / len(items)),
+        micro_usd_to_usd_string(min(per_item_totals)),
+        micro_usd_to_usd_string(max(per_item_totals))))
+
+    if refunds:
+        first_refund_date = min(
+            [r.refund_date for r in refunds if r.refund_date])
+        last_refund_date = max(
+            [r.refund_date for r in refunds if r.refund_date])
+        logger.info('\n{} refunds dating from {} to {}'.format(
+            len(refunds), first_refund_date, last_refund_date))
+
+        per_refund_totals = [r.total_refund_amount for r in refunds]
+
+        logger.info('{} total refunded'.format(
+            micro_usd_to_usd_string(sum(per_refund_totals))))
+
+
+def log_processing_stats(stats):
+    logger.info(
+        '\nTransactions: {trans}\n'
+        'Transactions w/ "Amazon" in description: {amazon_in_desc}\n'
+        'Transactions ignored: is pending: {pending}\n'
+        '\n'
+        'Transactions w/ matching order information: {order_match} (unmatched orders: {order_unmatch})\n'
+        'Transactions w/ matching refund information: {refund_match} (unmatched refunds: {refund_unmatch})\n'
+        '\n'
+        'Orders skipped: not shipped: {skipped_orders_unshipped}\n'
+        'Orders skipped: gift card used: {skipped_orders_gift_card}\n'
+        '\n'
+        'Order fix-up: incorrect tax itemization: {adjust_itemized_tax}\n'
+        'Order fix-up: has a misc charges (e.g. gift wrap): {misc_charge}\n'
+        '\n'
+        'Transactions matched with Amazon orders/refunds: {trans_match} (unmatched: {trans_unmatch})\n'
+        '\n'
+        'Transactions ignored; already tagged & up to date: {already_up_to_date}\n'
+        'Transactions ignored; ignore retags: {no_retag}\n'
+        'Transactions ignored; user skipped retag: {user_skipped_retag}\n'
+        '\n'
+        'Transactions to be retagged: {retag}\n'
+        'Transactions to be newly tagged: {new_tag}'.format(**stats))
+
+
+def print_dry_run(orig_trans_to_tagged):
+
+    for orig_trans, new_trans in orig_trans_to_tagged:
+        if orig_trans.is_debit:
+            logger.info('\nFor Amazon Order: {oid}\nInvoice: https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&orderID={oid}'.format(
+                oid=orig_trans.orders[0].order_id))
+
+        if orig_trans.children:
+            for i, trans in enumerate(orig_trans.children):
+                logger.info('{}{}) Current: \t{}'.format(
+                    '\n' if i == 0 else '',
+                    i + 1,
+                    trans.dry_run_str()))
+        else:
+            logger.info('\nCurrent: \t{}'.format(
+                orig_trans.dry_run_str()))
+
+        if len(new_trans) == 1:
+            trans = new_trans[0]
+            logger.info('\nProposed: \t{}'.format(
+                trans.dry_run_str()))
+        else:
+            for i, trans in enumerate(reversed(new_trans)):
+                logger.info('{}{}) Proposed: \t{}'.format(
+                    '\n' if i == 0 else '',
+                    i + 1,
+                    trans.dry_run_str()))
 
 
 def define_args(parser):
