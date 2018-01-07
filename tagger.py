@@ -11,6 +11,7 @@
 import argparse
 import atexit
 from collections import defaultdict, Counter
+import datetime
 import itertools
 import logging
 import pickle
@@ -25,7 +26,7 @@ import readchar
 
 import amazon
 import category
-from currency import micro_usd_nearly_equal, micro_usd_to_usd_string
+from currency import micro_usd_nearly_equal, micro_usd_to_usd_float, micro_usd_to_usd_string
 import mint
 
 
@@ -90,7 +91,7 @@ def main():
     atexit.register(close_mint_client)
 
     if args.pickled_epoch:
-        mint_transactions_json, mint_category_name_to_id = (
+        mint_trans, mint_category_name_to_id = (
             get_trans_and_categories_from_pickle(args.pickled_epoch))
     else:
         mint_client = get_mint_client(args)
@@ -104,15 +105,14 @@ def main():
         mint_transactions_json, mint_category_name_to_id = (
             get_trans_and_categories_from_mint(mint_client, oldest_trans_date))
         epoch = int(time.time())
-        dump_trans_and_categories(
-            mint_transactions_json, mint_category_name_to_id, epoch)
+        mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
+        dump_trans_and_categories(mint_trans, mint_category_name_to_id, epoch)
 
     def get_prefix(is_debit):
         return (args.description_prefix if is_debit
                 else args.description_return_prefix)
 
-    trans = mint.Transaction.parse_from_json(mint_transactions_json)
-    trans = mint.Transaction.unsplit(trans)
+    trans = mint.Transaction.unsplit(mint_trans)
     stats['trans'] = len(trans)
     # Skip t if the original description doesn't contain 'amazon'
     trans = [t for t in trans if 'amazon' in t.omerchant.lower()]
@@ -232,7 +232,7 @@ def main():
         if not mint_client:
             mint_client = get_mint_client(args)
 
-        # write_tags_to_mint(filtered, mint_client)
+        send_updates_to_mint(updates, mint_client)
 
 
 def mark_best_as_matched(t, list_of_orders_or_refunds):
@@ -243,6 +243,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds):
     # within 3 days of the ship date of the order.
     closest_match = None
     closest_match_num_days = 365  # Large number
+
     for orders in list_of_orders_or_refunds:
         an_order = next(o for o in orders if o.transact_date())
         if not an_order:
@@ -268,6 +269,7 @@ def match_transactions(unmatched_trans, unmatched_orders):
     # First pass: Match up transactions that exactly equal an order's charged
     # amount.
     amount_to_orders = defaultdict(list)
+
     for o in unmatched_orders:
         amount_to_orders[o.transact_amount()].append([o])
 
@@ -351,6 +353,7 @@ def dump_trans_and_categories(trans, cats, pickle_epoch):
 def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
     # Create a map of Mint category name to category id.
     logger.info('Creating Mint Category Map.')
+    start_time = time.time()
     categories = dict([
         (cat_dict['name'], cat_id)
         for (cat_id, cat_dict) in mint_client.get_categories().items()])
@@ -362,6 +365,10 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
         start_date=start_date_str,
         include_investment=False,
         skip_duplicates=True)
+
+    dur = s_to_time(time.time() - start_time)
+    logger.info('Got {} transactions and {} categories from Mint in {}'.format(
+        len(transactions), len(categories), dur))
 
     return transactions, categories
 
@@ -433,11 +440,11 @@ def log_processing_stats(stats):
 
 
 def print_dry_run(orig_trans_to_tagged):
-
     for orig_trans, new_trans in orig_trans_to_tagged:
         if orig_trans.is_debit:
-            logger.info('\nFor Amazon Order: {oid}\nInvoice: https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&orderID={oid}'.format(
-                oid=orig_trans.orders[0].order_id))
+            o = orig_trans.orders[0]
+            logger.info('\nFor Amazon Order: {}\nInvoice: {}'.format(
+                o.order_id, o.get_invoice_url()))
 
         if orig_trans.children:
             for i, trans in enumerate(orig_trans.children):
@@ -459,6 +466,83 @@ def print_dry_run(orig_trans_to_tagged):
                     '\n' if i == 0 else '',
                     i + 1,
                     trans.dry_run_str()))
+
+
+def send_updates_to_mint(updates, mint_client):
+    logger.info('Sending {} updates to Mint.'.format(len(updates)))
+
+    start_time = time.time()
+    num_requests = 0
+    for (orig_trans, new_trans) in updates:
+        if len(new_trans) == 1:
+            # Update the existing transaction.
+            trans = new_trans[0]
+            modify_trans = {
+                'task': 'txnedit',
+                'txnId': '{}:0'.format(trans.id),
+                'note': trans.note,
+                'merchant': trans.merchant,
+                'category': trans.category,
+                'catId': trans.category_id,
+                'token': mint_client.token,
+            }
+
+            logger.debug('Sending a "modify" transaction request: {}'.format(
+                modify_trans))
+            response = mint_client.post(
+                '{}{}'.format(
+                    MINT_ROOT_URL,
+                    UPDATE_TRANS_ENDPOINT),
+                data=modify_trans).text
+            logger.debug('Received response: {}'.format(response))
+            num_requests += 1
+        else:
+            # Split the existing transaction into many.
+            # If the existing transaction is a:
+            #   - credit: positive amount is credit, negative debit
+            #   - debit: positive amount is debit, negative credit
+            itemized_split = {
+                'txnId': '{}:0'.format(orig_trans.id),
+                'task': 'split',
+                'data': '',  # Yup this is weird.
+                'token': mint_client.token,
+            }
+            for (i, trans) in enumerate(new_trans):
+                amount = trans.amount
+                # Based on the comment above, if the original transaction is a
+                # credit, flip the amount sign for things to work out!
+                if not orig_trans.is_debit:
+                    amount *= -1
+                amount = micro_usd_to_usd_float(amount)
+                itemized_split['amount{}'.format(i)] = amount
+                # Yup. Weird:
+                itemized_split['percentAmount{}'.format(i)] = amount
+                itemized_split['category{}'.format(i)] = trans.category
+                itemized_split['categoryId{}'.format(i)] = trans.category_id
+                itemized_split['merchant{}'.format(i)] = trans.merchant
+                # Yup weird. '0' means new?
+                itemized_split['txnId{}'.format(i)] = 0
+
+            logger.debug('Sending a "split" transaction request: {}'.format(
+                itemized_split))
+            response = mint_client.post(
+                '{}{}'.format(
+                    MINT_ROOT_URL,
+                    UPDATE_TRANS_ENDPOINT),
+                data=itemized_split).text
+            logger.debug('Received response: {}'.format(response))
+            num_requests += 1
+
+    dur = s_to_time(time.time() - start_time)
+    logger.info('Sent {} updates to Mint in {}'.format(num_requests, dur))
+
+
+def s_to_time(s):
+    s = int(s)
+    dur_s = int(s % 60)
+    dur_m = int(s / 60) % 60
+    dur_h = int(s // 60 // 60)
+    return datetime.time(hour=dur_h, minute=dur_m, second=dur_s)
 
 
 def define_args(parser):

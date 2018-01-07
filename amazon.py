@@ -181,6 +181,9 @@ class Order:
     def match(self, trans):
         self.matched = True
         self.trans_id = trans.id
+
+    def get_invoice_url(self):
+        return 'https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&orderID={oid}'.format(oid=self.order_id)
     
     def set_items(self, items, assert_unmatched=False):
         self.items = items
@@ -348,8 +351,8 @@ class Order:
         return result
 
     def __repr__(self):
-        return 'Order ({id}): Total {total}\tSubtotal {subtotal}\tTax {tax}\tPromo {promo}\tShip {ship}\tItems: \n{items}'.format(
-            id=self.order_id, total=micro_usd_to_usd_string(self.total_charged), subtotal=micro_usd_to_usd_string(self.subtotal), tax=micro_usd_to_usd_string(self.tax_charged), promo=micro_usd_to_usd_string(self.total_promotions), ship=micro_usd_to_usd_string(self.shipping_charge), items=pformat(self.items))
+        return 'Order ({id}): {date} Total {total}\tSubtotal {subtotal}\tTax {tax}\tPromo {promo}\tShip {ship}\tItems: \n{items}'.format(
+            id=self.order_id, date=(self.shipment_date or self.order_date), total=micro_usd_to_usd_string(self.total_charged), subtotal=micro_usd_to_usd_string(self.subtotal), tax=micro_usd_to_usd_string(self.tax_charged), promo=micro_usd_to_usd_string(self.total_promotions), ship=micro_usd_to_usd_string(self.shipping_charge), items=pformat(self.items))
 
 
 class Item:
