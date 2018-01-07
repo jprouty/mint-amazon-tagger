@@ -94,10 +94,11 @@ def associate_items_with_orders(orders, items):
     for oid, orders in orders_by_oid.items():
         oid_items = items_by_oid[oid]
 
-        subtotal_equal = micro_usd_nearly_equal(
+        if not micro_usd_nearly_equal(
             Order.sum_subtotals(orders),
-            Item.sum_subtotals(oid_items))
-        assert subtotal_equal
+            Item.sum_subtotals(oid_items)):
+            # This is likely due to reports being pulled before all outstanding orders have shipped. Just skip this order for now.
+            continue
         
         if len(orders) == 1:
             orders[0].set_items(oid_items, assert_unmatched=True)

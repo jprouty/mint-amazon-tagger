@@ -69,6 +69,8 @@ def main():
 
     # Remove items from cancelled orders.
     items = [i for i in items if not i.is_cancelled()]
+    # Remove items with zero quantity (it happens!)
+    items = [i for i in items if i.quantity > 0]
     # Make more Items such that every item is quantity 1.
     items = [si for i in items for si in i.split_by_quantity()]
 
