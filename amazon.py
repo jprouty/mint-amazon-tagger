@@ -51,6 +51,14 @@ RENAME_FIELD_NAMES = {
 }
 
 
+def is_empty_csv(csv_file_obj, key='Quantity'):
+    # Amazon likes to put "No data found for this time period" in the first
+    # row.
+    filename = csv_file_obj.name
+    return (sum([1 for r in csv.DictReader(open(filename))]) <= 1 and
+        next(csv.DictReader(open(filename)))[key] == None)
+
+
 def pythonify_amazon_dict(raw_dict):
     keys = set(raw_dict.keys())
 
@@ -97,7 +105,8 @@ def associate_items_with_orders(orders, items):
         if not micro_usd_nearly_equal(
             Order.sum_subtotals(orders),
             Item.sum_subtotals(oid_items)):
-            # This is likely due to reports being pulled before all outstanding orders have shipped. Just skip this order for now.
+            # This is likely due to reports being pulled before all outstanding
+            # orders have shipped. Just skip this order for now.
             continue
         
         if len(orders) == 1:
@@ -153,6 +162,7 @@ ORDER_MERGE_FIELDS = {
 
 class Order:
     matched = False
+    items_matched = False
     trans_id = None
     items = []
     
@@ -161,6 +171,9 @@ class Order:
         
     @classmethod
     def parse_from_csv(cls, csv_file):
+        if is_empty_csv(csv_file, 'Order Status'):
+            return []
+
         return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
 
     @staticmethod
@@ -188,6 +201,7 @@ class Order:
     
     def set_items(self, items, assert_unmatched=False):
         self.items = items
+        self.items_matched = True
         for i in items:
             if assert_unmatched:
                 assert not i.matched
@@ -289,7 +303,10 @@ class Order:
                 self.items[adjust_idx].item_subtotal, 1)
         return True
 
-    def to_mint_transactions(self, t):
+    def to_mint_transactions(self,
+                             t,
+                             skip_category=False,
+                             skip_free_shipping=False):
         new_transactions = []
         
         # More expensive items are always more interesting when it comes to
@@ -298,43 +315,49 @@ class Order:
 
         # Itemize line-items:
         for i in items:
+            new_cat = (t.category if skip_category
+                       else category.AMAZON_TO_MINT_CATEGORY.get(
+                            i.category, category.DEFAULT_MINT_CATEGORY))
             item = t.split(
                 amount=i.item_total,
-                category=category.AMAZON_TO_MINT_CATEGORY.get(
-                    i.category, category.DEFAULT_MINT_CATEGORY),
+                category=new_cat,
                 desc=i.get_title(88),
                 note=self.get_note())
             new_transactions.append(item)
 
         # Itemize the shipping cost, if any.
-        ship = None
+        is_free_shipping = (
+            self.shipping_charge and
+            self.total_promotions and
+            micro_usd_nearly_equal(
+                self.total_promotions, self.shipping_charge))
+
+        if is_free_shipping and skip_free_shipping:
+            return new_transactions
+
         if self.shipping_charge:
             ship = t.split(
                 amount=self.shipping_charge,
                 category='Shipping',
                 desc='Shipping',
                 note=self.get_note())
-
             new_transactions.append(ship)
 
         # All promotion(s) as one line-item.
-        promo = None
         if self.total_promotions:
+            # If there was a promo that matches the shipping cost, it's nearly
+            # certainly a Free One-day/same-day/etc promo. In this case,
+            # categorize the promo instead as 'Shipping', which will cancel out
+            # in Mint trends.
+            cat = ('Shipping' if is_free_shipping else
+                   category.DEFAULT_MINT_CATEGORY)
             promo = t.split(
                 amount=-self.total_promotions,
-                category=category.DEFAULT_MINT_CATEGORY,
+                category=cat,
                 desc='Promotion(s)',
                 note=self.get_note(),
                 isDebit=False)
             new_transactions.append(promo)
-
-        # If there was a promo that matches the shipping cost, it's nearly
-        # certainly a Free One-day/same-day/etc promo. In this case, categorize
-        # the promo instead as 'Shipping', which will cancel out in Mint
-        # trends.
-
-        if promo and ship and micro_usd_nearly_equal(-promo.amount, ship.amount):
-            promo.category = 'Shipping'
 
         return new_transactions
 
@@ -366,6 +389,9 @@ class Item:
 
     @classmethod
     def parse_from_csv(cls, csv_file):
+        if is_empty_csv(csv_file):
+            return []
+
         return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
     
     @staticmethod
@@ -467,6 +493,9 @@ class Refund:
 
     @classmethod
     def parse_from_csv(cls, csv_file):
+        if is_empty_csv(csv_file):
+            return []
+
         return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
 
     def match(self, trans):
@@ -493,16 +522,17 @@ class Refund:
                 self.refund_date,
                 self.refund_reason)
 
-    def to_mint_transaction(self, t):
+    def to_mint_transaction(self, t, skip_category=False):
+        new_cat = (t.category if skip_category else
+                   category.AMAZON_TO_MINT_CATEGORY.get(
+                       self.category, category.DEFAULT_MINT_RETURN_CATEGORY))
         result = t.split(
             desc=self.get_title(88),
-            category=category.AMAZON_TO_MINT_CATEGORY.get(
-                self.category, category.DEFAULT_MINT_RETURN_CATEGORY),
+            category=new_cat,
             amount=-self.total_refund_amount,
             note = self.get_note(),
             isDebit=False)
         return result
-
 
     @staticmethod
     def merge(refunds):

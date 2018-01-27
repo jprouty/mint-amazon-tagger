@@ -69,6 +69,8 @@ def main():
 
     # Remove items from cancelled orders.
     items = [i for i in items if not i.is_cancelled()]
+    # Remove items that haven't shipped yet (also aren't charged).
+    items = [i for i in items if i.order_status == 'Shipped']
     # Remove items with zero quantity (it happens!)
     items = [i for i in items if i.quantity > 0]
     # Make more Items such that every item is quantity 1.
@@ -122,6 +124,10 @@ def main():
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
     stats['pending'] = stats['amazon_in_desc'] - len(trans)
+    # Skip t if a category filter is given and t does not match.
+    if args.mint_input_categories_filter:
+        whitelist = set(args.mint_input_categories_filter.lower().split(','))
+        trans = [t for t in trans if t.category.lower() in whitelist ]
 
     # Match orders.
     match_transactions(trans, orders)
@@ -175,13 +181,19 @@ def main():
             assert micro_usd_nearly_equal(t.amount, order.total_by_subtotals())
             assert micro_usd_nearly_equal(t.amount, order.total_by_items())
 
-            new_transactions = order.to_mint_transactions(t)
+            new_transactions = order.to_mint_transactions(
+                t,
+                skip_category=args.no_tag_categories,
+                skip_free_shipping=not args.verbose_itemize)
 
         else:
             refunds = amazon.Refund.merge(t.orders)
             merged_refunds.extend(refunds)
 
-            new_transactions = [r.to_mint_transaction(t) for r in refunds]
+            skip_category = args.no_tag_categories
+            new_transactions = [
+                r.to_mint_transaction(t, skip_category)
+                for r in refunds]
 
         assert micro_usd_nearly_equal(t.amount, mint.Transaction.sum_amounts(new_transactions))
 
@@ -189,7 +201,9 @@ def main():
              nt.update_category_id(mint_category_name_to_id)
 
         prefix = get_prefix(t.is_debit)
-        if args.no_itemize:
+        summarize_single_item_order = (
+            t.is_debit and len(order.items) == 1 and not args.verbose_itemize)
+        if args.no_itemize or summarize_single_item_order:
             new_transactions = mint.summarize_new_trans(t, new_transactions, prefix)
         else:
             new_transactions = mint.itemize_new_trans(new_transactions, prefix)
@@ -380,10 +394,10 @@ def log_amazon_stats(items, orders, refunds):
     first_order_date = min([o.order_date for o in orders])
     last_order_date = max([o.order_date for o in orders])
     logger.info('\n{} orders with {} matching items'.format(
-        len([o for o in orders if o.items]),
+        len([o for o in orders if o.items_matched]),
         len([i for i in items if i.matched])))
     logger.info('{} unmatched orders and {} unmatched items'.format(
-        len([o for o in orders if not o.items]),
+        len([o for o in orders if not o.items_matched]),
         len([i for i in items if not i.matched])))
     logger.info('Orders ranging from {} to {}'.format(first_order_date, last_order_date))
 
@@ -422,16 +436,15 @@ def log_processing_stats(stats):
         'Transactions w/ "Amazon" in description: {amazon_in_desc}\n'
         'Transactions ignored: is pending: {pending}\n'
         '\n'
-        'Transactions w/ matching order information: {order_match} (unmatched orders: {order_unmatch})\n'
-        'Transactions w/ matching refund information: {refund_match} (unmatched refunds: {refund_unmatch})\n'
+        'Orders matched w/ transactions: {order_match} (unmatched orders: {order_unmatch})\n'
+        'Refunds matched w/ transactions: {refund_match} (unmatched refunds: {refund_unmatch})\n'
+        'Transactions matched w/ orders/refunds: {trans_match} (unmatched: {trans_unmatch})\n'
         '\n'
         'Orders skipped: not shipped: {skipped_orders_unshipped}\n'
         'Orders skipped: gift card used: {skipped_orders_gift_card}\n'
         '\n'
         'Order fix-up: incorrect tax itemization: {adjust_itemized_tax}\n'
         'Order fix-up: has a misc charges (e.g. gift wrap): {misc_charge}\n'
-        '\n'
-        'Transactions matched with Amazon orders/refunds: {trans_match} (unmatched: {trans_unmatch})\n'
         '\n'
         'Transactions ignored; already tagged & up to date: {already_up_to_date}\n'
         'Transactions ignored; ignore retags: {no_retag}\n'
@@ -471,6 +484,10 @@ def print_dry_run(orig_trans_to_tagged):
 
 
 def send_updates_to_mint(updates, mint_client):
+    # TODO:
+    #   Unsplits
+    #   Send notes for everything
+
     logger.info('Sending {} updates to Mint.'.format(len(updates)))
 
     start_time = time.time()
@@ -569,8 +586,13 @@ def define_args(parser):
              'This is optional.')
 
     parser.add_argument(
+        '--verbose_itemize', action='store_true',
+        help=('Default behavior is to not itemize out shipping/promos/etc if '
+              'there is only one item per Mint transaction. Will also remove '
+              'free shipping. Set this to itemize everything.'))
+    parser.add_argument(
         '--no_itemize', action='store_true',
-        help=('P will split Mint transactions into individual items with '
+        help=('Do not split Mint transactions into individual items with '
               'attempted categorization.'))
 
     parser.add_argument(
@@ -615,6 +637,19 @@ def define_args(parser):
               'it makes transactions still retrieval by searching "amazon". '
               'It is also used to detecting if a transaction has already been '
               'tagged by this tool.'))
+    parser.add_argument(
+        '--mint_input_categories_filter', type=str,
+        help=('If present, only consider Mint transactions that match one of '
+              'the given categories here. Comma separated list of Mint '
+              'categories.'))
+
+    parser.add_argument(
+        '--no_tag_categories', action='store_true',
+        help=('If present, do not update Mint categories. This is useful as '
+              'Amazon doesn\'t provide the best categorization and it is '
+              'pretty common user behavior to manually change the categories. '
+              'This flag prevents tagger from wiping out that user work.'))
+
 
 
 if __name__ == '__main__':
