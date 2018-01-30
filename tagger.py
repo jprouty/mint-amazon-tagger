@@ -215,7 +215,7 @@ def main():
         if t.merchant.startswith(prefix):
             if args.prompt_retag:
                 logger.info('\nTransaction already tagged:')
-                print_dry_run([(t, new_transactions)]) ###
+                print_dry_run([(t, new_transactions)])
                 logger.info('\nUpdate tag to proposed? [Yn] ')
                 action = readchar.readchar()
                 if action == '':
@@ -456,10 +456,10 @@ def log_processing_stats(stats):
 
 def print_dry_run(orig_trans_to_tagged):
     for orig_trans, new_trans in orig_trans_to_tagged:
-        if orig_trans.is_debit:
-            o = orig_trans.orders[0]
-            logger.info('\nFor Amazon Order: {}\nInvoice: {}'.format(
-                o.order_id, o.get_invoice_url()))
+        oid = orig_trans.orders[0].order_id
+        logger.info('\nFor Amazon {}: {}\nInvoice URL: {}'.format(
+            'Order' if orig_trans.is_debit else 'Refund',
+            oid, amazon.get_invoice_url(oid)))
 
         if orig_trans.children:
             for i, trans in enumerate(orig_trans.children):

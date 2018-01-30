@@ -91,6 +91,10 @@ def parse_amazon_date(date_str):
         return datetime.strptime(date_str, '%m/%d/%y').date()
 
 
+def get_invoice_url(order_id):
+    return 'https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&orderID={oid}'.format(oid=order_id)
+
+
 def associate_items_with_orders(orders, items):
     items_by_oid = defaultdict(list)
     for i in items:
@@ -196,9 +200,6 @@ class Order:
         self.matched = True
         self.trans_id = trans.id
 
-    def get_invoice_url(self):
-        return 'https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&orderID={oid}'.format(oid=self.order_id)
-    
     def set_items(self, items, assert_unmatched=False):
         self.items = items
         self.items_matched = True
@@ -211,13 +212,18 @@ class Order:
     def get_note(self):
         return (
             'Amazon order id: {}\n'
+            'Buyer: {} ({})\n'
             'Order date: {}\n'
             'Ship date: {}\n'
-            'Tracking: {}').format(
+            'Tracking: {}\n'
+            'Invoice url: {}').format(
                 self.order_id,
+                self.buyer_name,
+                self.ordering_customer_email,
                 self.order_date,
                 self.shipment_date,
-                self.tracking)
+                self.tracking,
+                get_invoice_url(self.order_id))
 
     def attribute_subtotal_diff_to_misc_charge(self):
         diff = self.total_charged - self.total_by_subtotals()
@@ -412,17 +418,6 @@ class Item:
     def is_cancelled(self):
         return self.order_status == 'Cancelled'
 
-    def get_note(self):
-        return (
-            'Amazon order id: {}\n'
-            'Order date: {}\n'
-            'Ship date: {}\n'
-            'Tracking: {}').format(
-                self.order_id,
-                self.order_date,
-                self.shipment_date,
-                self.tracking)
-
     def set_quantity(self, new_quantity):
         """Sets the quantity of this item and updates all prices."""
         original_quantity = self.quantity
@@ -514,13 +509,17 @@ class Refund:
     def get_note(self):
         return (
             'Amazon refund for order id: {}\n'
+            'Buyer: {}\n'
             'Order date: {}\n'
             'Refund date: {}\n'
-            'Refund reason: {}').format(
+            'Refund reason: {}\n',
+            'Invoice url: {}').format(
                 self.order_id,
+                self.buyer_name,
                 self.order_date,
                 self.refund_date,
-                self.refund_reason)
+                self.refund_reason,
+                get_invoice_url(self.order_id))
 
     def to_mint_transaction(self, t, skip_category=False):
         new_cat = (t.category if skip_category else
