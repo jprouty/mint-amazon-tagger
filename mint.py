@@ -102,19 +102,18 @@ class Transaction(object):
         assert self.category in mint_cat_name_to_id
         self.category_id = mint_cat_name_to_id[self.category]
 
-    def get_compare_tuple(self):
+    def get_compare_tuple(self, ignore_category=False):
         """Returns a 3-tuple used to determine if 2 transactions are equal."""
         # TODO: Add the 'note' field once itemized transactions include notes.
-        return (
-            self.merchant,
-            micro_usd_to_usd_string(self.amount),  # str avoids float cmp
-            self.category)
+        # Use str to avoid float cmp.
+        base = (self.merchant, micro_usd_to_usd_string(self.amount))
+        return base if ignore_category else base + (self.category,)
 
-    def dry_run_str(self):
+    def dry_run_str(self, ignore_category=False):
         return '{} \t {} \t {} \t {}'.format(
             self.date.strftime('%m/%d/%y'),
             micro_usd_to_usd_string(self.amount),
-            self.category,
+            '--IGNORED--' if ignore_category else self.category,
             self.merchant)
 
     def __repr__(self):
@@ -156,14 +155,15 @@ class Transaction(object):
 
         return result
 
+
     @staticmethod
-    def old_and_new_are_identical(old, new):
+    def old_and_new_are_identical(old, new, ignore_category=False):
         """Returns True if there is zero difference between old and new."""
         old_set = set(
-            [c.get_compare_tuple() for c in old.children]
+            [c.get_compare_tuple(ignore_category) for c in old.children]
             if old.children
-            else [old.get_compare_tuple()])
-        new_set = set([t.get_compare_tuple() for t in new])
+            else [old.get_compare_tuple(ignore_category)])
+        new_set = set([t.get_compare_tuple(ignore_category) for t in new])
         return old_set == new_set
 
 

@@ -311,7 +311,6 @@ class Order:
 
     def to_mint_transactions(self,
                              t,
-                             skip_category=False,
                              skip_free_shipping=False):
         new_transactions = []
         
@@ -321,9 +320,8 @@ class Order:
 
         # Itemize line-items:
         for i in items:
-            new_cat = (t.category if skip_category
-                       else category.AMAZON_TO_MINT_CATEGORY.get(
-                            i.category, category.DEFAULT_MINT_CATEGORY))
+            new_cat = category.AMAZON_TO_MINT_CATEGORY.get(
+                i.category, category.DEFAULT_MINT_CATEGORY)
             item = t.split(
                 amount=i.item_total,
                 category=new_cat,
@@ -521,10 +519,9 @@ class Refund:
                 self.refund_reason,
                 get_invoice_url(self.order_id))
 
-    def to_mint_transaction(self, t, skip_category=False):
-        new_cat = (t.category if skip_category else
-                   category.AMAZON_TO_MINT_CATEGORY.get(
-                       self.category, category.DEFAULT_MINT_RETURN_CATEGORY))
+    def to_mint_transaction(self, t):
+        new_cat = category.AMAZON_TO_MINT_CATEGORY.get(
+            self.category, category.DEFAULT_MINT_RETURN_CATEGORY)
         result = t.split(
             desc=self.get_title(88),
             category=new_cat,

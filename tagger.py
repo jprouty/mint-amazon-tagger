@@ -183,16 +183,14 @@ def main():
 
             new_transactions = order.to_mint_transactions(
                 t,
-                skip_category=args.no_tag_categories,
                 skip_free_shipping=not args.verbose_itemize)
 
         else:
             refunds = amazon.Refund.merge(t.orders)
             merged_refunds.extend(refunds)
 
-            skip_category = args.no_tag_categories
             new_transactions = [
-                r.to_mint_transaction(t, skip_category)
+                r.to_mint_transaction(t)
                 for r in refunds]
 
         assert micro_usd_nearly_equal(t.amount, mint.Transaction.sum_amounts(new_transactions))
@@ -208,14 +206,19 @@ def main():
         else:
             new_transactions = mint.itemize_new_trans(new_transactions, prefix)
 
-        if mint.Transaction.old_and_new_are_identical(t, new_transactions):
+        if mint.Transaction.old_and_new_are_identical(
+                t, new_transactions, ignore_category=args.no_tag_categories):
             stats['already_up_to_date'] += 1
             continue
 
         if t.merchant.startswith(prefix):
             if args.prompt_retag:
+                if args.num_updates > 0 and len(updates) >= args.num_updates:
+                    break
                 logger.info('\nTransaction already tagged:')
-                print_dry_run([(t, new_transactions)])
+                print_dry_run(
+                    [(t, new_transactions)],
+                    ignore_category=args.no_tag_categories)
                 logger.info('\nUpdate tag to proposed? [Yn] ')
                 action = readchar.readchar()
                 if action == '':
@@ -240,15 +243,19 @@ def main():
             'All done; no new tags to be updated at this point in time!.')
         exit(0)
 
+    if args.num_updates > 0:
+        updates = updates[:num_updates]
+
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
-        print_dry_run(updates)
+        print_dry_run(updates, ignore_category=args.no_tag_categories)
     else:
         # Ensure we have a Mint client.
         if not mint_client:
             mint_client = get_mint_client(args)
 
-        send_updates_to_mint(updates, mint_client)
+        send_updates_to_mint(
+            updates, mint_client, ignore_category=args.no_tag_categories)
 
 
 def mark_best_as_matched(t, list_of_orders_or_refunds):
@@ -454,7 +461,7 @@ def log_processing_stats(stats):
         'Transactions to be newly tagged: {new_tag}'.format(**stats))
 
 
-def print_dry_run(orig_trans_to_tagged):
+def print_dry_run(orig_trans_to_tagged, ignore_category=False):
     for orig_trans, new_trans in orig_trans_to_tagged:
         oid = orig_trans.orders[0].order_id
         logger.info('\nFor Amazon {}: {}\nInvoice URL: {}'.format(
@@ -474,16 +481,16 @@ def print_dry_run(orig_trans_to_tagged):
         if len(new_trans) == 1:
             trans = new_trans[0]
             logger.info('\nProposed: \t{}'.format(
-                trans.dry_run_str()))
+                trans.dry_run_str(ignore_category)))
         else:
             for i, trans in enumerate(reversed(new_trans)):
                 logger.info('{}{}) Proposed: \t{}'.format(
                     '\n' if i == 0 else '',
                     i + 1,
-                    trans.dry_run_str()))
+                    trans.dry_run_str(ignore_category)))
 
 
-def send_updates_to_mint(updates, mint_client):
+def send_updates_to_mint(updates, mint_client, ignore_category=False):
     # TODO:
     #   Unsplits
     #   Send notes for everything
@@ -501,10 +508,14 @@ def send_updates_to_mint(updates, mint_client):
                 'txnId': '{}:0'.format(trans.id),
                 'note': trans.note,
                 'merchant': trans.merchant,
-                'category': trans.category,
-                'catId': trans.category_id,
                 'token': mint_client.token,
             }
+            if not ignore_category:
+                modify_trans = {
+                    **modify_trans,
+                    'category': trans.category,
+                    'catId': trans.category_id,
+                }
 
             logger.debug('Sending a "modify" transaction request: {}'.format(
                 modify_trans))
@@ -536,11 +547,13 @@ def send_updates_to_mint(updates, mint_client):
                 itemized_split['amount{}'.format(i)] = amount
                 # Yup. Weird:
                 itemized_split['percentAmount{}'.format(i)] = amount
-                itemized_split['category{}'.format(i)] = trans.category
-                itemized_split['categoryId{}'.format(i)] = trans.category_id
                 itemized_split['merchant{}'.format(i)] = trans.merchant
                 # Yup weird. '0' means new?
                 itemized_split['txnId{}'.format(i)] = 0
+                if not ignore_category:
+                    itemized_split['category{}'.format(i)] = trans.category
+                    itemized_split['categoryId{}'.format(i)] = trans.category_id
+
 
             logger.debug('Sending a "split" transaction request: {}'.format(
                 itemized_split))
@@ -565,6 +578,7 @@ def s_to_time(s):
 
 
 def define_args(parser):
+    # Mint creds:
     parser.add_argument(
         '--mint_email', default=None,
         help=('Mint e-mail address for login. If not provided here, will be '
@@ -574,6 +588,7 @@ def define_args(parser):
         help=('Mint password for login. If not provided here, will be '
               'prompted for.'))
 
+    # Inputs:
     parser.add_argument(
         'items_csv', type=argparse.FileType('r'),
         help='The "Items" Order History Report from Amazon')
@@ -585,6 +600,7 @@ def define_args(parser):
         help='The "Refunds" Order History Report from Amazon. '
              'This is optional.')
 
+    # To itemize or not to itemize; that is the question:
     parser.add_argument(
         '--verbose_itemize', action='store_true',
         help=('Default behavior is to not itemize out shipping/promos/etc if '
@@ -595,24 +611,29 @@ def define_args(parser):
         help=('Do not split Mint transactions into individual items with '
               'attempted categorization.'))
 
+    # Debugging/testing.
     parser.add_argument(
         '--pickled_epoch', type=int,
         help=('Do not fetch categories or transactions from Mint. Use this '
               'pickled epoch instead. If coupled with --dry_run, no '
               'connection to Mint is established.'))
-
     parser.add_argument(
         '--dry_run', action='store_true',
         help=('Do not modify Mint transaction; instead print the proposed '
               'changes to console.'))
+    parser.add_argument(
+        '--num_updates', type=int,
+        default=0,
+        help=('Only send the first N updates to Mint (or print N updates at '
+              'dry run). If not present, all updates are sent or printed.'))
 
+    # Retag transactions that have already been tagged previously:
     parser.add_argument(
         '--prompt_retag', action='store_true',
         help=('For transactions that have been previously tagged by this '
               'script, override any edits (like adjusting the category) but '
               'only after confirming each change. More gentle than '
               '--retag_changed'))
-    
     parser.add_argument(
         '--retag_changed', action='store_true',
         help=('For transactions that have been previously tagged by this '
@@ -621,6 +642,7 @@ def define_args(parser):
               'transaction. If the user changes the description, then the '
               'tagger won\'t know to leave it alone.'))
 
+    # How to tell when to skip a transaction:
     parser.add_argument(
         '--description_prefix', type=str,
         default=DEFAULT_MERCHANT_PREFIX,
@@ -643,6 +665,7 @@ def define_args(parser):
               'the given categories here. Comma separated list of Mint '
               'categories.'))
 
+    # Tagging options:
     parser.add_argument(
         '--no_tag_categories', action='store_true',
         help=('If present, do not update Mint categories. This is useful as '
