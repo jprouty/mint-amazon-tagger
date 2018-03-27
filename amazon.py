@@ -510,7 +510,7 @@ class Refund:
             'Buyer: {}\n'
             'Order date: {}\n'
             'Refund date: {}\n'
-            'Refund reason: {}\n',
+            'Refund reason: {}\n'
             'Invoice url: {}').format(
                 self.order_id,
                 self.buyer_name,
