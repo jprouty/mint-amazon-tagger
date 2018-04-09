@@ -13,7 +13,7 @@ def truncate_title(title, target_length, base_str=None):
     if base_str:
         words.extend([w for w in base_str.split(' ') if w])
         target_length -= len(base_str)
-    for word in title.split(' '):
+    for word in title.strip().split(' '):
         if len(word) / 2 < target_length:
             words.append(word)
             target_length -= len(word) + 1
@@ -94,7 +94,9 @@ class Transaction(object):
         self.matched = True
         self.orders = orders
         
-    def remove_pid(self):
+    def bastardize(self):
+        """Severes the child from the parent, making this a parent itself."""
+        self.is_child = False
         del self.__dict__['pid']
     
     def update_category_id(self, mint_cat_name_to_id):
@@ -144,8 +146,7 @@ class Transaction(object):
             parent = deepcopy(children[0])
 
             parent.id = pid
-            parent.is_child = False
-            parent.remove_pid()
+            parent.bastardize()
             parent.amount = round_micro_usd_to_cent(
                 Transaction.sum_amounts(children))
             parent.is_debit = parent.amount > 0
