@@ -1,9 +1,10 @@
-# Credit: https://codereview.stackexchange.com/questions/1526/finding-all-k-subset-partitions
+# Credit: https://codereview.stackexchange.com/questions/1526
 #
 # A very efficient algorithm (Algorithm U) is described by Knuth in the Art of
 # Computer Programming, Volume 4, Fascicle 3B to find all set partitions with a
 # given number of blocks. Your algorithm, although simple to express, is
 # essentially a brute-force tree search, which is not efficient.
+
 
 def algorithm_u(ns, m):
     def visit(n, a):
