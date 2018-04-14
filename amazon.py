@@ -1,13 +1,16 @@
-from collections import defaultdict, Counter
+from collections import defaultdict
 from copy import deepcopy
 import csv
 from datetime import datetime
-from pprint import pformat, pprint
+from pprint import pformat
 import string
 
 from algorithm_u import algorithm_u
 import category
-from currency import micro_usd_nearly_equal, micro_usd_to_usd_string, parse_usd_as_micro_usd, CENT_MICRO_USD, MICRO_USD_EPS
+from currency import micro_usd_nearly_equal
+from currency import micro_usd_to_usd_string
+from currency import parse_usd_as_micro_usd
+from currency import CENT_MICRO_USD, MICRO_USD_EPS
 from mint import truncate_title
 
 PRINTABLE = set(string.printable)
@@ -56,7 +59,7 @@ def is_empty_csv(csv_file_obj, key='Quantity'):
     # row.
     filename = csv_file_obj.name
     return (sum([1 for r in csv.DictReader(open(filename))]) <= 1 and
-        next(csv.DictReader(open(filename)))[key] == None)
+            next(csv.DictReader(open(filename)))[key] is None)
 
 
 def pythonify_amazon_dict(raw_dict):
@@ -79,7 +82,10 @@ def pythonify_amazon_dict(raw_dict):
     if 'Quantity' in keys:
         raw_dict['Quantity'] = int(raw_dict['Quantity'])
 
-    return dict([(k.lower().replace(' ', '_').replace('/', '_'), v) for k, v in raw_dict.items()])
+    return dict([
+        (k.lower().replace(' ', '_').replace('/', '_'), v)
+        for k, v in raw_dict.items()
+    ])
 
 
 def parse_amazon_date(date_str):
@@ -92,7 +98,9 @@ def parse_amazon_date(date_str):
 
 
 def get_invoice_url(order_id):
-    return 'https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&orderID={oid}'.format(oid=order_id)
+    return (
+        'https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&'
+        'orderID={oid}'.format(oid=order_id))
 
 
 def associate_items_with_orders(orders, items):
@@ -107,12 +115,12 @@ def associate_items_with_orders(orders, items):
         oid_items = items_by_oid[oid]
 
         if not micro_usd_nearly_equal(
-            Order.sum_subtotals(orders),
-            Item.sum_subtotals(oid_items)):
+                Order.sum_subtotals(orders),
+                Item.sum_subtotals(oid_items)):
             # This is likely due to reports being pulled before all outstanding
             # orders have shipped. Just skip this order for now.
             continue
-        
+
         if len(orders) == 1:
             orders[0].set_items(oid_items, assert_unmatched=True)
             continue
@@ -139,18 +147,20 @@ def associate_items_with_orders(orders, items):
             continue
 
         orders = sorted(orders, key=lambda o: o.subtotal)
-        
+
         # Partition the remaining items into every possible arrangement and
         # validate against the remaining orders.
         for item_groupings in algorithm_u(oid_items, len(orders)):
             subtotals_with_groupings = sorted(
-                [(Item.sum_subtotals(items), items) for items in item_groupings],
+                [(Item.sum_subtotals(items), items)
+                 for items in item_groupings],
                 key=lambda g: g[0])
             if all([micro_usd_nearly_equal(
                     subtotals_with_groupings[i][0],
                     orders[i].subtotal) for i in range(len(orders))]):
                 for idx, order in enumerate(orders):
-                    order.set_items(subtotals_with_groupings[idx][1], assert_unmatched=True)
+                    order.set_items(subtotals_with_groupings[idx][1],
+                                    assert_unmatched=True)
                 break
 
 
@@ -169,10 +179,10 @@ class Order:
     items_matched = False
     trans_id = None
     items = []
-    
+
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
-        
+
     @classmethod
     def parse_from_csv(cls, csv_file):
         if is_empty_csv(csv_file, 'Order Status'):
@@ -185,17 +195,21 @@ class Order:
         return sum([o.subtotal for o in orders])
 
     def total_by_items(self):
-        return Item.sum_totals(self.items) + self.shipping_charge - self.total_promotions
+        return (
+            Item.sum_totals(self.items) +
+            self.shipping_charge - self.total_promotions)
 
     def total_by_subtotals(self):
-        return self.subtotal + self.tax_charged + self.shipping_charge - self.total_promotions
+        return (
+            self.subtotal + self.tax_charged +
+            self.shipping_charge - self.total_promotions)
 
     def transact_date(self):
         return self.shipment_date
 
     def transact_amount(self):
         return self.total_charged
-    
+
     def match(self, trans):
         self.matched = True
         self.trans_id = trans.id
@@ -313,10 +327,11 @@ class Order:
                              t,
                              skip_free_shipping=False):
         new_transactions = []
-        
+
         # More expensive items are always more interesting when it comes to
         # budgeting, so show those first (for both itemized and concatted).
-        items = sorted(self.items, key=lambda item: item.item_total, reverse=True)
+        items = sorted(
+            self.items, key=lambda item: item.item_total, reverse=True)
 
         # Itemize line-items:
         for i in items:
@@ -371,16 +386,26 @@ class Order:
             result = orders[0]
             result.set_items(Item.merge(result.items))
             return result
-        
+
         result = deepcopy(orders[0])
-        result.set_items(Item.merge([i for o in orders for i in o.items ]))
+        result.set_items(Item.merge([i for o in orders for i in o.items]))
         for key in ORDER_MERGE_FIELDS:
             result.__dict__[key] = sum([o.__dict__[key] for o in orders])
         return result
 
     def __repr__(self):
-        return 'Order ({id}): {date} Total {total}\tSubtotal {subtotal}\tTax {tax}\tPromo {promo}\tShip {ship}\tItems: \n{items}'.format(
-            id=self.order_id, date=(self.shipment_date or self.order_date), total=micro_usd_to_usd_string(self.total_charged), subtotal=micro_usd_to_usd_string(self.subtotal), tax=micro_usd_to_usd_string(self.tax_charged), promo=micro_usd_to_usd_string(self.total_promotions), ship=micro_usd_to_usd_string(self.shipping_charge), items=pformat(self.items))
+        return (
+            'Order ({id}): {date} Total {total}\tSubtotal {subtotal}\t'
+            'Tax {tax}\tPromo {promo}\tShip {ship}\t'
+            'Items: \n{items}'.format(
+                id=self.order_id,
+                date=(self.shipment_date or self.order_date),
+                total=micro_usd_to_usd_string(self.total_charged),
+                subtotal=micro_usd_to_usd_string(self.subtotal),
+                tax=micro_usd_to_usd_string(self.tax_charged),
+                promo=micro_usd_to_usd_string(self.total_promotions),
+                ship=micro_usd_to_usd_string(self.shipping_charge),
+                items=pformat(self.items)))
 
 
 class Item:
@@ -397,7 +422,7 @@ class Item:
             return []
 
         return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
-    
+
     @staticmethod
     def sum_subtotals(items):
         return sum([i.item_subtotal for i in items])
@@ -463,10 +488,16 @@ class Item:
             item.set_quantity(qty)
             results.append(item)
         return results
-    
+
     def __repr__(self):
-        return '{qty} of Item: Total {total}\tSubtotal {subtotal}\tTax {tax} {desc}'.format(
-            qty=self.quantity, total=micro_usd_to_usd_string(self.item_total), subtotal=micro_usd_to_usd_string(self.item_subtotal), tax=micro_usd_to_usd_string(self.item_subtotal_tax), desc=self.title)
+        return (
+            '{qty} of Item: Total {total}\tSubtotal {subtotal}\t'
+            'Tax {tax} {desc}'.format(
+                qty=self.quantity,
+                total=micro_usd_to_usd_string(self.item_total),
+                subtotal=micro_usd_to_usd_string(self.item_subtotal),
+                tax=micro_usd_to_usd_string(self.item_subtotal_tax),
+                desc=self.title))
 
 
 class Refund:
@@ -500,7 +531,7 @@ class Refund:
 
     def transact_amount(self):
         return -self.total_refund_amount
-    
+
     def get_title(self, target_length=100):
         return get_title(self, target_length)
 
@@ -526,7 +557,7 @@ class Refund:
             desc=self.get_title(88),
             category=new_cat,
             amount=-self.total_refund_amount,
-            note = self.get_note(),
+            note=self.get_note(),
             isDebit=False)
         return result
 
@@ -556,10 +587,16 @@ class Refund:
             refund.total_refund_amount *= qty
             refund.refund_amount *= qty
             refund.refund_tax_amount *= qty
-            
+
             results.append(refund)
         return results
 
     def __repr__(self):
-        return '{qty} of Refund: Total {total}\tSubtotal {subtotal}\tTax {tax} {desc}'.format(
-            qty=self.quantity, total=micro_usd_to_usd_string(self.total_refund_amount), subtotal=micro_usd_to_usd_string(self.refund_amount), tax=micro_usd_to_usd_string(self.refund_tax_amount), desc=self.title)
+        return (
+            '{qty} of Refund: Total {total}\tSubtotal {subtotal}\t'
+            'Tax {tax} {desc}'.format(
+                qty=self.quantity,
+                total=micro_usd_to_usd_string(self.total_refund_amount),
+                subtotal=micro_usd_to_usd_string(self.refund_amount),
+                tax=micro_usd_to_usd_string(self.refund_tax_amount),
+                desc=self.title))

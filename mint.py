@@ -1,11 +1,12 @@
 from collections import defaultdict
 from copy import deepcopy
 from datetime import date, datetime
-from pprint import pformat, pprint
 import re
 
 import category
-from currency import micro_usd_nearly_equal, micro_usd_to_usd_string, parse_usd_as_micro_usd, round_micro_usd_to_cent
+from currency import micro_usd_to_usd_string
+from currency import parse_usd_as_micro_usd
+from currency import round_micro_usd_to_cent
 
 
 def truncate_title(title, target_length, base_str=None):
@@ -26,7 +27,7 @@ def truncate_title(title, target_length, base_str=None):
     return truncated
 
 
-# Credit: https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case
+# Credit: https://stackoverflow.com/questions/1175208
 first_cap_re = re.compile('(.)([A-Z][a-z]+)')
 all_cap_re = re.compile('([a-z0-9])([A-Z])')
 
@@ -49,8 +50,11 @@ def pythonify_mint_dict(raw_dict):
     if not raw_dict['isDebit']:
         amount *= -1
     raw_dict['amount'] = amount
-    
-    return dict([(convertCamel_to_underscores(k.replace(' ', '_')), v) for k, v in raw_dict.items()])
+
+    return dict([
+        (convertCamel_to_underscores(k.replace(' ', '_')), v)
+        for k, v in raw_dict.items()
+    ])
 
 
 def parse_mint_date(date_str):
@@ -93,12 +97,12 @@ class Transaction(object):
     def match(self, orders):
         self.matched = True
         self.orders = orders
-        
+
     def bastardize(self):
         """Severes the child from the parent, making this a parent itself."""
         self.is_child = False
         del self.__dict__['pid']
-    
+
     def update_category_id(self, mint_cat_name_to_id):
         # Assert the category name is valid then update the categoryId.
         assert self.category in mint_cat_name_to_id
@@ -120,8 +124,15 @@ class Transaction(object):
 
     def __repr__(self):
         has_note = 'with note' if self.note else ''
-        return 'Mint Trans({id}): {amount} {date} {merchant} {category} {has_note}'.format(
-            id=self.id, amount=micro_usd_to_usd_string(self.amount), date=self.date, merchant=self.merchant, category=self.category, has_note=has_note)
+        return (
+            'Mint Trans({id}): {amount} {date} {merchant} {category} '
+            '{has_note}'.format(
+                id=self.id,
+                amount=micro_usd_to_usd_string(self.amount),
+                date=self.date,
+                merchant=self.merchant,
+                category=self.category,
+                has_note=has_note))
 
     @classmethod
     def parse_from_json(cls, json_dicts):
@@ -133,7 +144,7 @@ class Transaction(object):
 
     @staticmethod
     def unsplit(trans):
-        """Reconsistitutes Mint splits/itemizations into a parent transaction."""
+        """Reconsistitutes Mint splits/itemizations into parent transaction."""
         parent_id_to_trans = defaultdict(list)
         result = []
         for t in trans:
@@ -155,7 +166,6 @@ class Transaction(object):
             result.append(parent)
 
         return result
-
 
     @staticmethod
     def old_and_new_are_identical(old, new, ignore_category=False):
@@ -203,5 +213,3 @@ def summarize_new_trans(t, new_trans, prefix):
         summary_trans.category = category.DEFAULT_MINT_CATEGORY
     summary_trans.note = notes
     return [summary_trans]
-
-    

@@ -15,7 +15,6 @@ import datetime
 import itertools
 import logging
 import pickle
-from pprint import pprint
 import time
 
 import getpass
@@ -25,8 +24,9 @@ from mintapifuture.mintapi.api import Mint, MINT_ROOT_URL
 import readchar
 
 import amazon
-import category
-from currency import micro_usd_nearly_equal, micro_usd_to_usd_float, micro_usd_to_usd_string
+from currency import micro_usd_nearly_equal
+from currency import micro_usd_to_usd_float
+from currency import micro_usd_to_usd_string
 import mint
 
 
@@ -64,7 +64,7 @@ def main():
         user_skipped_retag=0,
     )
 
-    orders = amazon.Order.parse_from_csv(args.orders_csv)  
+    orders = amazon.Order.parse_from_csv(args.orders_csv)
     items = amazon.Item.parse_from_csv(args.items_csv)
 
     # Remove items from cancelled orders.
@@ -79,7 +79,8 @@ def main():
     logger.info('Matching Amazon Items with Orders')
     amazon.associate_items_with_orders(orders, items)
 
-    refunds = [] if not args.refunds_csv else amazon.Refund.parse_from_csv(args.refunds_csv)
+    refunds = ([] if not args.refunds_csv
+               else amazon.Refund.parse_from_csv(args.refunds_csv))
 
     log_amazon_stats(items, orders, refunds)
 
@@ -127,7 +128,7 @@ def main():
     # Skip t if a category filter is given and t does not match.
     if args.mint_input_categories_filter:
         whitelist = set(args.mint_input_categories_filter.lower().split(','))
-        trans = [t for t in trans if t.category.lower() in whitelist ]
+        trans = [t for t in trans if t.category.lower() in whitelist]
 
     # Match orders.
     match_transactions(trans, orders)
@@ -193,16 +194,19 @@ def main():
                 r.to_mint_transaction(t)
                 for r in refunds]
 
-        assert micro_usd_nearly_equal(t.amount, mint.Transaction.sum_amounts(new_transactions))
+        assert micro_usd_nearly_equal(
+            t.amount,
+            mint.Transaction.sum_amounts(new_transactions))
 
         for nt in new_transactions:
-             nt.update_category_id(mint_category_name_to_id)
+            nt.update_category_id(mint_category_name_to_id)
 
         prefix = get_prefix(t.is_debit)
         summarize_single_item_order = (
             t.is_debit and len(order.items) == 1 and not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
-            new_transactions = mint.summarize_new_trans(t, new_transactions, prefix)
+            new_transactions = mint.summarize_new_trans(
+                t, new_transactions, prefix)
         else:
             new_transactions = mint.itemize_new_trans(new_transactions, prefix)
 
@@ -244,7 +248,7 @@ def main():
         exit(0)
 
     if args.num_updates > 0:
-        updates = updates[:num_updates]
+        updates = updates[:args.num_updates]
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
@@ -299,7 +303,7 @@ def match_transactions(unmatched_trans, unmatched_orders):
     for t in unmatched_trans:
         mark_best_as_matched(t, amount_to_orders[t.amount])
 
-    unmatched_orders =  [o for o in unmatched_orders if not o.matched]
+    unmatched_orders = [o for o in unmatched_orders if not o.matched]
     unmatched_trans = [t for t in unmatched_trans if not t.orders]
 
     # Second pass: Match up transactions to a combination of orders (sometimes
@@ -319,7 +323,7 @@ def match_transactions(unmatched_trans, unmatched_orders):
     for t in unmatched_trans:
         mark_best_as_matched(t, amount_to_orders[t.amount])
 
-    
+
 def get_mint_client(args):
     email = args.mint_email
     password = args.mint_password
@@ -406,7 +410,8 @@ def log_amazon_stats(items, orders, refunds):
     logger.info('{} unmatched orders and {} unmatched items'.format(
         len([o for o in orders if not o.items_matched]),
         len([i for i in items if not i.matched])))
-    logger.info('Orders ranging from {} to {}'.format(first_order_date, last_order_date))
+    logger.info('Orders ranging from {} to {}'.format(
+        first_order_date, last_order_date))
 
     per_item_totals = [i.item_total for i in items]
     per_order_totals = [o.total_charged for o in orders]
@@ -443,9 +448,12 @@ def log_processing_stats(stats):
         'Transactions w/ "Amazon" in description: {amazon_in_desc}\n'
         'Transactions ignored: is pending: {pending}\n'
         '\n'
-        'Orders matched w/ transactions: {order_match} (unmatched orders: {order_unmatch})\n'
-        'Refunds matched w/ transactions: {refund_match} (unmatched refunds: {refund_unmatch})\n'
-        'Transactions matched w/ orders/refunds: {trans_match} (unmatched: {trans_unmatch})\n'
+        'Orders matched w/ transactions: {order_match} (unmatched orders: '
+        '{order_unmatch})\n'
+        'Refunds matched w/ transactions: {refund_match} (unmatched refunds: '
+        '{refund_unmatch})\n'
+        'Transactions matched w/ orders/refunds: {trans_match} (unmatched: '
+        '{trans_unmatch})\n'
         '\n'
         'Orders skipped: not shipped: {skipped_orders_unshipped}\n'
         'Orders skipped: gift card used: {skipped_orders_gift_card}\n'
@@ -453,7 +461,8 @@ def log_processing_stats(stats):
         'Order fix-up: incorrect tax itemization: {adjust_itemized_tax}\n'
         'Order fix-up: has a misc charges (e.g. gift wrap): {misc_charge}\n'
         '\n'
-        'Transactions ignored; already tagged & up to date: {already_up_to_date}\n'
+        'Transactions ignored; already tagged & up to date: '
+        '{already_up_to_date}\n'
         'Transactions ignored; ignore retags: {no_retag}\n'
         'Transactions ignored; user skipped retag: {user_skipped_retag}\n'
         '\n'
@@ -552,8 +561,8 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                 itemized_split['txnId{}'.format(i)] = 0
                 if not ignore_category:
                     itemized_split['category{}'.format(i)] = trans.category
-                    itemized_split['categoryId{}'.format(i)] = trans.category_id
-
+                    itemized_split['categoryId{}'.format(i)] = (
+                        trans.category_id)
 
             logger.debug('Sending a "split" transaction request: {}'.format(
                 itemized_split))
@@ -672,7 +681,6 @@ def define_args(parser):
               'Amazon doesn\'t provide the best categorization and it is '
               'pretty common user behavior to manually change the categories. '
               'This flag prevents tagger from wiping out that user work.'))
-
 
 
 if __name__ == '__main__':
