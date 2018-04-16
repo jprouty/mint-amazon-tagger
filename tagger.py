@@ -73,7 +73,10 @@ def main():
     items = [i for i in items if i.order_status == 'Shipped']
     # Remove items with zero quantity (it happens!)
     items = [i for i in items if i.quantity > 0]
-    # Make more Items such that every item is quantity 1.
+    # Make more Items such that every item is quantity 1. This is critical
+    # prior to associate_items_with_orders such that items with non-1
+    # quantities split into different packages can be associated with the
+    # appropriate order.
     items = [si for i in items for si in i.split_by_quantity()]
 
     logger.info('Matching Amazon Items with Orders')

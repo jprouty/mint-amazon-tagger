@@ -3,7 +3,8 @@ import unittest
 
 import category
 import mint
-import mockdata
+from mint import Transaction
+from mockdata import transaction
 
 
 class HelpMethods(unittest.TestCase):
@@ -58,9 +59,9 @@ class HelpMethods(unittest.TestCase):
             date(2001, 6, 1))
 
 
-class Transaction(unittest.TestCase):
+class TransactionClass(unittest.TestCase):
     def test_constructor(self):
-        trans = mint.Transaction(mockdata.get_transaction_json())
+        trans = transaction()
         self.assertEqual(trans.amount, 27460000)
         self.assertTrue(trans.is_debit)
         self.assertEqual(trans.date, date(2010, 10, 8))
@@ -68,14 +69,12 @@ class Transaction(unittest.TestCase):
         self.assertEqual(trans.orders, [])
         self.assertEqual(trans.children, [])
 
-        trans = mint.Transaction(mockdata.get_transaction_json(
-            amount='$423.12',
-            is_debit=False))
+        trans = transaction(amount='$423.12', is_debit=False)
         self.assertEqual(trans.amount, -423120000)
         self.assertFalse(trans.is_debit)
 
     def test_split(self):
-        trans = mint.Transaction(mockdata.get_transaction_json())
+        trans = transaction()
         strans = trans.split(1234, 'Shopping', 'Some new item', 'Test note')
         self.assertNotEqual(trans, strans)
         self.assertEqual(strans.amount, 1234)
@@ -84,7 +83,7 @@ class Transaction(unittest.TestCase):
         self.assertEqual(strans.note, 'Test note')
 
     def test_match(self):
-        trans = mint.Transaction(mockdata.get_transaction_json())
+        trans = transaction()
         orders = [1, 2, 3]
         trans.match(orders)
 
@@ -92,7 +91,7 @@ class Transaction(unittest.TestCase):
         self.assertEqual(trans.orders, orders)
 
     def test_bastardize(self):
-        child = mint.Transaction(mockdata.get_transaction_json(pid=123))
+        child = transaction(pid=123)
         self.assertTrue(child.is_child)
         self.assertEqual(child.pid, 123)
 
@@ -102,7 +101,7 @@ class Transaction(unittest.TestCase):
         self.assertFalse(hasattr(child, 'pid'))
 
     def test_update_category_id(self):
-        trans = mint.Transaction(mockdata.get_transaction_json())
+        trans = transaction()
         # Give it a mismatch initially:
         trans.category_id = 99
         trans.update_category_id(category.DEFAULT_MINT_CATEGORIES_TO_IDS)
@@ -117,23 +116,23 @@ class Transaction(unittest.TestCase):
         self.assertEqual(trans.category_id, 2)
 
     def test_get_compare_tuple(self):
-        trans = mint.Transaction(mockdata.get_transaction_json(
+        trans = transaction(
             description='Simple Title',
-            amount='$1.00'))
+            amount='$1.00')
         self.assertEqual(
             trans.get_compare_tuple(),
             ('Simple Title', '$1.00', 'Personal Care'))
 
-        trans = mint.Transaction(mockdata.get_transaction_json(
+        trans2 = transaction(
             description='Simple Refund',
             amount='$2.01',
-            is_debit=False))
+            is_debit=False)
         self.assertEqual(
-            trans.get_compare_tuple(True),
+            trans2.get_compare_tuple(True),
             ('Simple Refund', '-$2.01'))
 
     def test_dry_run_str(self):
-        trans = mint.Transaction(mockdata.get_transaction_json())
+        trans = transaction()
 
         self.assertTrue('10/08/10' in trans.dry_run_str())
         self.assertTrue('$27.46' in trans.dry_run_str())
@@ -144,66 +143,66 @@ class Transaction(unittest.TestCase):
         self.assertFalse('Personal Care' in trans.dry_run_str(True))
 
     def test_sum_amounts(self):
-        self.assertEqual(mint.Transaction.sum_amounts([]), 0)
+        self.assertEqual(Transaction.sum_amounts([]), 0)
 
-        trans1 = mint.Transaction(mockdata.get_transaction_json(
-            amount='$2.34'))
-        self.assertEqual(mint.Transaction.sum_amounts([trans1]), 2340000)
+        trans1 = transaction(
+            amount='$2.34')
+        self.assertEqual(Transaction.sum_amounts([trans1]), 2340000)
 
-        trans2 = mint.Transaction(mockdata.get_transaction_json(
-            amount='$8.00'))
+        trans2 = transaction(
+            amount='$8.00')
         self.assertEqual(
-            mint.Transaction.sum_amounts([trans1, trans2]),
+            Transaction.sum_amounts([trans1, trans2]),
             10340000)
 
-        credit = mint.Transaction(mockdata.get_transaction_json(
+        credit = transaction(
             amount='$20.20',
-            is_debit=False))
+            is_debit=False)
         self.assertEqual(
-            mint.Transaction.sum_amounts([trans1, credit, trans2]),
+            Transaction.sum_amounts([trans1, credit, trans2]),
             -9860000)
 
     def test_unsplit(self):
-        self.assertEqual(mint.Transaction.unsplit([]), [])
+        self.assertEqual(Transaction.unsplit([]), [])
 
-        not_child1 = mint.Transaction(mockdata.get_transaction_json(
-            amount='$1.00'))
-        self.assertEqual(mint.Transaction.unsplit([not_child1]), [not_child1])
+        not_child1 = transaction(
+            amount='$1.00')
+        self.assertEqual(Transaction.unsplit([not_child1]), [not_child1])
 
-        not_child2 = mint.Transaction(mockdata.get_transaction_json(
-            amount='$2.00'))
+        not_child2 = transaction(
+            amount='$2.00')
         self.assertEqual(
-            mint.Transaction.unsplit([not_child1, not_child2]),
+            Transaction.unsplit([not_child1, not_child2]),
             [not_child1, not_child2])
 
-        child1_to_1 = mint.Transaction(mockdata.get_transaction_json(
+        child1_to_1 = transaction(
             amount='$3.00',
-            pid=1))
-        child2_to_1 = mint.Transaction(mockdata.get_transaction_json(
+            pid=1)
+        child2_to_1 = transaction(
             amount='$4.00',
-            pid=1))
-        child3_to_1 = mint.Transaction(mockdata.get_transaction_json(
+            pid=1)
+        child3_to_1 = transaction(
             amount='$8.00',
             is_debit=False,
-            pid=1))
-        child1_to_99 = mint.Transaction(mockdata.get_transaction_json(
+            pid=1)
+        child1_to_99 = transaction(
             amount='$5.00',
-            pid=99))
+            pid=99)
 
-        one_child_actual = mint.Transaction.unsplit([child1_to_1])
+        one_child_actual = Transaction.unsplit([child1_to_1])
         self.assertEqual(one_child_actual[0].amount, child1_to_1.amount)
         self.assertFalse(one_child_actual[0].is_child)
         self.assertEqual(one_child_actual[0].id, 1)
         self.assertEqual(one_child_actual[0].children, [child1_to_1])
 
         three_children = [child1_to_1, child2_to_1, child3_to_1]
-        three_child_actual = mint.Transaction.unsplit(three_children)
+        three_child_actual = Transaction.unsplit(three_children)
         self.assertEqual(three_child_actual[0].amount, -1000000)
         self.assertFalse(three_child_actual[0].is_child)
         self.assertEqual(three_child_actual[0].id, 1)
         self.assertEqual(three_child_actual[0].children, three_children)
 
-        crazy_actual = mint.Transaction.unsplit(
+        crazy_actual = Transaction.unsplit(
             [not_child1, not_child2] + three_children + [child1_to_99])
         self.assertEqual(crazy_actual[0], not_child1)
         self.assertEqual(crazy_actual[1], not_child2)
@@ -213,43 +212,33 @@ class Transaction(unittest.TestCase):
         self.assertEqual(crazy_actual[3].children, [child1_to_99])
 
     def test_old_and_new_are_identical(self):
-        trans1 = mint.Transaction(mockdata.get_transaction_json(
-            amount='$5.00',
-            description='ABC'))
-        trans2 = mint.Transaction(mockdata.get_transaction_json(
+        trans1 = transaction(amount='$5.00', description='ABC')
+        trans2 = transaction(
             amount='$5.00',
             description='ABC',
-            category='Shipping'))
+            category='Shipping')
 
-        self.assertTrue(mint.Transaction.old_and_new_are_identical(
+        self.assertTrue(Transaction.old_and_new_are_identical(
             trans1, [trans1]))
-        self.assertFalse(mint.Transaction.old_and_new_are_identical(
+        self.assertFalse(Transaction.old_and_new_are_identical(
             trans1, [trans2]))
-        self.assertTrue(mint.Transaction.old_and_new_are_identical(
+        self.assertTrue(Transaction.old_and_new_are_identical(
             trans1, [trans2], True))
 
         new_trans = [
-            mint.Transaction(mockdata.get_transaction_json(
-                amount='$2.50',
-                description='ABC')),
-            mint.Transaction(mockdata.get_transaction_json(
-                amount='$2.50',
-                description='ABC')),
+            transaction(amount='$2.50', description='ABC'),
+            transaction(amount='$2.50', description='ABC'),
         ]
         trans1.children = new_trans
-        self.assertTrue(mint.Transaction.old_and_new_are_identical(
+        self.assertTrue(Transaction.old_and_new_are_identical(
             trans1, new_trans))
 
     def test_itemize_new_trans(self):
         self.assertEqual(mint.itemize_new_trans([], 'Sweet: '), [])
 
         trans = [
-            mint.Transaction(mockdata.get_transaction_json(
-                amount='$5.00',
-                description='ABC')),
-            mint.Transaction(mockdata.get_transaction_json(
-                amount='$15.00',
-                description='CBA')),
+            transaction(amount='$5.00', description='ABC'),
+            transaction(amount='$15.00', description='CBA'),
         ]
         itemized_trans = mint.itemize_new_trans(trans, 'Sweet: ')
         self.assertEqual(itemized_trans[0].merchant, 'Sweet: CBA')
@@ -258,23 +247,23 @@ class Transaction(unittest.TestCase):
         self.assertEqual(itemized_trans[1].amount, 5000000)
 
     def test_summarize_new_trans(self):
-        original_trans = mint.Transaction(mockdata.get_transaction_json(
+        original_trans = transaction(
             amount='$40.00',
             description='Amazon',
-            note='Test note'))
+            note='Test note')
 
-        item1 = mint.Transaction(mockdata.get_transaction_json(
+        item1 = transaction(
             amount='$15.00',
-            description='Item 1'))
-        item2 = mint.Transaction(mockdata.get_transaction_json(
+            description='Item 1')
+        item2 = transaction(
             amount='$25.00',
-            description='Item 2'))
-        shipping = mint.Transaction(mockdata.get_transaction_json(
+            description='Item 2')
+        shipping = transaction(
             amount='$5.00',
-            description='Shipping'))
-        free_shipping = mint.Transaction(mockdata.get_transaction_json(
+            description='Shipping')
+        free_shipping = transaction(
             amount='$5.00',
-            description='Promotion(s)'))
+            description='Promotion(s)')
 
         actual_summary = mint.summarize_new_trans(
             original_trans,

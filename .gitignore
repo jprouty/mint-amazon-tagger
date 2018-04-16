@@ -1,14 +1,16 @@
 # Application specific:
-Mint Transactions Backup *.pickle
-Items.csv
+Mint *.pickle
 Orders.csv
+Items.csv
 Refunds.csv
 Returns.csv
+AMZN Reports
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache
 
 # C extensions
 *.so

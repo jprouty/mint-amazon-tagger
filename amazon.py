@@ -103,12 +103,12 @@ def get_invoice_url(order_id):
         'orderID={oid}'.format(oid=order_id))
 
 
-def associate_items_with_orders(orders, items):
+def associate_items_with_orders(all_orders, items):
     items_by_oid = defaultdict(list)
     for i in items:
         items_by_oid[i.order_id].append(i)
     orders_by_oid = defaultdict(list)
-    for o in orders:
+    for o in all_orders:
         orders_by_oid[o.order_id].append(o)
 
     for oid, orders in orders_by_oid.items():
@@ -131,7 +131,8 @@ def associate_items_with_orders(orders, items):
             items_by_tracking[i.tracking].append(i)
 
         # It is never the case that multiple orders with the same order id will
-        # have the same tracking number.
+        # have the same tracking number. Try using tracking number to split up
+        # the items between the orders.
         for order in orders:
             items = items_by_tracking[order.tracking]
             if micro_usd_nearly_equal(
@@ -152,8 +153,8 @@ def associate_items_with_orders(orders, items):
         # validate against the remaining orders.
         for item_groupings in algorithm_u(oid_items, len(orders)):
             subtotals_with_groupings = sorted(
-                [(Item.sum_subtotals(items), items)
-                 for items in item_groupings],
+                [(Item.sum_subtotals(itms), itms)
+                 for itms in item_groupings],
                 key=lambda g: g[0])
             if all([micro_usd_nearly_equal(
                     subtotals_with_groupings[i][0],
@@ -276,19 +277,17 @@ class Order:
         return True
 
     def attribute_itemized_diff_to_per_item_tax(self):
-        itemized_sum = self.total_by_items()
-        itemized_diff = self.total_charged - itemized_sum
+        itemized_diff = self.total_charged - self.total_by_items()
         if abs(itemized_diff) < MICRO_USD_EPS:
             return False
 
-        itemized_tax = Item.sum_subtotals_tax(self.items)
-        tax_diff = self.tax_charged - itemized_tax
+        tax_diff = self.tax_charged - Item.sum_subtotals_tax(self.items)
         if itemized_diff - tax_diff > MICRO_USD_EPS:
             return False
 
         # The per-item tax was not computed correctly; the tax miscalculation
         # matches the itemized difference. Sometimes AMZN is bad at math (lol),
-        # and most of the time it's a smiply rounding error. To keep the line
+        # and most of the time it's simply a rounding error. To keep the line
         # items adding up correctly, spread the tax difference across the
         # items.
         tax_rate_per_item = [
@@ -479,7 +478,7 @@ class Item:
             unique_items[key].append(i)
         results = []
         for same_items in unique_items.values():
-            qty = len(same_items)
+            qty = sum([i.quantity for i in same_items])
             if qty == 1:
                 results.extend(same_items)
                 continue
