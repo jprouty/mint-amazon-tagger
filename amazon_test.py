@@ -581,29 +581,73 @@ class RefundClass(unittest.TestCase):
         self.assertEqual(r.order_date, date(2014, 2, 26))
         self.assertEqual(r.refund_date, date(2014, 3, 16))
 
-    def test_total_refunds(self):
-        pass
+    def test_sum_total_refunds(self):
+        self.assertEqual(Refund.sum_total_refunds([]), 0)
+
+        r1 = refund(refund_amount='$0.43', refund_tax_amount='$0.40')
+        self.assertEqual(Refund.sum_total_refunds([r1]), 830000)
+
+        r2 = refund(refund_amount='$0.00', refund_tax_amount='$0.00')
+        self.assertEqual(Refund.sum_total_refunds([r1, r2]), 830000)
+        self.assertEqual(Refund.sum_total_refunds([r2, r1]), 830000)
+
+        r3 = refund(refund_amount='$2.11', refund_tax_amount='$1.40')
+        self.assertEqual(Refund.sum_total_refunds([r2, r1, r3]), 4340000)
 
     def test_transact_date(self):
-        pass
+        self.assertEqual(refund().transact_date(), date(2014, 3, 16))
 
     def test_transact_amount(self):
-        pass
+        self.assertEqual(refund().transact_amount(), -11950000)
 
     def test_match(self):
-        pass
+        r = refund()
+
+        self.assertFalse(r.matched)
+        self.assertEqual(r.trans_id, None)
+
+        r.match(transaction(id='ABC'))
+
+        self.assertTrue(r.matched)
+        self.assertEqual(r.trans_id, 'ABC')
 
     def test_get_title(self):
-        pass
+        self.assertEqual(
+            refund(title='Great item').get_title(), '2x Great item')
 
     def test_get_note(self):
-        pass
+        r = refund()
+
+        self.assertTrue(
+            'Amazon refund for order id: 123-3211232-7655671' in r.get_note())
+        self.assertTrue('Buyer: Some Great Buyer' in r.get_note())
+        self.assertTrue('Order date: 2014-02-26' in r.get_note())
+        self.assertTrue('Refund date: 2014-03-16' in r.get_note())
+        self.assertTrue('Refund reason: Customer Return' in r.get_note())
 
     def test_to_mint_transaction(self):
-        pass
+        r = refund(title='Duracell Procell AA 24 Pack')
+        t = transaction(amount='$11.95', is_debit=False)
+
+        new_trans = r.to_mint_transaction(t)
+
+        self.assertEqual(new_trans.id, t.id)
+        self.assertEqual(new_trans.amount, t.amount)
+        self.assertEqual(new_trans.merchant, '2x Duracell Procell AA 24 Pack')
+        self.assertFalse(new_trans.is_debit)
 
     def test_merge(self):
-        pass
+        r1 = refund()
+        r2 = refund()
+
+        merged = Refund.merge([r1, r2])
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].title, r1.title)
+        self.assertEqual(merged[0].quantity, 4)
+        self.assertEqual(merged[0].total_refund_amount, 47800000)
+        self.assertEqual(merged[0].refund_amount, 43600000)
+        self.assertEqual(merged[0].refund_tax_amount, 4200000)
 
 
 if __name__ == '__main__':

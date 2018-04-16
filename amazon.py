@@ -576,7 +576,7 @@ class Refund:
             unique_refund_items[key].append(r)
         results = []
         for same_items in unique_refund_items.values():
-            qty = len(same_items)
+            qty = sum([i.quantity for i in same_items])
             if qty == 1:
                 results.extend(same_items)
                 continue
