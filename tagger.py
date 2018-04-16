@@ -66,29 +66,8 @@ def main():
 
     orders = amazon.Order.parse_from_csv(args.orders_csv)
     items = amazon.Item.parse_from_csv(args.items_csv)
-
-    # Remove items from cancelled orders.
-    items = [i for i in items if not i.is_cancelled()]
-    # Remove items that haven't shipped yet (also aren't charged).
-    items = [i for i in items if i.order_status == 'Shipped']
-    # Remove items with zero quantity (it happens!)
-    items = [i for i in items if i.quantity > 0]
-    # Make more Items such that every item is quantity 1. This is critical
-    # prior to associate_items_with_orders such that items with non-1
-    # quantities split into different packages can be associated with the
-    # appropriate order.
-    items = [si for i in items for si in i.split_by_quantity()]
-
-    logger.info('Matching Amazon Items with Orders')
-    amazon.associate_items_with_orders(orders, items)
-
     refunds = ([] if not args.refunds_csv
                else amazon.Refund.parse_from_csv(args.refunds_csv))
-
-    log_amazon_stats(items, orders, refunds)
-
-    # Only match orders that have items.
-    orders = [o for o in orders if o.items]
 
     mint_client = None
 
@@ -116,11 +95,61 @@ def main():
         mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
         dump_trans_and_categories(mint_trans, mint_category_name_to_id, epoch)
 
+    updates = get_mint_updates(
+        orders, items, refunds,
+        mint_trans,
+        mint_category_name_to_id, args, stats)
+
+    log_amazon_stats(items, orders, refunds)
+    log_processing_stats(stats)
+
+    if not updates:
+        logger.info(
+            'All done; no new tags to be updated at this point in time!.')
+        exit(0)
+
+    if args.num_updates > 0:
+        updates = updates[:args.num_updates]
+
+    if args.dry_run:
+        logger.info('Dry run. Following are proposed changes:')
+        print_dry_run(updates, ignore_category=args.no_tag_categories)
+    else:
+        # Ensure we have a Mint client.
+        if not mint_client:
+            mint_client = get_mint_client(args)
+
+        send_updates_to_mint(
+            updates, mint_client, ignore_category=args.no_tag_categories)
+
+
+def get_mint_updates(
+        orders, items, refunds,
+        trans,
+        mint_category_name_to_id, args, stats):
     def get_prefix(is_debit):
         return (args.description_prefix if is_debit
                 else args.description_return_prefix)
 
-    trans = mint.Transaction.unsplit(mint_trans)
+    # Remove items from cancelled orders.
+    items = [i for i in items if not i.is_cancelled()]
+    # Remove items that haven't shipped yet (also aren't charged).
+    items = [i for i in items if i.order_status == 'Shipped']
+    # Remove items with zero quantity (it happens!)
+    items = [i for i in items if i.quantity > 0]
+    # Make more Items such that every item is quantity 1. This is critical
+    # prior to associate_items_with_orders such that items with non-1
+    # quantities split into different packages can be associated with the
+    # appropriate order.
+    items = [si for i in items for si in i.split_by_quantity()]
+
+    logger.info('Matching Amazon Items with Orders')
+    amazon.associate_items_with_orders(orders, items)
+
+    # Only match orders that have items.
+    orders = [o for o in orders if o.items]
+
+    trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
     # Skip t if the original description doesn't contain 'amazon'
     trans = [t for t in trans if 'amazon' in t.omerchant.lower()]
@@ -242,27 +271,6 @@ def main():
         else:
             stats['new_tag'] += 1
         updates.append((t, new_transactions))
-
-    log_processing_stats(stats)
-
-    if not updates:
-        logger.info(
-            'All done; no new tags to be updated at this point in time!.')
-        exit(0)
-
-    if args.num_updates > 0:
-        updates = updates[:args.num_updates]
-
-    if args.dry_run:
-        logger.info('Dry run. Following are proposed changes:')
-        print_dry_run(updates, ignore_category=args.no_tag_categories)
-    else:
-        # Ensure we have a Mint client.
-        if not mint_client:
-            mint_client = get_mint_client(args)
-
-        send_updates_to_mint(
-            updates, mint_client, ignore_category=args.no_tag_categories)
 
 
 def mark_best_as_matched(t, list_of_orders_or_refunds):
