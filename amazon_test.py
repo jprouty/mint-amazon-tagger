@@ -469,28 +469,101 @@ class ItemClass(unittest.TestCase):
         self.assertEqual(i.tracking, 'AMZN(ABC123)')
 
     def test_sum_subtotals(self):
-        pass
+        self.assertEqual(Item.sum_subtotals([]), 0)
+
+        i1 = item(item_subtotal='$5.43')
+        self.assertEqual(Item.sum_subtotals([i1]), 5430000)
+
+        i2 = item(item_subtotal='$44.11')
+        self.assertEqual(Item.sum_subtotals([i1, i2]), 49540000)
+        self.assertEqual(Item.sum_subtotals([i2, i1]), 49540000)
+
+        i3 = item(item_subtotal='-$2.11')
+        self.assertEqual(Item.sum_subtotals([i2, i1, i3]), 47430000)
 
     def test_sum_totals(self):
-        pass
+        self.assertEqual(Item.sum_totals([]), 0)
+
+        i1 = item(item_total='-$5.43')
+        self.assertEqual(Item.sum_totals([i1]), -5430000)
+
+        i2 = item(item_total='-$44.11')
+        self.assertEqual(Item.sum_totals([i1, i2]), -49540000)
+        self.assertEqual(Item.sum_totals([i2, i1]), -49540000)
+
+        i3 = item(item_total='$2.11')
+        self.assertEqual(Item.sum_totals([i2, i1, i3]), -47430000)
 
     def test_sum_subtotals_tax(self):
-        pass
+        self.assertEqual(Item.sum_subtotals_tax([]), 0)
+
+        i1 = item(item_subtotal_tax='$0.43')
+        self.assertEqual(Item.sum_subtotals_tax([i1]), 430000)
+
+        i2 = item(item_subtotal_tax='$0.00')
+        self.assertEqual(Item.sum_subtotals_tax([i1, i2]), 430000)
+        self.assertEqual(Item.sum_subtotals_tax([i2, i1]), 430000)
+
+        i3 = item(item_subtotal_tax='$2.11')
+        self.assertEqual(Item.sum_subtotals_tax([i2, i1, i3]), 2540000)
 
     def test_get_title(self):
-        pass
+        i = item(title='The best item ever!')
+        self.assertEqual(i.get_title(), '2x The best item ever')
+        self.assertEqual(i.get_title(10), '2x The best')
+
+        i2 = item(title='Something alright (]][', quantity=1)
+        self.assertEqual(i2.get_title(), 'Something alright')
 
     def test_is_cancelled(self):
-        pass
+        self.assertTrue(item(order_status='Cancelled').is_cancelled())
+        self.assertFalse(item(order_status='Shipped').is_cancelled())
 
     def test_set_quantity(self):
-        pass
+        i = item()
+        i.set_quantity(3)
+
+        self.assertEqual(i.quantity, 3)
+        self.assertEqual(i.item_subtotal, 16350000)
+        self.assertEqual(i.item_subtotal_tax, 1575000)
+        self.assertEqual(i.item_total, 17925000)
+
+        i.set_quantity(1)
+
+        self.assertEqual(i.quantity, 1)
+        self.assertEqual(i.item_subtotal, 5450000)
+        self.assertEqual(i.item_subtotal_tax, 525000)
+        self.assertEqual(i.item_total, 5975000)
 
     def test_split_by_quantity(self):
-        pass
+        i = item()
+        items = i.split_by_quantity()
+
+        self.assertEqual(len(items), 2)
+        for it in items:
+            self.assertEqual(it.quantity, 1)
+            self.assertEqual(it.item_subtotal, 5450000)
+            self.assertEqual(it.item_subtotal_tax, 525000)
+            self.assertEqual(it.item_total, 5975000)
 
     def test_merge(self):
-        pass
+        i1 = item()
+        i2 = item()
+        i3 = item(title='Something diff')
+
+        merged = Item.merge([i1, i2, i3])
+
+        self.assertEqual(len(merged), 2)
+
+        self.assertEqual(merged[0].quantity, 4)
+        self.assertEqual(merged[0].item_subtotal, 21800000)
+        self.assertEqual(merged[0].item_subtotal_tax, 2100000)
+        self.assertEqual(merged[0].item_total, 23900000)
+
+        self.assertEqual(merged[1].quantity, 2)
+        self.assertEqual(merged[1].item_subtotal, 10900000)
+        self.assertEqual(merged[1].item_subtotal_tax, 1050000)
+        self.assertEqual(merged[1].item_total, 11950000)
 
 
 class RefundClass(unittest.TestCase):
