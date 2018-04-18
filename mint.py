@@ -213,7 +213,7 @@ def summarize_new_trans(t, new_trans, prefix):
 
     summary_trans = deepcopy(t)
     summary_trans.merchant = title
-    if sum([1 for nt in new_trans
+    if len([nt for nt in new_trans
             if nt.merchant not in NON_ITEM_MERCHANTS]) == 1:
         summary_trans.category = new_trans[0].category
     else:
