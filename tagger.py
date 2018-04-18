@@ -24,6 +24,7 @@ from mintapifuture.mintapi.api import Mint, MINT_ROOT_URL
 import readchar
 
 import amazon
+import category
 from currency import micro_usd_nearly_equal
 from currency import micro_usd_to_usd_float
 from currency import micro_usd_to_usd_string
@@ -98,7 +99,7 @@ def main():
     updates = get_mint_updates(
         orders, items, refunds,
         mint_trans,
-        mint_category_name_to_id, args, stats)
+        args, stats, mint_category_name_to_id)
 
     log_amazon_stats(items, orders, refunds)
     log_processing_stats(stats)
@@ -107,9 +108,6 @@ def main():
         logger.info(
             'All done; no new tags to be updated at this point in time!.')
         exit(0)
-
-    if args.num_updates > 0:
-        updates = updates[:args.num_updates]
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
@@ -126,7 +124,8 @@ def main():
 def get_mint_updates(
         orders, items, refunds,
         trans,
-        mint_category_name_to_id, args, stats):
+        args, stats,
+        mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS):
     def get_prefix(is_debit):
         return (args.description_prefix if is_debit
                 else args.description_return_prefix)
@@ -271,6 +270,11 @@ def get_mint_updates(
         else:
             stats['new_tag'] += 1
         updates.append((t, new_transactions))
+
+    if args.num_updates > 0:
+        updates = updates[:args.num_updates]
+
+    return updates
 
 
 def mark_best_as_matched(t, list_of_orders_or_refunds):

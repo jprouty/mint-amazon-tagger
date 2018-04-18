@@ -76,7 +76,7 @@ class Transaction(object):
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_mint_dict(raw_dict))
 
-    def split(self, amount, category, desc, note, isDebit=True):
+    def split(self, amount, category, desc, note, is_debit=True):
         """Returns a new Transaction split from self."""
         item = deepcopy(self)
 
@@ -89,7 +89,7 @@ class Transaction(object):
         item.merchant = desc
         item.category = category
         item.amount = amount
-        item.isDebit = isDebit
+        item.is_debit = is_debit
         item.note = note
 
         return item
@@ -189,6 +189,13 @@ def itemize_new_trans(new_trans, prefix):
     return new_trans[::-1]
 
 
+NON_ITEM_MERCHANTS = set([
+    'Misc Charge (Gift wrap, etc)',
+    'Promotion(s)',
+    'Shipping',
+    'Tax adjustment'])
+
+
 def summarize_new_trans(t, new_trans, prefix):
     # When not itemizing, create a description by concating the items. Store
     # the full information in the transaction notes. Category is untouched when
@@ -197,8 +204,7 @@ def summarize_new_trans(t, new_trans, prefix):
     title = prefix + (', '.join(
         [truncate_title(nt.merchant, trun_len)
          for nt in new_trans
-         if nt.merchant not in
-         ('Promotion(s)', 'Shipping', 'Tax adjustment')]))
+         if nt.merchant not in NON_ITEM_MERCHANTS]))
     notes = '{}\nItem(s):\n{}'.format(
         new_trans[0].note,
         '\n'.join(
@@ -207,7 +213,8 @@ def summarize_new_trans(t, new_trans, prefix):
 
     summary_trans = deepcopy(t)
     summary_trans.merchant = title
-    if len(new_trans) == 1:
+    if sum([1 for nt in new_trans
+            if nt.merchant not in NON_ITEM_MERCHANTS]) == 1:
         summary_trans.category = new_trans[0].category
     else:
         summary_trans.category = category.DEFAULT_MINT_CATEGORY

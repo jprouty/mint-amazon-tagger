@@ -373,7 +373,7 @@ class OrderClass(unittest.TestCase):
         self.assertEqual(mint_trans_ship[3].merchant, 'Promotion(s)')
         self.assertEqual(mint_trans_ship[3].category, 'Shipping')
         self.assertEqual(mint_trans_ship[3].amount, -3990000)
-        self.assertFalse(mint_trans_ship[3].isDebit)
+        self.assertFalse(mint_trans_ship[3].is_debit)
 
         mint_trans_noship = o.to_mint_transactions(
             orig_trans, skip_free_shipping=True)
@@ -404,7 +404,7 @@ class OrderClass(unittest.TestCase):
         self.assertEqual(mint_trans_ship[2].merchant, 'Promotion(s)')
         self.assertEqual(mint_trans_ship[2].category, 'Shopping')
         self.assertEqual(mint_trans_ship[2].amount, -1000000)
-        self.assertFalse(mint_trans_ship[2].isDebit)
+        self.assertFalse(mint_trans_ship[2].is_debit)
 
     def test_merge_one_order(self):
         o1 = order()
@@ -452,7 +452,7 @@ class ItemClass(unittest.TestCase):
 
         self.assertEqual(i.order_id, '123-3211232-7655671')
         self.assertEqual(i.order_status, 'Shipped')
-        self.assertEqual(i.title, 'Duracell Procell AA 24 Pack PC1500BKD09')
+        self.assertEqual(i.title, 'Duracell AAs')
         self.assertEqual(i.quantity, 2)
 
         # Currency fields are all in microusd.

@@ -21,11 +21,11 @@ def refund(*args, **kwargs):
 
 
 def transaction_json(
-        amount='$27.46',
+        amount='$11.95',
         is_debit=True,
         category='Personal Care',
-        date='10/8/10',
-        description='Amazon.com: Rave ON: Rave Recovery',
+        date='2/28/14',
+        merchant='Amazon',
         original_description='AMAZON MKTPLACE PMTS',
         id=975256256,
         pid=None,
@@ -55,7 +55,7 @@ def transaction_json(
         'labels': [],
         'manualType': 0,
         'mcategory': 'Restaurants',
-        'merchant': description,
+        'merchant': merchant,
         'mmerchant': 'Amazon Marketplace',
         'note': note,
         'number_matched_by_rule': -1,
@@ -114,7 +114,7 @@ def order_dict(
 
 
 def item_dict(
-        title='Duracell Procell AA 24 Pack PC1500BKD09',
+        title='Duracell AAs',
         item_subtotal='$10.90',
         item_subtotal_tax='$1.05',
         item_total='$11.95',

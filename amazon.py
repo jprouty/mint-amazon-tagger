@@ -374,7 +374,7 @@ class Order:
                 category=cat,
                 desc='Promotion(s)',
                 note=self.get_note(),
-                isDebit=False)
+                is_debit=False)
             new_transactions.append(promo)
 
         return new_transactions
@@ -557,7 +557,7 @@ class Refund:
             category=new_cat,
             amount=-self.total_refund_amount,
             note=self.get_note(),
-            isDebit=False)
+            is_debit=False)
         return result
 
     @staticmethod
