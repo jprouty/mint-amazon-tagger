@@ -1,8 +1,0 @@
-.DS_Store
-build
-dist
-env
-__pycache__
-*.pyc
-*.egg-info
-/.idea

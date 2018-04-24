@@ -15,12 +15,12 @@ import datetime
 import itertools
 import logging
 import pickle
+import pkg_resources
 import time
 
 import getpass
 import keyring
-# Temporary until mintapi is fixed upstream.
-from mintapifuture.mintapi.api import Mint, MINT_ROOT_URL
+from mintapi.api import Mint, MINT_ROOT_URL
 import readchar
 
 import amazon
@@ -45,6 +45,11 @@ UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
 
 
 def main():
+    if float(pkg_resources.get_distribution('mintapi').version) < 1.29:
+        print('You are running an imcompatible version of mintapi! Please: \n'
+              '  python3 -m pip -U mintapi')
+        exit(1)
+
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
     define_args(parser)

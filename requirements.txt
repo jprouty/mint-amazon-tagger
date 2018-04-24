@@ -1,7 +1,4 @@
 chromedriver
 keyring
-# mintapi
+mintapi>=1.29
 readchar
-requests # Temporary while using local mintapi.
-selenium-requests # Temporary while using local mintapi.
-xmltodict # Temporary while using local mintapi.
