@@ -4,6 +4,9 @@ import csv
 from datetime import datetime
 from pprint import pformat
 import string
+from threading import Timer
+
+from interruptingcow import timeout
 
 from algorithm_u import algorithm_u
 import category
@@ -62,6 +65,18 @@ def is_empty_csv(csv_file_obj, key='Quantity'):
             next(csv.DictReader(open(filename)))[key] is None)
 
 
+def parse_from_csv_common(cls, csv_file, progress):
+    if is_empty_csv(csv_file):
+        return []
+
+    reader = csv.DictReader(csv_file)
+    iter = progress.iter(reader) if progress else reader
+    result = [cls(raw_dict) for raw_dict in iter]
+    if progress:
+        print()
+    return result
+
+
 def pythonify_amazon_dict(raw_dict):
     keys = set(raw_dict.keys())
 
@@ -103,9 +118,9 @@ def get_invoice_url(order_id):
         'orderID={oid}'.format(oid=order_id))
 
 
-def associate_items_with_orders(all_orders, items):
+def associate_items_with_orders(all_orders, all_items, itemProgress=None):
     items_by_oid = defaultdict(list)
-    for i in items:
+    for i in all_items:
         items_by_oid[i.order_id].append(i)
     orders_by_oid = defaultdict(list)
     for o in all_orders:
@@ -123,6 +138,7 @@ def associate_items_with_orders(all_orders, items):
 
         if len(orders) == 1:
             orders[0].set_items(oid_items, assert_unmatched=True)
+            if itemProgress: itemProgress.next(len(oid_items))
             continue
 
         # First try to divy up the items by tracking.
@@ -140,6 +156,7 @@ def associate_items_with_orders(all_orders, items):
                     order.subtotal):
                 # A perfect fit.
                 order.set_items(items, assert_unmatched=True)
+                if itemProgress: itemProgress.next(len(items))
                 # Remove the selected items.
                 oid_items = [i for i in oid_items if i not in items]
         # Remove orders that have items.
@@ -151,18 +168,28 @@ def associate_items_with_orders(all_orders, items):
 
         # Partition the remaining items into every possible arrangement and
         # validate against the remaining orders.
-        for item_groupings in algorithm_u(oid_items, len(orders)):
-            subtotals_with_groupings = sorted(
-                [(Item.sum_subtotals(itms), itms)
-                 for itms in item_groupings],
-                key=lambda g: g[0])
-            if all([micro_usd_nearly_equal(
-                    subtotals_with_groupings[i][0],
-                    orders[i].subtotal) for i in range(len(orders))]):
-                for idx, order in enumerate(orders):
-                    order.set_items(subtotals_with_groupings[idx][1],
-                                    assert_unmatched=True)
-                break
+        # TODO: Make a custom algorithm with backtracking.
+
+        # The number of combinations are factorial, so limit the number of
+        # attempts (by a 1 sec timeout) before giving up.
+        try:
+            with timeout(1, exception=RuntimeError):
+                for item_groupings in algorithm_u(oid_items, len(orders)):
+                    subtotals_with_groupings = sorted(
+                        [(Item.sum_subtotals(itms), itms)
+                         for itms in item_groupings],
+                        key=lambda g: g[0])
+                    if all([micro_usd_nearly_equal(
+                            subtotals_with_groupings[i][0],
+                            orders[i].subtotal) for i in range(len(orders))]):
+                        for idx, order in enumerate(orders):
+                            items = subtotals_with_groupings[idx][1]
+                            order.set_items(items,
+                                            assert_unmatched=True)
+                            if itemProgress: itemProgress.next(len(items))
+                        break
+        except RuntimeError:
+            pass
 
 
 ORDER_MERGE_FIELDS = {
@@ -185,11 +212,8 @@ class Order:
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
 
     @classmethod
-    def parse_from_csv(cls, csv_file):
-        if is_empty_csv(csv_file, 'Order Status'):
-            return []
-
-        return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
+    def parse_from_csv(cls, csv_file, progress=None):
+        return parse_from_csv_common(cls, csv_file, progress)
 
     @staticmethod
     def sum_subtotals(orders):
@@ -416,11 +440,8 @@ class Item:
         self.__dict__['original_item_subtotal_tax'] = self.item_subtotal_tax
 
     @classmethod
-    def parse_from_csv(cls, csv_file):
-        if is_empty_csv(csv_file):
-            return []
-
-        return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
+    def parse_from_csv(cls, csv_file, progress=None):
+        return parse_from_csv_common(cls, csv_file, progress)
 
     @staticmethod
     def sum_subtotals(items):
@@ -515,11 +536,8 @@ class Refund:
         return sum([r.total_refund_amount for r in refunds])
 
     @classmethod
-    def parse_from_csv(cls, csv_file):
-        if is_empty_csv(csv_file):
-            return []
-
-        return [cls(raw_dict) for raw_dict in csv.DictReader(csv_file)]
+    def parse_from_csv(cls, csv_file, progress=None):
+        return parse_from_csv_common(cls, csv_file, progress)
 
     def match(self, trans):
         self.matched = True

@@ -1,4 +1,7 @@
 chromedriver
 keyring
+interruptingcow
 mintapi>=1.29
+progress
+pytest
 readchar

@@ -17,10 +17,14 @@ import logging
 import pickle
 import pkg_resources
 import time
+from threading import Thread
 
 import getpass
 import keyring
 from mintapi.api import Mint, MINT_ROOT_URL
+from progress.bar import IncrementalBar
+from progress.counter import Counter as ProgressCounter
+from progress.spinner import Spinner
 import readchar
 
 import amazon
@@ -44,6 +48,25 @@ KEYRING_SERVICE_NAME = 'mintapi'
 UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
 
 
+class AsyncProgress:
+    def __init__(self, progress):
+        super()
+        self.progress = progress
+        self.spinning = True
+        self.timer = Thread(target=self.runnable)
+        self.timer.start()
+
+    def runnable(self):
+        while self.spinning:
+            self.progress.next()
+            time.sleep(0.1)
+
+    def finish(self):
+        self.spinning = False
+        self.progress.finish()
+        print()
+
+
 def main():
     if float(pkg_resources.get_distribution('mintapi').version) < 1.29:
         print('You are running an imcompatible version of mintapi! Please: \n'
@@ -56,7 +79,7 @@ def main():
     args = parser.parse_args()
 
     if args.dry_run:
-        logger.info('Dry Run; no modifications being sent to Mint.')
+        logger.info('\nDry Run; no modifications being sent to Mint.\n')
 
     # Initialize the stats. Explicitly initialize stats that might not be
     # accumulated (conditionals).
@@ -70,10 +93,13 @@ def main():
         user_skipped_retag=0,
     )
 
-    orders = amazon.Order.parse_from_csv(args.orders_csv)
-    items = amazon.Item.parse_from_csv(args.items_csv)
+    orders = amazon.Order.parse_from_csv(
+        args.orders_csv, ProgressCounter('Parsing Orders - '))
+    items = amazon.Item.parse_from_csv(
+        args.items_csv, ProgressCounter('Parsing Items - '))
     refunds = ([] if not args.refunds_csv
-               else amazon.Refund.parse_from_csv(args.refunds_csv))
+               else amazon.Refund.parse_from_csv(
+                   args.refunds_csv, ProgressCounter('Parsing Refunds - ')))
 
     mint_client = None
 
@@ -111,7 +137,7 @@ def main():
 
     if not updates:
         logger.info(
-            'All done; no new tags to be updated at this point in time!.')
+            'All done; no new tags to be updated at this point in time!')
         exit(0)
 
     if args.dry_run:
@@ -147,8 +173,11 @@ def get_mint_updates(
     # appropriate order.
     items = [si for i in items for si in i.split_by_quantity()]
 
-    logger.info('Matching Amazon Items with Orders')
-    amazon.associate_items_with_orders(orders, items)
+    itemProgress = IncrementalBar(
+        'Matching Amazon Items with Orders',
+        max=len(items))
+    amazon.associate_items_with_orders(orders, items, itemProgress)
+    itemProgress.finish()
 
     # Only match orders that have items.
     orders = [o for o in orders if o.items]
@@ -167,12 +196,20 @@ def get_mint_updates(
         trans = [t for t in trans if t.category.lower() in whitelist]
 
     # Match orders.
-    match_transactions(trans, orders)
+    orderMatchProgress = IncrementalBar(
+        'Matching Amazon Orders w/ Mint Trans',
+        max=len(orders))
+    match_transactions(trans, orders, orderMatchProgress)
+    orderMatchProgress.finish()
 
     unmatched_trans = [t for t in trans if not t.orders]
 
     # Match refunds.
-    match_transactions(unmatched_trans, refunds)
+    refundMatchProgress = IncrementalBar(
+        'Matching Amazon Refunds w/ Mint Trans',
+        max=len(refunds))
+    match_transactions(unmatched_trans, refunds, refundMatchProgress)
+    refundMatchProgress.finish()
 
     unmatched_orders = [o for o in orders if not o.matched]
     unmatched_trans = [t for t in trans if not t.orders]
@@ -198,8 +235,9 @@ def get_mint_updates(
     merged_orders = []
     merged_refunds = []
 
+    updateCounter = IncrementalBar('Determining Mint Updates')
     updates = []
-    for t in matched_trans:
+    for t in updateCounter.iter(matched_trans):
         if t.is_debit:
             order = amazon.Order.merge(t.orders)
             merged_orders.extend(orders)
@@ -282,7 +320,7 @@ def get_mint_updates(
     return updates
 
 
-def mark_best_as_matched(t, list_of_orders_or_refunds):
+def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
     if not list_of_orders_or_refunds:
         return
 
@@ -309,9 +347,10 @@ def mark_best_as_matched(t, list_of_orders_or_refunds):
         for o in closest_match:
             o.match(t)
         t.match(closest_match)
+        if progress: progress.next(len(closest_match))
 
 
-def match_transactions(unmatched_trans, unmatched_orders):
+def match_transactions(unmatched_trans, unmatched_orders, progress=None):
     # Also works with Refund objects.
     # First pass: Match up transactions that exactly equal an order's charged
     # amount.
@@ -321,7 +360,7 @@ def match_transactions(unmatched_trans, unmatched_orders):
         amount_to_orders[o.transact_amount()].append([o])
 
     for t in unmatched_trans:
-        mark_best_as_matched(t, amount_to_orders[t.amount])
+        mark_best_as_matched(t, amount_to_orders[t.amount], progress)
 
     unmatched_orders = [o for o in unmatched_orders if not o.matched]
     unmatched_trans = [t for t in unmatched_trans if not t.orders]
@@ -341,10 +380,11 @@ def match_transactions(unmatched_trans, unmatched_orders):
             amount_to_orders[orders_total].append(c)
 
     for t in unmatched_trans:
-        mark_best_as_matched(t, amount_to_orders[t.amount])
+        mark_best_as_matched(t, amount_to_orders[t.amount], progress)
 
 
 def get_mint_client(args):
+    asyncSpin = AsyncProgress(Spinner('Logging into Mint '))
     email = args.mint_email
     password = args.mint_password
 
@@ -369,6 +409,8 @@ def get_mint_client(args):
     # On success, save off password to keyring.
     keyring.set_password(KEYRING_SERVICE_NAME, email, password)
 
+    asyncSpin.finish()
+
     return mint_client
 
 
@@ -377,12 +419,14 @@ MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
 
 
 def get_trans_and_categories_from_pickle(pickle_epoch):
-    logger.info('Restoring from pickle backup epoch: {}.'.format(
-        pickle_epoch))
+    label = 'Un-pickling Mint transactions from epoch: {} '.format(
+        pickle_epoch)
+    asyncSpin = AsyncProgress(Spinner(label))
     with open(MINT_TRANS_PICKLE_FMT.format(pickle_epoch), 'rb') as f:
         trans = pickle.load(f)
     with open(MINT_CATS_PICKLE_FMT.format(pickle_epoch), 'rb') as f:
         cats = pickle.load(f)
+    asyncSpin.finish()
 
     return trans, cats
 
@@ -391,27 +435,33 @@ def dump_trans_and_categories(trans, cats, pickle_epoch):
     logger.info(
         'Backing up Mint Transactions prior to editing. '
         'Pickle epoch: {}'.format(pickle_epoch))
+    asyncSpin = AsyncProgress(Spinner('Backing up Mint Trans '))
     with open(MINT_TRANS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
         pickle.dump(trans, f)
     with open(MINT_CATS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
         pickle.dump(cats, f)
+    asyncSpin.finish()
 
 
 def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
     # Create a map of Mint category name to category id.
     logger.info('Creating Mint Category Map.')
     start_time = time.time()
+    asyncSpin = AsyncProgress(Spinner('Fetching Categories '))
     categories = dict([
         (cat_dict['name'], cat_id)
         for (cat_id, cat_dict) in mint_client.get_categories().items()])
+    asyncSpin.finish()
 
     start_date_str = oldest_trans_date.strftime('%m/%d/%y')
-    logger.info('Fetching all Mint transactions since {}.'.format(
+    logger.info('Get all Mint transactions since {}.'.format(
         start_date_str))
+    asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
     transactions = mint_client.get_transactions_json(
         start_date=start_date_str,
         include_investment=False,
         skip_duplicates=True)
+    asyncSpin.finish()
 
     dur = s_to_time(time.time() - start_time)
     logger.info('Got {} transactions and {} categories from Mint in {}'.format(
@@ -487,7 +537,7 @@ def log_processing_stats(stats):
         'Transactions ignored; user skipped retag: {user_skipped_retag}\n'
         '\n'
         'Transactions to be retagged: {retag}\n'
-        'Transactions to be newly tagged: {new_tag}'.format(**stats))
+        'Transactions to be newly tagged: {new_tag}\n'.format(**stats))
 
 
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):
@@ -524,7 +574,9 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
     #   Unsplits
     #   Send notes for everything
 
-    logger.info('Sending {} updates to Mint.'.format(len(updates)))
+    updateProgress = IncrementalBar(
+        'Updating Mint',
+        max=len(updates))
 
     start_time = time.time()
     num_requests = 0
@@ -553,6 +605,7 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                     MINT_ROOT_URL,
                     UPDATE_TRANS_ENDPOINT),
                 data=modify_trans).text
+            updateProgress.next()
             logger.debug('Received response: {}'.format(response))
             num_requests += 1
         else:
@@ -591,8 +644,11 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                     MINT_ROOT_URL,
                     UPDATE_TRANS_ENDPOINT),
                 data=itemized_split).text
+            updateProgress.next()
             logger.debug('Received response: {}'.format(response))
             num_requests += 1
+
+    updateProgress.finish()
 
     dur = s_to_time(time.time() - start_time)
     logger.info('Sent {} updates to Mint in {}'.format(num_requests, dur))

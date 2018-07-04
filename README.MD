@@ -33,7 +33,7 @@ next run will wipe everything out.
 4. Install selenium and chromedriver. This script runs "within" a chrome webdriver instance! Cool right?
 
 ```
-pip install selenium
+python3 -m pip install selenium
 
 # Mac:
 brew install chromedriver
