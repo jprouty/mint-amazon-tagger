@@ -401,10 +401,7 @@ def get_mint_client(args):
         logger.error('Missing Mint email or password.')
         exit(1)
 
-    logger.info('Logging in via chromedriver')
     mint_client = Mint.create(email, password)
-
-    logger.info('Login successful!')
 
     # On success, save off password to keyring.
     keyring.set_password(KEYRING_SERVICE_NAME, email, password)
@@ -432,10 +429,9 @@ def get_trans_and_categories_from_pickle(pickle_epoch):
 
 
 def dump_trans_and_categories(trans, cats, pickle_epoch):
-    logger.info(
-        'Backing up Mint Transactions prior to editing. '
-        'Pickle epoch: {}'.format(pickle_epoch))
-    asyncSpin = AsyncProgress(Spinner('Backing up Mint Trans '))
+    label = 'Backing up Mint to local pickle file, epoch: {} '.format(
+        pickle_epoch)
+    asyncSpin = AsyncProgress(Spinner(label))
     with open(MINT_TRANS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
         pickle.dump(trans, f)
     with open(MINT_CATS_PICKLE_FMT.format(pickle_epoch), 'wb') as f:
