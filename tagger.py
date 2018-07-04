@@ -384,7 +384,6 @@ def match_transactions(unmatched_trans, unmatched_orders, progress=None):
 
 
 def get_mint_client(args):
-    asyncSpin = AsyncProgress(Spinner('Logging into Mint '))
     email = args.mint_email
     password = args.mint_password
 
@@ -400,6 +399,8 @@ def get_mint_client(args):
     if not email or not password:
         logger.error('Missing Mint email or password.')
         exit(1)
+
+    asyncSpin = AsyncProgress(Spinner('Logging into Mint '))
 
     mint_client = Mint.create(email, password)
 
