@@ -36,7 +36,8 @@ next run will wipe everything out.
 python3 -m pip install selenium
 
 # Mac:
-brew install chromedriver
+brew tap homebrew/cask
+brew cask install chromedriver
 
 # Ubuntu/Debian:
 # See also: https://askubuntu.com/questions/539498/where-does-chromedriver-install-to
