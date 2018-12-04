@@ -13,6 +13,7 @@ class Args:
 def get_args(
         description_prefix='Amazon.com: ',
         description_return_prefix='Amazon.com: ',
+        mint_input_merchant_filter='amazon',
         mint_input_categories_filter=None,
         verbose_itemize=False,
         no_itemize=False,
@@ -23,6 +24,7 @@ def get_args(
     return Args(
         description_prefix=description_prefix,
         description_return_prefix=description_return_prefix,
+        mint_input_merchant_filter=mint_input_merchant_filter,
         mint_input_categories_filter=mint_input_categories_filter,
         verbose_itemize=verbose_itemize,
         no_itemize=no_itemize,

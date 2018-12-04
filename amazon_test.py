@@ -109,12 +109,12 @@ class HelperMethods(unittest.TestCase):
         # number doesn't work.
         items = [
             item(order_id='A', item_subtotal='$2.00', tracking='A')
-            for i in range(20)
+            for i in range(15)
         ]
 
         o1 = order(order_id='A', subtotal='$4.00', tracking='A')
         o2 = order(order_id='A', subtotal='$12.00', tracking='B')
-        o3 = order(order_id='A', subtotal='$24.00', tracking='C')
+        o3 = order(order_id='A', subtotal='$14.00', tracking='C')
 
         amazon.associate_items_with_orders([o1, o2, o3], items)
 
@@ -125,7 +125,7 @@ class HelperMethods(unittest.TestCase):
         self.assertEqual(len(o2.items), 6)
 
         self.assertTrue(o3.items_matched)
-        self.assertEqual(len(o3.items), 12)
+        self.assertEqual(len(o3.items), 7)
 
 
 class OrderClass(unittest.TestCase):

@@ -185,15 +185,17 @@ def get_mint_updates(
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
     # Skip t if the original description doesn't contain 'amazon'
-    trans = [t for t in trans if 'amazon' in t.omerchant.lower()]
+    merch_whitelist = args.mint_input_merchant_filter.lower().split(',')
+    trans = [t for t in trans if any(
+        merch_str in t.omerchant.lower() for merch_str in merch_whitelist)]
     stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
     stats['pending'] = stats['amazon_in_desc'] - len(trans)
     # Skip t if a category filter is given and t does not match.
     if args.mint_input_categories_filter:
-        whitelist = set(args.mint_input_categories_filter.lower().split(','))
-        trans = [t for t in trans if t.category.lower() in whitelist]
+        cat_whitelist = set(args.mint_input_categories_filter.lower().split(','))
+        trans = [t for t in trans if t.category.lower() in cat_whitelist]
 
     # Match orders.
     orderMatchProgress = IncrementalBar(
@@ -741,6 +743,11 @@ def define_args(parser):
               'it makes transactions still retrieval by searching "amazon". '
               'It is also used to detecting if a transaction has already been '
               'tagged by this tool.'))
+    parser.add_argument(
+        '--mint_input_merchant_filter', type=str,
+        default='amazon,amzn',
+        help=('Only consider Mint transactions that have one of these strings '
+              'in the merchant field. Case-insensitive comma-seperated.'))
     parser.add_argument(
         '--mint_input_categories_filter', type=str,
         help=('If present, only consider Mint transactions that match one of '
