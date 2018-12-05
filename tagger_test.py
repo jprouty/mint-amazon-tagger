@@ -39,7 +39,7 @@ def get_args(
 
 class Tagger(unittest.TestCase):
     def test_get_mint_updates_empty_input(self):
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [], [], [],
             [],
             get_args(), Counter())
@@ -51,7 +51,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction()
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(), stats)
@@ -77,7 +77,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(amount='$11.95', is_debit=False, date='3/12/14')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [], [], [r1],
             [t1],
             get_args(), stats)
@@ -100,7 +100,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(merchant='SomeRandoCustomPrefix: already tagged')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(description_prefix_override='SomeRandoCustomPrefix: '),
@@ -115,7 +115,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(merchant='Amazon.com: already tagged')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(retag_changed=True), stats)
@@ -129,7 +129,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(merchant='Amazon.co.uk: already tagged')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(), stats)
@@ -143,7 +143,7 @@ class Tagger(unittest.TestCase):
             merchant='Amazon.com: 2x Duracell AAs', category='Shopping')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(retag_changed=True), stats)
@@ -157,7 +157,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(merchant='Amazon.com: 2x Duracell AAs')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(no_tag_categories=True), stats)
@@ -171,7 +171,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction()
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(verbose_itemize=True), stats)
@@ -199,7 +199,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(amount='$15.94')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(no_itemize=True), stats)
@@ -232,7 +232,7 @@ class Tagger(unittest.TestCase):
         t1 = transaction(amount='$17.00')
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1], [i1, i2], [],
             [t1],
             get_args(no_itemize=True), stats)
@@ -255,14 +255,14 @@ class Tagger(unittest.TestCase):
         t2 = transaction()
 
         stats = Counter()
-        updates = tagger.get_mint_updates(
+        updates, _ = tagger.get_mint_updates(
             [o1, o2], [i1, i2], [],
             [t1, t2],
             get_args(), stats)
 
         self.assertEqual(len(updates), 2)
 
-        updates2 = tagger.get_mint_updates(
+        updates2, _ = tagger.get_mint_updates(
             [o1, o2], [i1, i2], [],
             [t1, t2],
             get_args(num_updates=1), stats)

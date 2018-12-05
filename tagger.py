@@ -152,7 +152,7 @@ def main():
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
-        # print_dry_run(updates, ignore_category=args.no_tag_categories)
+        print_dry_run(updates, ignore_category=args.no_tag_categories)
 
     else:
         # Ensure we have a Mint client.
