@@ -127,6 +127,7 @@ class HelperMethods(unittest.TestCase):
         self.assertTrue(o3.items_matched)
         self.assertEqual(len(o3.items), 7)
 
+        
 
 class OrderClass(unittest.TestCase):
     def test_constructor(self):
