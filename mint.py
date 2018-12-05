@@ -196,15 +196,21 @@ NON_ITEM_MERCHANTS = set([
     'Tax adjustment'])
 
 
+def summarize_title(titles, prefix):
+    trun_len = (100 - len(prefix) - 2 * len(titles)) / len(titles)
+    return prefix + (', '.join(
+        [truncate_title(t, trun_len) for t in titles]))
+
+
 def summarize_new_trans(t, new_trans, prefix):
     # When not itemizing, create a description by concating the items. Store
     # the full information in the transaction notes. Category is untouched when
     # there's more than one item (this is why itemizing is better!).
-    trun_len = (100 - len(prefix) - 2 * len(new_trans)) / len(new_trans)
-    title = prefix + (', '.join(
-        [truncate_title(nt.merchant, trun_len)
+    title = summarize_title(
+        [nt.merchant
          for nt in new_trans
-         if nt.merchant not in NON_ITEM_MERCHANTS]))
+         if nt.merchant not in NON_ITEM_MERCHANTS],
+        prefix)
     notes = '{}\nItem(s):\n{}'.format(
         new_trans[0].note,
         '\n'.join(

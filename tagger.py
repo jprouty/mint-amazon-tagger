@@ -124,13 +124,26 @@ def main():
         mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
         dump_trans_and_categories(mint_trans, mint_category_name_to_id, epoch)
 
-    updates = get_mint_updates(
+    updates, unmatched_orders = get_mint_updates(
         orders, items, refunds,
         mint_trans,
         args, stats, mint_category_name_to_id)
 
     log_amazon_stats(items, orders, refunds)
     log_processing_stats(stats)
+
+    if args.print_unmatched and unmatched_orders:
+        logger.warning('The following were not matched to Mint transactions:')
+        for uo in unmatched_orders:
+            logger.warning('{}\t{}\t{}'.format(
+                uo.shipment_date if uo.shipment_date else 'Never shipped!',
+                micro_usd_to_usd_string(uo.total_charged),
+                amazon.get_invoice_url(uo.order_id)))
+            proposed_mint_desc = mint.summarize_title(
+                [i.get_title() for i in uo.items],
+                '{}: '.format(uo.website))
+            logger.warning('\t{}'.format(proposed_mint_desc))
+        logger.warning('')
 
     if not updates:
         logger.info(
@@ -139,7 +152,8 @@ def main():
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
-        print_dry_run(updates, ignore_category=args.no_tag_categories)
+        # print_dry_run(updates, ignore_category=args.no_tag_categories)
+
     else:
         # Ensure we have a Mint client.
         if not mint_client:
@@ -322,7 +336,7 @@ def get_mint_updates(
     if args.num_updates > 0:
         updates = updates[:args.num_updates]
 
-    return updates
+    return updates, unmatched_orders + unmatched_refunds
 
 
 def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
@@ -729,8 +743,11 @@ def define_args(parser):
               'feature works by looking for "Amazon.com: " at the start of a '
               'transaction. If the user changes the description, then the '
               'tagger won\'t know to leave it alone.'))
+    parser.add_argument(
+        '--print_unmatched', action='store_true',
+        help=('At completion, print unmatched orders to help manual tagging.'))
 
-    # How to tell when to skip a transaction:
+    # Prefix customization:
     parser.add_argument(
         '--description_prefix_override', type=str,
         help=('The prefix to use when updating the description for each Mint '
