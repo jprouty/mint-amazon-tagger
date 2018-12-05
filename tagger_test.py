@@ -103,7 +103,8 @@ class Tagger(unittest.TestCase):
         updates = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(description_prefix_override='SomeRandoCustomPrefix: '), stats)
+            get_args(description_prefix_override='SomeRandoCustomPrefix: '),
+            stats)
 
         self.assertEqual(len(updates), 0)
         self.assertEqual(stats['no_retag'], 1)
