@@ -121,7 +121,7 @@ class TransactionClass(unittest.TestCase):
             amount='$1.00')
         self.assertEqual(
             trans.get_compare_tuple(),
-            ('Simple Title', '$1.00', 'Personal Care'))
+            ('Simple Title', '$1.00', 'Great note here', 'Personal Care'))
 
         trans2 = transaction(
             merchant='Simple Refund',
@@ -129,7 +129,7 @@ class TransactionClass(unittest.TestCase):
             is_debit=False)
         self.assertEqual(
             trans2.get_compare_tuple(True),
-            ('Simple Refund', '-$2.01'))
+            ('Simple Refund', '-$2.01', 'Great note here'))
 
     def test_dry_run_str(self):
         trans = transaction()

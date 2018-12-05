@@ -692,7 +692,8 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                         MINT_ROOT_URL,
                         UPDATE_TRANS_ENDPOINT),
                     data=itemized_note)
-                logger.debug('Received note response: {}'.format(note_response.text))
+                logger.debug(
+                    'Received note response: {}'.format(note_response.text))
 
             updateProgress.next()
             logger.debug('Received response: {}'.format(response.text))

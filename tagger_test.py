@@ -140,7 +140,9 @@ class Tagger(unittest.TestCase):
         i1 = item()
         o1 = order()
         t1 = transaction(
-            merchant='Amazon.com: 2x Duracell AAs', category='Shopping')
+            merchant='Amazon.com: 2x Duracell AAs',
+            category='Shopping',
+            note=o1.get_note() + '\nItem(s):\n - 2x Duracell AAs')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
@@ -154,7 +156,9 @@ class Tagger(unittest.TestCase):
     def test_get_mint_updates_no_tag_categories_arg(self):
         i1 = item()
         o1 = order()
-        t1 = transaction(merchant='Amazon.com: 2x Duracell AAs')
+        t1 = transaction(
+            merchant='Amazon.com: 2x Duracell AAs',
+            note=o1.get_note() + '\nItem(s):\n - 2x Duracell AAs')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(

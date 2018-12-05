@@ -119,7 +119,8 @@ class Transaction(object):
         return '{} \t {} \t {} \t {}'.format(
             self.date.strftime('%m/%d/%y'),
             micro_usd_to_usd_string(self.amount),
-            '--IGNORED--' if ignore_category else '{}({})'.format(self.category, self.category_id),
+            '--IGNORED--' if ignore_category
+            else '{}({})'.format(self.category, self.category_id),
             self.merchant)
 
     def __repr__(self):
