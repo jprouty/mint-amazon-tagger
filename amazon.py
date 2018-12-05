@@ -166,9 +166,6 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
 
         orders = sorted(orders, key=lambda o: o.subtotal)
 
-        print(orders)
-        print(oid_items)
-
         # Partition the remaining items into every possible arrangement and
         # validate against the remaining orders.
         # TODO: Make a custom algorithm with backtracking.
