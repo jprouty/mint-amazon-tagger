@@ -125,6 +125,7 @@ class HelperMethods(unittest.TestCase):
         self.assertEqual(len(o2.items), 6)
 
         self.assertTrue(o3.items_matched)
+        self.assertFalse(o3.items_matched)
         self.assertEqual(len(o3.items), 7)
 
         
