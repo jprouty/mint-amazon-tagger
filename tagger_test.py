@@ -11,8 +11,9 @@ class Args:
 
 
 def get_args(
-        description_prefix='Amazon.com: ',
-        description_return_prefix='Amazon.com: ',
+        description_prefix_override='Amazon.com: ',
+        description_return_prefix_override='Amazon.com: ',
+        amazon_domains='amazon.com,amazon.co.uk',
         mint_input_merchant_filter='amazon',
         mint_input_categories_filter=None,
         verbose_itemize=False,
@@ -22,8 +23,9 @@ def get_args(
         num_updates=0,
         retag_changed=False):
     return Args(
-        description_prefix=description_prefix,
-        description_return_prefix=description_return_prefix,
+        description_prefix_override=description_prefix_override,
+        description_return_prefix_override=description_return_prefix_override,
+        amazon_domains=amazon_domains,
         mint_input_merchant_filter=mint_input_merchant_filter,
         mint_input_categories_filter=mint_input_categories_filter,
         verbose_itemize=verbose_itemize,
@@ -101,7 +103,7 @@ class Tagger(unittest.TestCase):
         updates = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(description_prefix='SomeRandoCustomPrefix: '), stats)
+            get_args(description_prefix_override='SomeRandoCustomPrefix: '), stats)
 
         self.assertEqual(len(updates), 0)
         self.assertEqual(stats['no_retag'], 1)
@@ -119,6 +121,19 @@ class Tagger(unittest.TestCase):
 
         self.assertEqual(len(updates), 1)
         self.assertEqual(stats['retag'], 1)
+
+    def test_get_mint_updates_multi_domains_no_retag(self):
+        i1 = item()
+        o1 = order()
+        t1 = transaction(merchant='Amazon.co.uk: already tagged')
+
+        stats = Counter()
+        updates = tagger.get_mint_updates(
+            [o1], [i1], [],
+            [t1],
+            get_args(), stats)
+
+        self.assertEqual(len(updates), 0)
 
     def test_get_mint_updates_no_update_for_identical(self):
         i1 = item()

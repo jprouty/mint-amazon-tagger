@@ -4,7 +4,6 @@ import csv
 from datetime import datetime
 from pprint import pformat
 import string
-from threading import Timer
 
 from interruptingcow import timeout
 
@@ -138,7 +137,8 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
 
         if len(orders) == 1:
             orders[0].set_items(oid_items, assert_unmatched=True)
-            if itemProgress: itemProgress.next(len(oid_items))
+            if itemProgress:
+                itemProgress.next(len(oid_items))
             continue
 
         # First try to divy up the items by tracking.
@@ -156,7 +156,8 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
                     order.subtotal):
                 # A perfect fit.
                 order.set_items(items, assert_unmatched=True)
-                if itemProgress: itemProgress.next(len(items))
+                if itemProgress:
+                    itemProgress.next(len(items))
                 # Remove the selected items.
                 oid_items = [i for i in oid_items if i not in items]
         # Remove orders that have items.
@@ -186,7 +187,8 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
                             items = subtotals_with_groupings[idx][1]
                             order.set_items(items,
                                             assert_unmatched=True)
-                            if itemProgress: itemProgress.next(len(items))
+                            if itemProgress:
+                                itemProgress.next(len(items))
                         break
         except RuntimeError:
             pass

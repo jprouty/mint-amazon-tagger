@@ -22,7 +22,7 @@ def truncate_title(title, target_length, base_str=None):
             break
     truncated = ' '.join(words)
     # Remove any trailing symbol-y crap.
-    while truncated and truncated[-1] in ',.-([]{}\/|~!@#$%^&*_+=`\'" ':
+    while truncated and truncated[-1] in ',.-([]{}\\/|~!@#$%^&*_+=`\'" ':
         truncated = truncated[:-1]
     return truncated
 
@@ -61,7 +61,7 @@ def parse_mint_date(date_str):
     current_year = datetime.isocalendar(date.today())[0]
     try:
         new_date = datetime.strptime(date_str + str(current_year), '%b %d%Y')
-    except:
+    except ValueError:
         new_date = datetime.strptime(date_str, '%m/%d/%y')
     return new_date.date()
 

@@ -40,9 +40,6 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 
-DEFAULT_MERCHANT_PREFIX = 'Amazon.com: '
-DEFAULT_MERCHANT_REFUND_PREFIX = 'Amazon.com refund: '
-
 KEYRING_SERVICE_NAME = 'mintapi'
 
 UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
@@ -157,10 +154,6 @@ def get_mint_updates(
         trans,
         args, stats,
         mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS):
-    def get_prefix(is_debit):
-        return (args.description_prefix if is_debit
-                else args.description_return_prefix)
-
     # Remove items from cancelled orders.
     items = [i for i in items if not i.is_cancelled()]
     # Remove items that haven't shipped yet (also aren't charged).
@@ -194,7 +187,8 @@ def get_mint_updates(
     stats['pending'] = stats['amazon_in_desc'] - len(trans)
     # Skip t if a category filter is given and t does not match.
     if args.mint_input_categories_filter:
-        cat_whitelist = set(args.mint_input_categories_filter.lower().split(','))
+        cat_whitelist = set(
+            args.mint_input_categories_filter.lower().split(','))
         trans = [t for t in trans if t.category.lower() in cat_whitelist]
 
     # Match orders.
@@ -244,6 +238,10 @@ def get_mint_updates(
             order = amazon.Order.merge(t.orders)
             merged_orders.extend(orders)
 
+            prefix = '{}: '.format(order.website)
+            if args.description_prefix_override:
+                prefix = args.description_prefix_override
+
             if order.attribute_subtotal_diff_to_misc_charge():
                 stats['misc_charge'] += 1
             # It's nice when "free" shipping cancels out with the shipping
@@ -265,6 +263,10 @@ def get_mint_updates(
         else:
             refunds = amazon.Refund.merge(t.orders)
             merged_refunds.extend(refunds)
+            prefix = '{} refund: '.format(refunds[0].website)
+
+            if args.description_return_prefix_override:
+                prefix = args.description_return_prefix_override
 
             new_transactions = [
                 r.to_mint_transaction(t)
@@ -277,7 +279,6 @@ def get_mint_updates(
         for nt in new_transactions:
             nt.update_category_id(mint_category_name_to_id)
 
-        prefix = get_prefix(t.is_debit)
         summarize_single_item_order = (
             t.is_debit and len(order.items) == 1 and not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
@@ -291,7 +292,9 @@ def get_mint_updates(
             stats['already_up_to_date'] += 1
             continue
 
-        if t.merchant.startswith(prefix):
+        valid_prefixes = (
+            args.amazon_domains.lower().split(',') + [prefix.lower()])
+        if any(t.merchant.lower().startswith(pre) for pre in valid_prefixes):
             if args.prompt_retag:
                 if args.num_updates > 0 and len(updates) >= args.num_updates:
                     break
@@ -349,7 +352,8 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
         for o in closest_match:
             o.match(t)
         t.match(closest_match)
-        if progress: progress.next(len(closest_match))
+        if progress:
+            progress.next(len(closest_match))
 
 
 def match_transactions(unmatched_trans, unmatched_orders, progress=None):
@@ -728,21 +732,33 @@ def define_args(parser):
 
     # How to tell when to skip a transaction:
     parser.add_argument(
-        '--description_prefix', type=str,
-        default=DEFAULT_MERCHANT_PREFIX,
+        '--description_prefix_override', type=str,
         help=('The prefix to use when updating the description for each Mint '
-              'transaction. Default is "Amazon.com: ". This is nice as it '
-              'makes transactions still retrieval by searching "amazon". It '
-              'is also used to detecting if a transaction has already been '
-              'tagged by this tool.'))
+              'transaction. By default, the \'Website\' value from Amazon '
+              'Items/Orders csv is used. If a string is provided, use '
+              'this instead for all matched transactions. If given, this is '
+              'used in conjunction with amazon_domains to detect if a '
+              'transaction has already been tagged by this tool.'))
     parser.add_argument(
-        '--description_return_prefix', type=str,
-        default=DEFAULT_MERCHANT_REFUND_PREFIX,
+        '--description_return_prefix_override', type=str,
         help=('The prefix to use when updating the description for each Mint '
-              'transaction. Default is "Amazon.com refund: ". This is nice as '
-              'it makes transactions still retrieval by searching "amazon". '
-              'It is also used to detecting if a transaction has already been '
-              'tagged by this tool.'))
+              'refund. By default, the \'Website\' value from Amazon '
+              'Items/Orders csv is used with refund appaended (e.g. '
+              '\'Amazon.com Refund: ...\'. If a string is provided here, use '
+              'this instead for all matched refunds. If given, this is '
+              'used in conjunction with amazon_domains to detect if a '
+              'refund has already been tagged by this tool.'))
+    parser.add_argument(
+        '--amazon_domains', type=str,
+        # From: https://en.wikipedia.org/wiki/Amazon_(company)#Website
+        default=('amazon.com,amazon.cn,amazon.in,amazon.co.jp,amazon.com.sg,'
+                 'amazon.com.tr,amazon.fr,amazon.de,amazon.it,amazon.nl,'
+                 'amazon.es,amazon.co.uk,amazon.ca,amazon.com.mx,'
+                 'amazon.com.au,amazon.com.br'),
+        help=('A list of all valid Amazon domains/websites. These should '
+              'match the website column from Items/Orders and is used to '
+              'detect if a transaction has already been tagged by this tool.'))
+
     parser.add_argument(
         '--mint_input_merchant_filter', type=str,
         default='amazon,amzn',
