@@ -152,7 +152,7 @@ def main():
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
-        # print_dry_run(updates, ignore_category=args.no_tag_categories)
+        print_dry_run(updates, ignore_category=args.no_tag_categories)
 
     else:
         # Ensure we have a Mint client.
@@ -410,8 +410,9 @@ def get_mint_client(args):
     if not email:
         email = input('Mint email: ')
 
-    if not password:
-        password = keyring.get_password(KEYRING_SERVICE_NAME, email)
+    # This was causing my grief. Let's let it rest for a while.
+    # if not password:
+    #     password = keyring.get_password(KEYRING_SERVICE_NAME, email)
 
     if not password:
         password = getpass.getpass('Mint password: ')
@@ -603,10 +604,6 @@ def print_dry_run(orig_trans_to_tagged, ignore_category=False):
 
 
 def send_updates_to_mint(updates, mint_client, ignore_category=False):
-    # TODO:
-    #   Unsplits
-    #   Send notes for everything
-
     updateProgress = IncrementalBar(
         'Updating Mint',
         max=len(updates))
@@ -663,7 +660,6 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                 # Yup. Weird:
                 itemized_split['percentAmount{}'.format(i)] = amount
                 itemized_split['merchant{}'.format(i)] = trans.merchant
-                itemized_split['note{}'.format(i)] = trans.note
                 # Yup weird. '0' means new?
                 itemized_split['txnId{}'.format(i)] = 0
                 if not ignore_category:
@@ -677,9 +673,29 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                 '{}{}'.format(
                     MINT_ROOT_URL,
                     UPDATE_TRANS_ENDPOINT),
-                data=itemized_split).text
+                data=itemized_split)
+            json_resp = response.json()
+            # The first id is always the original transaction (now
+            # parent transaction id).
+            new_trans_ids = json_resp['txnId'][1:]
+            assert len(new_trans_ids) == len(new_trans)
+            for itemized_id, trans in zip(new_trans_ids, new_trans):
+                # Now send the note for each itemized transaction.
+                itemized_note = {
+                    'task': 'txnedit',
+                    'txnId': '{}:0'.format(itemized_id),
+                    'note': trans.note,
+                    'token': mint_client.token,
+                }
+                note_response = mint_client.post(
+                    '{}{}'.format(
+                        MINT_ROOT_URL,
+                        UPDATE_TRANS_ENDPOINT),
+                    data=itemized_note)
+                logger.debug('Received note response: {}'.format(note_response.text))
+
             updateProgress.next()
-            logger.debug('Received response: {}'.format(response))
+            logger.debug('Received response: {}'.format(response.text))
             num_requests += 1
 
     updateProgress.finish()

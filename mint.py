@@ -112,14 +112,14 @@ class Transaction(object):
         """Returns a 3-tuple used to determine if 2 transactions are equal."""
         # TODO: Add the 'note' field once itemized transactions include notes.
         # Use str to avoid float cmp.
-        base = (self.merchant, micro_usd_to_usd_string(self.amount))
+        base = (self.merchant, micro_usd_to_usd_string(self.amount), self.note)
         return base if ignore_category else base + (self.category,)
 
     def dry_run_str(self, ignore_category=False):
         return '{} \t {} \t {} \t {}'.format(
             self.date.strftime('%m/%d/%y'),
             micro_usd_to_usd_string(self.amount),
-            '--IGNORED--' if ignore_category else self.category,
+            '--IGNORED--' if ignore_category else '{}({})'.format(self.category, self.category_id),
             self.merchant)
 
     def __repr__(self):
@@ -222,6 +222,7 @@ def summarize_new_trans(t, new_trans, prefix):
     if len([nt for nt in new_trans
             if nt.merchant not in NON_ITEM_MERCHANTS]) == 1:
         summary_trans.category = new_trans[0].category
+        summary_trans.category_id = new_trans[0].category_id
     else:
         summary_trans.category = category.DEFAULT_MINT_CATEGORY
     summary_trans.note = notes
