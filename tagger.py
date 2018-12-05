@@ -133,17 +133,17 @@ def main():
     log_processing_stats(stats)
 
     if args.print_unmatched and unmatched_orders:
-        logger.warning('The following were not matched to Mint transactions:')
+        logger.warning(
+            'The following were not matched to Mint transactions:\n')
+        by_oid = defaultdict(list)
         for uo in unmatched_orders:
-            logger.warning('{}\t{}\t{}'.format(
-                uo.shipment_date if uo.shipment_date else 'Never shipped!',
-                micro_usd_to_usd_string(uo.total_charged),
-                amazon.get_invoice_url(uo.order_id)))
-            proposed_mint_desc = mint.summarize_title(
-                [i.get_title() for i in uo.items],
-                '{}: '.format(uo.website))
-            logger.warning('\t{}'.format(proposed_mint_desc))
-        logger.warning('')
+            by_oid[uo.order_id].append(uo)
+        for orders in by_oid.values():
+            if orders[0].is_debit:
+                print_unmatched(amazon.Order.merge(orders))
+            else:
+                for r in amazon.Refund.merge(orders):
+                    print_unmatched(r)
 
     if not updates:
         logger.info(
@@ -152,7 +152,7 @@ def main():
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
-        print_dry_run(updates, ignore_category=args.no_tag_categories)
+        # print_dry_run(updates, ignore_category=args.no_tag_categories)
 
     else:
         # Ensure we have a Mint client.
@@ -557,6 +557,22 @@ def log_processing_stats(stats):
         'Transactions to be newly tagged: {new_tag}\n'.format(**stats))
 
 
+def print_unmatched(amzn_obj):
+    proposed_mint_desc = mint.summarize_title(
+        [i.get_title() for i in amzn_obj.items]
+        if amzn_obj.is_debit else [amzn_obj.get_title()],
+        '{}{}: '.format(
+            amzn_obj.website, '' if amzn_obj.is_debit else ' refund'))
+    logger.warning('{}'.format(proposed_mint_desc))
+    logger.warning('\t{}\t{}\t{}'.format(
+        amzn_obj.transact_date()
+        if amzn_obj.transact_date()
+        else 'Never shipped!',
+        micro_usd_to_usd_string(amzn_obj.transact_amount()),
+        amazon.get_invoice_url(amzn_obj.order_id)))
+    logger.warning('')
+
+
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):
     for orig_trans, new_trans in orig_trans_to_tagged:
         oid = orig_trans.orders[0].order_id
@@ -647,6 +663,7 @@ def send_updates_to_mint(updates, mint_client, ignore_category=False):
                 # Yup. Weird:
                 itemized_split['percentAmount{}'.format(i)] = amount
                 itemized_split['merchant{}'.format(i)] = trans.merchant
+                itemized_split['note{}'.format(i)] = trans.note
                 # Yup weird. '0' means new?
                 itemized_split['txnId{}'.format(i)] = 0
                 if not ignore_category:

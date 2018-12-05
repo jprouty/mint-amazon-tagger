@@ -209,6 +209,7 @@ class Order:
     items_matched = False
     trans_id = None
     items = []
+    is_debit = True
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
@@ -525,6 +526,7 @@ class Item:
 class Refund:
     matched = False
     trans_id = None
+    is_debit = False
 
     def __init__(self, raw_dict):
         # Refunds are rad: AMZN doesn't total the tax + sub-total for you.
