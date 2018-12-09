@@ -88,6 +88,7 @@ def main():
         no_retag=0,
         retag=0,
         user_skipped_retag=0,
+        personal_cat=0,
     )
 
     orders = amazon.Order.parse_from_csv(
@@ -124,10 +125,14 @@ def main():
         mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
         dump_trans_and_categories(mint_trans, mint_category_name_to_id, epoch)
 
+    mint_historic_category_renames = get_mint_category_history_for_items(
+        mint_trans, args)
     updates, unmatched_orders = get_mint_updates(
         orders, items, refunds,
         mint_trans,
-        args, stats, mint_category_name_to_id)
+        args, stats,
+        mint_historic_category_renames,
+        mint_category_name_to_id)
 
     log_amazon_stats(items, orders, refunds)
     log_processing_stats(stats)
@@ -152,7 +157,10 @@ def main():
 
     if args.dry_run:
         logger.info('Dry run. Following are proposed changes:')
-        print_dry_run(updates, ignore_category=args.no_tag_categories)
+        if args.skip_dry_print:
+            logger.info('Dry run print results skipped!')
+        else:
+            print_dry_run(updates, ignore_category=args.no_tag_categories)
 
     else:
         # Ensure we have a Mint client.
@@ -163,10 +171,59 @@ def main():
             updates, mint_client, ignore_category=args.no_tag_categories)
 
 
+def get_mint_category_history_for_items(trans, args):
+    """Gets a mapping of item name -> category name.
+
+    For use in memorizing personalized categories.
+    """
+    if args.do_not_predict_categories:
+        return None
+    # Don't worry about pending.
+    trans = [t for t in trans if not t.is_pending]
+    # Only do debits for now.
+    trans = [t for t in trans if t.is_debit]
+
+    # Filter for transactions that have been tagged before.
+    valid_prefixes = args.amazon_domains.lower().split(',')
+    valid_prefixes = ['{}: '.format(pre) for pre in valid_prefixes]
+    if args.description_prefix_override:
+        valid_prefixes.append(args.description_prefix_override.lower())
+    trans = [t for t in trans if
+             any(t.merchant.lower().startswith(pre)
+                 for pre in valid_prefixes)]
+
+    # Filter out the default category: there is no signal here.
+    trans = [t for t in trans
+             if t.category != category.DEFAULT_MINT_CATEGORY]
+
+    # Filter out non-item merchants.
+    trans = [t for t in trans
+             if t.merchant not in mint.NON_ITEM_MERCHANTS]
+
+    item_to_cats = defaultdict(Counter)
+    for t in trans:
+        # Remove the prefix for the item:
+        for pre in valid_prefixes:
+            item_name = t.merchant.lower()
+            # Find & remove the prefix and remove any leading '3x '.
+            if item_name.startswith(pre):
+                item_name = amazon.rm_leading_qty(item_name[len(pre):])
+                break
+
+        item_to_cats[item_name][t.category] += 1
+
+    item_to_most_common = {}
+    for item_name, counter in item_to_cats.items():
+        item_to_most_common[item_name] = counter.most_common()[0][0]
+
+    return item_to_most_common
+
+
 def get_mint_updates(
         orders, items, refunds,
         trans,
         args, stats,
+        mint_historic_category_renames=None,
         mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS):
     # Remove items from cancelled orders.
     items = [i for i in items if not i.is_cancelled()]
@@ -291,6 +348,15 @@ def get_mint_updates(
             mint.Transaction.sum_amounts(new_transactions))
 
         for nt in new_transactions:
+            # Look if there's a personal category tagged.
+            item_name = amazon.rm_leading_qty(nt.merchant.lower())
+            if (mint_historic_category_renames and
+                    item_name in mint_historic_category_renames):
+                suggested_cat = mint_historic_category_renames[item_name]
+                if suggested_cat != nt.category:
+                    stats['personal_cat'] += 1
+                    nt.category = mint_historic_category_renames[item_name]
+
             nt.update_category_id(mint_category_name_to_id)
 
         summarize_single_item_order = (
@@ -471,7 +537,11 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
         for (cat_id, cat_dict) in mint_client.get_categories().items()])
     asyncSpin.finish()
 
-    start_date_str = oldest_trans_date.strftime('%m/%d/%y')
+    today = datetime.datetime.now().date()
+    # Double the length of transacion history to help aid in
+    # personalized category tagging overrides.
+    start_date = today - (today - oldest_trans_date) * 2
+    start_date_str = start_date.strftime('%m/%d/%y')
     logger.info('Get all Mint transactions since {}.'.format(
         start_date_str))
     asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
@@ -553,6 +623,8 @@ def log_processing_stats(stats):
         '{already_up_to_date}\n'
         'Transactions ignored; ignore retags: {no_retag}\n'
         'Transactions ignored; user skipped retag: {user_skipped_retag}\n'
+        '\n'
+        'Transactions with personalize categories: {personal_cat}\n'
         '\n'
         'Transactions to be retagged: {retag}\n'
         'Transactions to be newly tagged: {new_tag}\n'.format(**stats))
@@ -758,6 +830,9 @@ def define_args(parser):
         help=('Do not modify Mint transaction; instead print the proposed '
               'changes to console.'))
     parser.add_argument(
+        '--skip_dry_print', action='store_true',
+        help=('Do not print dry run results (useful for development).'))
+    parser.add_argument(
         '--num_updates', type=int,
         default=0,
         help=('Only send the first N updates to Mint (or print N updates at '
@@ -828,6 +903,11 @@ def define_args(parser):
               'Amazon doesn\'t provide the best categorization and it is '
               'pretty common user behavior to manually change the categories. '
               'This flag prevents tagger from wiping out that user work.'))
+    parser.add_argument(
+        '--do_not_predict_categories', action='store_true',
+        help=('Do not attempt to predict custom category tagging based on any '
+              'tagging overrides. By default (no arg) tagger will attempt to '
+              'find items that you have manually changed categories for.'))
 
 
 if __name__ == '__main__':

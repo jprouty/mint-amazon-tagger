@@ -3,6 +3,7 @@ from copy import deepcopy
 import csv
 from datetime import datetime
 from pprint import pformat
+import re
 import string
 
 from interruptingcow import timeout
@@ -16,6 +17,11 @@ from currency import CENT_MICRO_USD, MICRO_USD_EPS
 from mint import truncate_title
 
 PRINTABLE = set(string.printable)
+
+
+def rm_leading_qty(item_title):
+    """Removes the '2x Item Name' from the front of an item title."""
+    return re.sub(r'^\d+x ', '', item_title)
 
 
 def get_title(amzn_obj, target_length):

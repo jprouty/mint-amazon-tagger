@@ -71,6 +71,7 @@ class Transaction(object):
 
     matched = False
     orders = []
+    item = None  # Set in the case of itemized new transactions.
     children = []
 
     def __init__(self, raw_dict):
