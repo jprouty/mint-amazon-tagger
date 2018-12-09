@@ -66,7 +66,7 @@ class AsyncProgress:
 
 def main():
     if float(pkg_resources.get_distribution('mintapi').version) < 1.29:
-        print('You are running an imcompatible version of mintapi! Please: \n'
+        print('You are running an incompatible version of mintapi! Please: \n'
               '  python3 -m pip -U mintapi')
         exit(1)
 
@@ -225,7 +225,7 @@ def get_mint_updates(
         args, stats,
         mint_historic_category_renames=None,
         mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS):
-    # Remove items from cancelled orders.
+    # Remove items from canceled orders.
     items = [i for i in items if not i.is_cancelled()]
     # Remove items that haven't shipped yet (also aren't charged).
     items = [i for i in items if i.order_status == 'Shipped']
@@ -538,7 +538,7 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
     asyncSpin.finish()
 
     today = datetime.datetime.now().date()
-    # Double the length of transacion history to help aid in
+    # Double the length of transaction history to help aid in
     # personalized category tagging overrides.
     start_date = today - (today - oldest_trans_date) * 2
     start_date_str = start_date.strftime('%m/%d/%y')
@@ -869,7 +869,7 @@ def define_args(parser):
         '--description_return_prefix_override', type=str,
         help=('The prefix to use when updating the description for each Mint '
               'refund. By default, the \'Website\' value from Amazon '
-              'Items/Orders csv is used with refund appaended (e.g. '
+              'Items/Orders csv is used with refund appended (e.g. '
               '\'Amazon.com Refund: ...\'. If a string is provided here, use '
               'this instead for all matched refunds. If given, this is '
               'used in conjunction with amazon_domains to detect if a '
@@ -889,7 +889,7 @@ def define_args(parser):
         '--mint_input_merchant_filter', type=str,
         default='amazon,amzn',
         help=('Only consider Mint transactions that have one of these strings '
-              'in the merchant field. Case-insensitive comma-seperated.'))
+              'in the merchant field. Case-insensitive comma-separated.'))
     parser.add_argument(
         '--mint_input_categories_filter', type=str,
         help=('If present, only consider Mint transactions that match one of '
