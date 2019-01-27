@@ -62,7 +62,7 @@ RENAME_FIELD_NAMES = {
 }
 
 
-def is_empty_csv(csv_file_obj, key='Quantity'):
+def is_empty_csv(csv_file_obj, key='Buyer Name'):
     # Amazon likes to put "No data found for this time period" in the first
     # row.
     filename = csv_file_obj.name

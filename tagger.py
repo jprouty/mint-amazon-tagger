@@ -16,6 +16,7 @@ import itertools
 import logging
 import pickle
 import pkg_resources
+import os
 import time
 
 import getpass
@@ -46,15 +47,19 @@ UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
 
 
 def main():
-    if float(pkg_resources.get_distribution('mintapi').version) < 1.29:
-        print('You are running an incompatible version of mintapi! Please: \n'
-              '  python3 -m pip -U mintapi')
-        exit(1)
-
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
     define_args(parser)
     args = parser.parse_args()
+
+    do_tagging(args, args.items_csv, args.orders_csv, args.refunds_csv)
+
+
+def do_tagging(args, items_csv, orders_csv, refunds_csv, oldest_trans_date=None):
+    if float(pkg_resources.get_distribution('mintapi').version) < 1.35:
+        print('You are running an incompatible version of mintapi! Please: \n'
+              '  python3 -m pip -U mintapi')
+        exit(1)
 
     if args.dry_run:
         logger.info('\nDry Run; no modifications being sent to Mint.\n')
@@ -73,12 +78,12 @@ def main():
     )
 
     orders = amazon.Order.parse_from_csv(
-        args.orders_csv, ProgressCounter('Parsing Orders - '))
+        orders_csv, ProgressCounter('Parsing Orders - '))
     items = amazon.Item.parse_from_csv(
-        args.items_csv, ProgressCounter('Parsing Items - '))
-    refunds = ([] if not args.refunds_csv
+        items_csv, ProgressCounter('Parsing Items - '))
+    refunds = ([] if not refunds_csv
                else amazon.Refund.parse_from_csv(
-                   args.refunds_csv, ProgressCounter('Parsing Refunds - ')))
+                   refunds_csv, ProgressCounter('Parsing Refunds - ')))
 
     mint_client = None
 
@@ -95,11 +100,12 @@ def main():
         mint_client = get_mint_client(args)
 
         # Only get transactions as new as the oldest Amazon order.
-        oldest_trans_date = min([o.order_date for o in orders])
-        if refunds:
-            oldest_trans_date = min(
-                oldest_trans_date,
-                min([o.order_date for o in refunds]))
+        if not oldest_trans_date:
+            oldest_trans_date = min([o.order_date for o in orders])
+            if refunds:
+                oldest_trans_date = min(
+                    oldest_trans_date,
+                    min([o.order_date for o in refunds]))
         mint_transactions_json, mint_category_name_to_id = (
             get_trans_and_categories_from_mint(mint_client, oldest_trans_date))
         epoch = int(time.time())
@@ -470,7 +476,14 @@ def get_mint_client(args):
 
     asyncSpin = AsyncProgress(Spinner('Logging into Mint '))
 
-    mint_client = Mint.create(email, password)
+    session_path_val = args.session_path
+    if session_path_val == 'None':
+        session_path_val = None
+
+    mint_client = Mint.create(email, password,
+                              mfa_method=args.mfa_method,
+                              session_path=session_path_val,
+                              headless=args.headless)
 
     # On success, save off password to keyring.
     keyring.set_password(KEYRING_SERVICE_NAME, email, password)
@@ -541,14 +554,18 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
 
 def log_amazon_stats(items, orders, refunds):
     logger.info('\nAmazon Stats:')
-    first_order_date = min([o.order_date for o in orders])
-    last_order_date = max([o.order_date for o in orders])
+    if len(orders) == 0 or len(items):
+        logger.info('\tThere were not Amazon orders/items!')
+        return
     logger.info('\n{} orders with {} matching items'.format(
         len([o for o in orders if o.items_matched]),
         len([i for i in items if i.matched])))
     logger.info('{} unmatched orders and {} unmatched items'.format(
         len([o for o in orders if not o.items_matched]),
         len([i for i in items if not i.matched])))
+
+    first_order_date = min([o.order_date for o in orders])
+    last_order_date = max([o.order_date for o in orders])
     logger.info('Orders ranging from {} to {}'.format(
         first_order_date, last_order_date))
 
@@ -892,6 +909,25 @@ def define_common_args(parser):
         help=('Do not attempt to predict custom category tagging based on any '
               'tagging overrides. By default (no arg) tagger will attempt to '
               'find items that you have manually changed categories for.'))
+
+    # Mint API options:
+    home = os.path.expanduser("~")
+    default_session_path = os.path.join(home, '.mintapi', 'session')
+    parser.add_argument(
+        '--session-path', nargs='?',
+        default=default_session_path,
+        help=('Directory to save browser session, including cookies. Use to '
+              'prevent repeated MFA prompts. Defaults to ~/.mintapi/session. '
+              'Set to None to use a temporary profile.'))
+    parser.add_argument(
+        '--headless',
+        action='store_true',
+        help='Whether to execute chromedriver with no visible window.')
+    parser.add_argument(
+        '--mfa-method',
+        default='sms',
+        choices=['sms', 'email'],
+        help='The MFA method to automate.')
 
 
 if __name__ == '__main__':

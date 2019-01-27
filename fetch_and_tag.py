@@ -65,7 +65,6 @@ def main():
     driver = None
     for report_name, report_type, report_path in zip(
             report_names, report_types, report_paths):
-        print(report_name)
         if os.path.exists(report_path):
             # Report has already been fetched! Woot
             continue
@@ -73,7 +72,9 @@ def main():
         # Report is not here. Go get it
         if not driver:
             loginSpin = AsyncProgress(Spinner('Logging into Amazon '))
-            driver = get_web_driver(args.amazon_email, args.amazon_password)
+            driver = get_web_driver(args.amazon_email, args.amazon_password,
+                                    headless=args.headless,
+                                    session_path=args.session_path)
             loginSpin.finish()
 
         requestSpin = AsyncProgress(Spinner(
@@ -100,7 +101,14 @@ def main():
         downloadSpin.finish()
 
     print('\nAll Amazon history has been fetched. Onto tagging.')
-    driver.finish()
+    if driver:
+        driver.finish()
+
+    with open(report_paths[0], 'r') as items_csv:
+        with open(report_paths[1], 'r') as orders_csv:
+            with open(report_paths[2], 'r') as refunds_csv:
+                tagger.do_tagging(
+                    args, items_csv, orders_csv, refunds_csv, start_date.date())
 
 def get_email_and_pass(email, password):
     if not email:
@@ -129,8 +137,7 @@ CHROME_ZIP_TYPES = {
     'win64': 'win32'
 }
 
-def get_web_driver(email, password, headless=False, wait_for_sync=True,
-                   session_path=None):
+def get_web_driver(email, password, headless=False, session_path=None):
     zip_type = ""
     executable_path = os.getcwd() + os.path.sep + 'chromedriver'
     if _platform in ['win32', 'win64']:
@@ -262,7 +269,7 @@ def define_args(parser):
               'If given, this is the start_date, with the end date being '
               'start_date + num_days. Format: YYYY-MM-DD'))
     parser.add_argument(
-        '--report_download_lorder_history_num_daysocation', type=str,
+        '--report_download_location', type=str,
         default=AMZN_REPORT_DOWNLOAD_BASE,
         help='Where to place the downloaded reports.')
 
