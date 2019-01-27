@@ -102,7 +102,7 @@ def main():
 
     print('\nAll Amazon history has been fetched. Onto tagging.')
     if driver:
-        driver.finish()
+        driver.close()
 
     with open(report_paths[0], 'r') as items_csv:
         with open(report_paths[1], 'r') as orders_csv:
@@ -170,17 +170,78 @@ def get_web_driver(email, password, headless=False, session_path=None):
     driver = Chrome(chrome_options=chrome_options, executable_path="%s" % executable_path)
 
     driver.get(ORDER_HISTORY_REPORT_URL)
-    driver.implicitly_wait(10)
-    driver.find_element_by_id("ap_email").send_keys(email)
-    driver.find_element_by_id("ap_password").send_keys(password)
-    driver.find_element_by_id("signInSubmit").submit()
-    driver.implicitly_wait(10)
 
+    driver.implicitly_wait(2)
+
+    def get_element_by_id(driver, id):
+        try:
+            return driver.find_element_by_id(id)
+        except NoSuchElementException:
+            pass
+        return None
+
+    def get_element_by_xpath(driver, xpath):
+        try:
+            return driver.find_element_by_xpath(xpath)
+        except NoSuchElementException:
+            pass
+        return None
+
+    # Full login on first visit: no user history, just do it
+    if get_element_by_id(driver, 'ap_email'):
+        driver.find_element_by_id('ap_email').send_keys(email)
+        driver.find_element_by_id('ap_password').send_keys(password)
+        driver.find_element_by_name('rememberMe').click()
+        driver.find_element_by_id('signInSubmit').submit()
+    else:
+        current_account = get_element_by_xpath(driver,
+            "//div[contains(text(), '{}')]".format(email))
+        # If the current account was previously logged in, just enter the password.
+        if current_account:
+            driver.find_element_by_id('ap_password').send_keys(password)
+            driver.find_element_by_name('rememberMe').click()
+            driver.find_element_by_id('signInSubmit').submit()
+        # Go to the account switcher:
+        else:
+            driver.find_element_by_id('ap_switch_account_link').click()
+            driver.implicitly_wait(2)
+
+            current_account = get_element_by_xpath(driver,
+                "//div[contains(text(), '{}')]".format(email))
+            if current_account:
+                current_account.click()
+                driver.implicitly_wait(2)
+
+                driver.find_element_by_id('ap_password').send_keys(password)
+                driver.find_element_by_name('rememberMe').click()
+                driver.find_element_by_id('signInSubmit').submit()
+            else:
+                driver.find_element_by_xpath(
+                    '//div[text()="Add account"]').click()
+                driver.implicitly_wait(2)
+
+                driver.find_element_by_id('ap_email').send_keys(email)
+                driver.find_element_by_id('ap_password').send_keys(password)
+                driver.find_element_by_name('rememberMe').click()
+                driver.find_element_by_id('signInSubmit').submit()
+
+    driver.implicitly_wait(2)
+
+    if get_element_by_id(driver, 'auth-mfa-otpcode'):
+        print('Please answer the OTP challenge in browser! You have 5 min')
+        try:
+            wait_cond = EC.presence_of_element_located(
+                (By.ID, 'report-confirm'))
+            element = WebDriverWait(driver, 60*5).until(wait_cond)
+        except TimeoutException:
+            print('Cannot get past 2factor auth!')
+            exit(1)
     try:
-        driver.find_element_by_id("report-confirm").submit()
+        driver.find_element_by_id('report-confirm').submit()
     except NoSuchElementException:
         # No luck; probably 2factor auth or bad credentials
-        return None
+        print('Had trouble logging in!')
+        exit(1)
 
     return driver
 

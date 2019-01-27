@@ -554,7 +554,7 @@ def get_trans_and_categories_from_mint(mint_client, oldest_trans_date):
 
 def log_amazon_stats(items, orders, refunds):
     logger.info('\nAmazon Stats:')
-    if len(orders) == 0 or len(items):
+    if len(orders) == 0 or len(items) == 0:
         logger.info('\tThere were not Amazon orders/items!')
         return
     logger.info('\n{} orders with {} matching items'.format(
