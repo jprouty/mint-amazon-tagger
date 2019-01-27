@@ -5,6 +5,7 @@ Items.csv
 Refunds.csv
 Returns.csv
 AMZN Reports
+chromedriver*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

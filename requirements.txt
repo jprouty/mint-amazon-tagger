@@ -5,3 +5,4 @@ mintapi>=1.29
 progress
 pytest
 readchar
+selenium

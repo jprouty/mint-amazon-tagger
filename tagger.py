@@ -17,7 +17,6 @@ import logging
 import pickle
 import pkg_resources
 import time
-from threading import Thread
 
 import getpass
 import keyring
@@ -28,6 +27,7 @@ from progress.spinner import Spinner
 import readchar
 
 import amazon
+from asyncprogress import AsyncProgress
 import category
 from currency import micro_usd_nearly_equal
 from currency import micro_usd_to_usd_float
@@ -43,25 +43,6 @@ logger.setLevel(logging.INFO)
 KEYRING_SERVICE_NAME = 'mintapi'
 
 UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
-
-
-class AsyncProgress:
-    def __init__(self, progress):
-        super()
-        self.progress = progress
-        self.spinning = True
-        self.timer = Thread(target=self.runnable)
-        self.timer.start()
-
-    def runnable(self):
-        while self.spinning:
-            self.progress.next()
-            time.sleep(0.1)
-
-    def finish(self):
-        self.spinning = False
-        self.progress.finish()
-        print()
 
 
 def main():
@@ -786,16 +767,6 @@ def s_to_time(s):
 
 
 def define_args(parser):
-    # Mint creds:
-    parser.add_argument(
-        '--mint_email', default=None,
-        help=('Mint e-mail address for login. If not provided here, will be '
-              'prompted for user.'))
-    parser.add_argument(
-        '--mint_password', default=None,
-        help=('Mint password for login. If not provided here, will be '
-              'prompted for.'))
-
     # Inputs:
     parser.add_argument(
         'items_csv', type=argparse.FileType('r'),
@@ -807,6 +778,19 @@ def define_args(parser):
         '--refunds_csv', type=argparse.FileType('r'),
         help='The "Refunds" Order History Report from Amazon. '
              'This is optional.')
+    define_common_args(parser)
+
+
+def define_common_args(parser):
+    # Mint creds:
+    parser.add_argument(
+        '--mint_email', default=None,
+        help=('Mint e-mail address for login. If not provided here, will be '
+              'prompted for user.'))
+    parser.add_argument(
+        '--mint_password', default=None,
+        help=('Mint password for login. If not provided here, will be '
+              'prompted for.'))
 
     # To itemize or not to itemize; that is the question:
     parser.add_argument(
