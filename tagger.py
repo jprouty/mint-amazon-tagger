@@ -55,7 +55,8 @@ def main():
     do_tagging(args, args.items_csv, args.orders_csv, args.refunds_csv)
 
 
-def do_tagging(args, items_csv, orders_csv, refunds_csv, oldest_trans_date=None):
+def do_tagging(args, items_csv, orders_csv, refunds_csv,
+               oldest_trans_date=None):
     if float(pkg_resources.get_distribution('mintapi').version) < 1.35:
         print('You are running an incompatible version of mintapi! Please: \n'
               '  python3 -m pip install -r requirements.txt')

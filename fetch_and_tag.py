@@ -9,7 +9,6 @@ import argparse
 import datetime
 import io
 import getpass
-import keyring
 import os
 from progress.spinner import Spinner
 import requests
@@ -30,6 +29,7 @@ AMZN_REPORT_DOWNLOAD_BASE = 'AMZN Reports'
 ORDER_HISTORY_REPORT_URL = "https://www.amazon.com/gp/b2b/reports"
 ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 
+
 def main():
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
@@ -48,14 +48,16 @@ def main():
     else:
         start_date = end_date - duration
 
-    email, password = get_email_and_pass(args.amazon_email, args.amazon_password)
+    email, password = get_email_and_pass(
+        args.amazon_email, args.amazon_password)
 
     name = args.amazon_email.split('@')[0]
-    report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(name, t, start_date, end_date)
+    report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(
+                        name, t, start_date, end_date)
                     for t in ['Items', 'Orders', 'Refunds']]
     report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
     report_paths = [args.report_download_location + os.path.sep + name + '.csv'
-                   for name in report_names]
+                    for name in report_names]
 
     if not os.path.exists(args.report_download_location):
         os.makedirs(args.report_download_location)
@@ -87,7 +89,7 @@ def main():
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
-            element = WebDriverWait(
+            WebDriverWait(
                 driver, ORDER_HISTORY_PROCESS_TIMEOUT_S).until(wait_cond)
             processingSpin.finish()
         except TimeoutException:
@@ -108,7 +110,9 @@ def main():
         with open(report_paths[1], 'r') as orders_csv:
             with open(report_paths[2], 'r') as refunds_csv:
                 tagger.do_tagging(
-                    args, items_csv, orders_csv, refunds_csv, start_date.date())
+                    args, items_csv, orders_csv, refunds_csv,
+                    start_date.date())
+
 
 def get_email_and_pass(email, password):
     if not email:
@@ -122,13 +126,14 @@ def get_email_and_pass(email, password):
         password = getpass.getpass('Amazon password: ')
 
     if not email or not password:
-        logger.error('Missing Amazon email or password.')
+        print('Missing Amazon email or password.')
         exit(1)
     return email, password
 
 
 CHROME_DRIVER_VERSION = 2.41
-CHROME_DRIVER_BASE_URL = 'https://chromedriver.storage.googleapis.com/%s/chromedriver_%s.zip'
+CHROME_DRIVER_BASE_URL = ('https://chromedriver.storage.googleapis.com/'
+                          '{}/chromedriver_{}.zip')
 CHROME_ZIP_TYPES = {
     'linux': 'linux64',
     'linux2': 'linux64',
@@ -136,6 +141,7 @@ CHROME_ZIP_TYPES = {
     'win32': 'win32',
     'win64': 'win32'
 }
+
 
 def get_web_driver(email, password, headless=False, session_path=None):
     zip_type = ""
@@ -146,12 +152,14 @@ def get_web_driver(email, password, headless=False, session_path=None):
     zip_type = CHROME_ZIP_TYPES.get(_platform)
 
     if not os.path.exists(executable_path):
-        zip_file_url = CHROME_DRIVER_BASE_URL % (CHROME_DRIVER_VERSION, zip_type)
+        zip_file_url = CHROME_DRIVER_BASE_URL.format(
+            CHROME_DRIVER_VERSION, zip_type)
         request = requests.get(zip_file_url)
 
         if request.status_code != 200:
-            raise RuntimeError('Error finding chromedriver at %r, status = %d' %
-                               (zip_file_url, request.status_code))
+            raise RuntimeError(
+                'Error finding chromedriver at {}, status = {}'.format(
+                    zip_file_url, request.status_code))
 
         zip_file = zipfile.ZipFile(io.BytesIO(request.content))
         zip_file.extractall()
@@ -165,9 +173,10 @@ def get_web_driver(email, password, headless=False, session_path=None):
         chrome_options.add_argument('disable-gpu')
         # chrome_options.add_argument("--window-size=1920x1080")
     if session_path is not None:
-        chrome_options.add_argument("user-data-dir=%s" % session_path)
+        chrome_options.add_argument("user-data-dir=" + session_path)
 
-    driver = Chrome(chrome_options=chrome_options, executable_path="%s" % executable_path)
+    driver = Chrome(chrome_options=chrome_options,
+                    executable_path=executable_path)
 
     driver.get(ORDER_HISTORY_REPORT_URL)
 
@@ -194,9 +203,11 @@ def get_web_driver(email, password, headless=False, session_path=None):
         driver.find_element_by_name('rememberMe').click()
         driver.find_element_by_id('signInSubmit').submit()
     else:
-        current_account = get_element_by_xpath(driver,
+        current_account = get_element_by_xpath(
+            driver,
             "//div[contains(text(), '{}')]".format(email))
-        # If the current account was previously logged in, just enter the password.
+        # If the current account was previously logged in, just enter the
+        # password.
         if current_account:
             driver.find_element_by_id('ap_password').send_keys(password)
             driver.find_element_by_name('rememberMe').click()
@@ -206,7 +217,8 @@ def get_web_driver(email, password, headless=False, session_path=None):
             driver.find_element_by_id('ap_switch_account_link').click()
             driver.implicitly_wait(2)
 
-            current_account = get_element_by_xpath(driver,
+            current_account = get_element_by_xpath(
+                driver,
                 "//div[contains(text(), '{}')]".format(email))
             if current_account:
                 current_account.click()
@@ -232,7 +244,7 @@ def get_web_driver(email, password, headless=False, session_path=None):
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.ID, 'report-confirm'))
-            element = WebDriverWait(driver, 60*5).until(wait_cond)
+            WebDriverWait(driver, 60*5).until(wait_cond)
         except TimeoutException:
             print('Cannot get past 2factor auth!')
             exit(1)
@@ -248,8 +260,10 @@ def get_web_driver(email, password, headless=False, session_path=None):
 
 def request_report(driver, report_name, report_type, start_date, end_date):
     try:
-        # Do not request the report again if it's already available for download
-        driver.find_element_by_xpath(get_report_download_link_xpath(report_name))
+        # Do not request the report again if it's already available for
+        # download.
+        driver.find_element_by_xpath(
+            get_report_download_link_xpath(report_name))
         return
     except NoSuchElementException:
         pass
@@ -292,7 +306,6 @@ def download_report(driver, report_name, report_path):
     except NoSuchElementException:
         print('Could not find the download link!')
         exit(1)
-    # //td[contains(text(), 'test_items')]/..//td[contains(@id, 'download')]
 
     # 2. Download the report to the AMZN Reports directory
     response = driver.request('GET', report_url,

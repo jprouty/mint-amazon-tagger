@@ -1,6 +1,7 @@
 from threading import Thread
 import time
 
+
 class AsyncProgress:
     def __init__(self, progress):
         super()
