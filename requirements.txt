@@ -1,7 +1,7 @@
 chromedriver
 keyring
 interruptingcow
-mintapi>=1.29
+mintapi>=1.35
 progress
 pytest
 readchar
