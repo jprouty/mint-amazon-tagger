@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="mint-amazon-tagger",
-    version="1.0",
+    version="1.01",
     author="Jeff Prouty",
     author_email="jeff.prouty@gmail.com",
     description=("Fetches your Amazon order history and matching/tags your "
