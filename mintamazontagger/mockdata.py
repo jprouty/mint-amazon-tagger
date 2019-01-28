@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
-import amazon
-import mint
+from mintamazontagger import amazon
+from mintamazontagger import mint
 
 
 def transaction(*args, **kwargs):

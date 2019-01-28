@@ -1,9 +1,9 @@
 from datetime import date
 import unittest
 
-import amazon
-from amazon import Item, Order, Refund
-from mockdata import item, order, refund, transaction
+from mintamazontagger import amazon
+from mintamazontagger.amazon import Item, Order, Refund
+from mintamazontagger.mockdata import item, order, refund, transaction
 
 
 class HelperMethods(unittest.TestCase):

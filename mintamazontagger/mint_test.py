@@ -1,10 +1,10 @@
 from datetime import datetime, date
 import unittest
 
-import category
-import mint
-from mint import Transaction
-from mockdata import transaction
+from mintamazontagger import category
+from mintamazontagger import mint
+from mintamazontagger.mint import Transaction
+from mintamazontagger.mockdata import transaction
 
 
 class HelpMethods(unittest.TestCase):

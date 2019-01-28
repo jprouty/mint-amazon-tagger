@@ -7,8 +7,8 @@ from mintapi.api import Mint, MINT_ROOT_URL
 from progress.bar import IncrementalBar
 from progress.spinner import Spinner
 
-from asyncprogress import AsyncProgress
-from currency import micro_usd_to_usd_float
+from mintamazontagger.asyncprogress import AsyncProgress
+from mintamazontagger.currency import micro_usd_to_usd_float
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())

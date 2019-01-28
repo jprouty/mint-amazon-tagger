@@ -16,13 +16,13 @@ import time
 from progress.counter import Counter as ProgressCounter
 from progress.spinner import Spinner
 
-import amazon
-from asyncprogress import AsyncProgress
-from currency import micro_usd_to_usd_string
-from orderhistory import fetch_order_history
-import mint
-from mintclient import MintClient
-import tagger
+from mintamazontagger import amazon
+from mintamazontagger import mint
+from mintamazontagger import tagger
+from mintamazontagger.asyncprogress import AsyncProgress
+from mintamazontagger.currency import micro_usd_to_usd_string
+from mintamazontagger.orderhistory import fetch_order_history
+from mintamazontagger.mintclient import MintClient
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())

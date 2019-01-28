@@ -3,10 +3,10 @@ from copy import deepcopy
 from datetime import date, datetime
 import re
 
-import category
-from currency import micro_usd_to_usd_string
-from currency import parse_usd_as_micro_usd
-from currency import round_micro_usd_to_cent
+from mintamazontagger import category
+from mintamazontagger.currency import micro_usd_to_usd_string
+from mintamazontagger.currency import parse_usd_as_micro_usd
+from mintamazontagger.currency import round_micro_usd_to_cent
 
 
 def truncate_title(title, target_length, base_str=None):

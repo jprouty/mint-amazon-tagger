@@ -15,10 +15,10 @@ import logging
 from progress.bar import IncrementalBar
 import readchar
 
-import amazon
-import category
-from currency import micro_usd_nearly_equal
-import mint
+from mintamazontagger import amazon
+from mintamazontagger import category
+from mintamazontagger import mint
+from mintamazontagger.currency import micro_usd_nearly_equal
 
 
 logger = logging.getLogger(__name__)

@@ -8,13 +8,13 @@ import string
 
 from interruptingcow import timeout
 
-from algorithm_u import algorithm_u
-import category
-from currency import micro_usd_nearly_equal
-from currency import micro_usd_to_usd_string
-from currency import parse_usd_as_micro_usd
-from currency import CENT_MICRO_USD, MICRO_USD_EPS
-from mint import truncate_title
+from mintamazontagger.algorithm_u import algorithm_u
+from mintamazontagger import category
+from mintamazontagger.currency import micro_usd_nearly_equal
+from mintamazontagger.currency import micro_usd_to_usd_string
+from mintamazontagger.currency import parse_usd_as_micro_usd
+from mintamazontagger.currency import CENT_MICRO_USD, MICRO_USD_EPS
+from mintamazontagger.mint import truncate_title
 
 PRINTABLE = set(string.printable)
 

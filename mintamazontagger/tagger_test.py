@@ -1,8 +1,8 @@
 from collections import Counter
 import unittest
 
-import tagger
-from mockdata import item, order, refund, transaction
+from mintamazontagger import tagger
+from mintamazontagger.mockdata import item, order, refund, transaction
 
 
 class Args:

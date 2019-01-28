@@ -15,7 +15,7 @@ import zipfile
 
 from progress.spinner import Spinner
 
-from asyncprogress import AsyncProgress
+from mintamazontagger.asyncprogress import AsyncProgress
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
@@ -30,7 +30,7 @@ def fetch_order_history(start_date, end_date, args):
     email, password = get_email_and_pass(
         args.amazon_email, args.amazon_password)
 
-    name = args.amazon_email.split('@')[0]
+    name = email.split('@')[0]
     report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(
                         name, t, start_date, end_date)
                     for t in ['Items', 'Orders', 'Refunds']]
