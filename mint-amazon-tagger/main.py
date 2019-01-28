@@ -43,9 +43,10 @@ def main():
     orders_csv = args.orders_csv
     refunds_csv = args.refunds_csv
 
+    start_date = None
     if not items_csv or not orders_csv:
-        logger.info('Missing Items/Orders History. Attempting to fetch from '
-                    'Amazon.com.')
+        logger.info('Missing Items/Orders History csv. Attempting to fetch '
+                    'from Amazon.com.')
         start_date = args.order_history_start_date
         duration = datetime.timedelta(days=args.order_history_num_days)
         end_date = datetime.date.today()
@@ -89,7 +90,8 @@ def main():
     )
 
     mint_client = MintClient(args.mint_email, args.mint_password,
-                             args.session_path, args.headless, args.mfa_method)
+                             args.session_path, args.headless,
+                             args.mint_mfa_method)
 
     if args.pickled_epoch:
         mint_trans, mint_category_name_to_id = (
