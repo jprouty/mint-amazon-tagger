@@ -21,7 +21,8 @@ def get_args(
         no_tag_categories=False,
         prompt_retag=False,
         num_updates=0,
-        retag_changed=False):
+        retag_changed=False,
+        do_not_predict_categories=True):
     return Args(
         description_prefix_override=description_prefix_override,
         description_return_prefix_override=description_return_prefix_override,
@@ -34,6 +35,7 @@ def get_args(
         prompt_retag=prompt_retag,
         num_updates=num_updates,
         retag_changed=retag_changed,
+        do_not_predict_categories=do_not_predict_categories,
     )
 
 

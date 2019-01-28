@@ -1,4 +1,3 @@
-chromedriver
 keyring
 interruptingcow
 mintapi>=1.35
@@ -6,3 +5,4 @@ progress
 pytest
 readchar
 selenium
+selenium-requests
