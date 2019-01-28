@@ -37,17 +37,14 @@ previously tagged transactions, take a look at --retag_changed and
 
 ### Setup ###
 
-1. Clone this repository: `git clone git@github.com:jprouty/mint-amazon-tagger.git; cd mint-amazon-tagger`
+1. `pip3 install mint-amazon-tagger`
 
-2. Make sure python3 is setup! python2 is so old; just get outta there.
+2. To get the latest from time to time, update your version:
+`pip3 install --upgrade mint-amazon-tagger`
 
-3. Install the dependencies: `python3 -m pip install -r requirements.txt`
-
-4. Install selenium and chromedriver. This script runs "within" a chrome webdriver instance! Cool right?
-
+3. Chromedriver should be fetched automatically. But if you run into issues,
+try this:
 ```
-python3 -m pip install selenium
-
 # Mac:
 brew tap homebrew/cask
 brew cask install chromedriver
@@ -57,11 +54,18 @@ brew cask install chromedriver
 sudo apt-get install chromium-chromedriver
 ```
 
-### Running the script ###
+### Running - Full Auto ###
 
-1. Update the repository for maximum success: `git pull`
+This mode will fetch your Amazon Order History for you as well as tag mint.
 
-2. Generate and download your Amazon Order History Reports.
+1. `mint-amazon-tagger --amazon_email email@cool.com --mint_email couldbedifferent@aol.com`
+
+### Running - Semi-Auto ###
+
+This mode requires you to fetch your Amazon Order History manually, then the
+tagger automates the rest.
+
+1. Generate and download your Amazon Order History Reports.
 
 a. Login and visit [Amazon Order History
 Reports](https://www.amazon.com/gp/b2b/reports)
@@ -73,16 +77,16 @@ c. Download the completed reports. Let's called them
 `Items.csv Orders.csv Refunds.csv` for this walk-through. Note that
 Refunds is optional! Yay.
 
-3. (Optional) Do a dry run! Make sure everything looks right first. Run:
-`./tagger.py Items.csv Orders.csv --refunds Refunds.csv --dry_run --mint_email yourEmail@here.com`
+2. (Optional) Do a dry run! Make sure everything looks right first. Run:
+`mint-amazon-tagger --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --dry_run --mint_email yourEmail@here.com`
 
-4. Run the tagger:
-`./tagger.py Items.csv Orders.csv --refunds Refunds.csv --mint_email yourEmail@here.com`
+3. Now perform the actual updates, without `--dry_run`:
+`mint-amazon-tagger --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --mint_email yourEmail@here.com`
 
-5. Sit back and relax! The run time depends on the speed of your machine,
+4. Sit back and relax! The run time depends on the speed of your machine,
 quality of internet connection, and total number of transactions. For
 reference, my machine did about 14k Mint transactions, finding 2k Amazon
 matches in under 10 minutes.
 
 To see all options, see:
-`./tagger.py --help`
+`mint-amazon-tagger --help`
