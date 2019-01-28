@@ -10,6 +10,7 @@ setuptools.setup(
     author_email="jeff.prouty@gmail.com",
     description=("Fetches your Amazon order history and matching/tags your "
                  "Mint transactions"),
+    keywords='amazon mint tagger transactions order history',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/jprouty/mint-amazon-tagger",
@@ -18,6 +19,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Topic :: Office/Business :: Financial",
     ],
     install_requires=[
         'keyring',
@@ -32,8 +34,7 @@ setuptools.setup(
     ],
     entry_points=dict(
         console_scripts=[
-            'mint-amazon-tagger = mint-amazon-tagger.fetch_:main',
-            'mint-amazon-tagger_tagonly = mint-amazon-tagger.tagger:main',
+            'mint-amazon-tagger=mintamazontagger.main:main',
         ],
     ),
 )
