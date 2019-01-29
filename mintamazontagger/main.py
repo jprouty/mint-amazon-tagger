@@ -287,7 +287,7 @@ def dump_trans_and_categories(trans, cats, pickle_epoch, pickle_base_path):
         pickle_epoch)
     asyncSpin = AsyncProgress(Spinner(label))
     if not os.path.exists(pickle_base_path):
-        os.path.makedirs(pickle_base_path)
+        os.makedirs(pickle_base_path)
     trans_pickle_path = os.path.join(
         pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
     cats_pickle_path = os.path.join(
