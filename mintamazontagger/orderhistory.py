@@ -42,7 +42,7 @@ def fetch_order_history(report_download_path, start_date, end_date,
                     name, t, start_date, end_date)
                     for t in report_shortnames]
     report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
-    report_paths = [report_download_path + os.path.sep + name + '.csv'
+    report_paths = [os.path.join(report_download_path, name + '.csv')
                     for name in report_names]
 
     if not os.path.exists(report_download_path):
@@ -134,7 +134,7 @@ CHROME_ZIP_TYPES = {
 
 def get_amzn_driver(email, password, headless=False, session_path=None):
     zip_type = ""
-    executable_path = os.getcwd() + os.path.sep + 'chromedriver'
+    executable_path = os.path.join(os.getcwd(), 'chromedriver')
     if _platform in ['win32', 'win64']:
         executable_path += '.exe'
 
