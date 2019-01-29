@@ -1,8 +1,24 @@
+import os
 import setuptools
 from mintamazontagger import VERSION
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+
+class CleanCommand(setuptools.Command):
+    """Custom clean command to tidy up the project root."""
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info')
+
 
 setuptools.setup(
     name="mint-amazon-tagger",
@@ -39,4 +55,7 @@ setuptools.setup(
             'mint-amazon-tagger=mintamazontagger.main:main',
         ],
     ),
+    cmdclass={
+        'clean': CleanCommand,
+    },
 )
