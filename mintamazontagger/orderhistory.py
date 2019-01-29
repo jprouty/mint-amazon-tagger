@@ -21,31 +21,38 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
-
-ORDER_HISTORY_REPORT_URL = "https://www.amazon.com/gp/b2b/reports"
+ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
+    'https://www.amazon.com/gp/navigation/redirector.html/ref=sign-in-redirect'
+    '?ie=UTF8&associationHandle=usflex&currentPageURL='
+    'https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyourstore%2Fhome%3Fie%3DUTF8%26'
+    'ref_%3Dnav_youraccount_switchacct&pageType=&switchAccount=picker&'
+    'yshURL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fb2b%2Freports')
+ORDER_HISTORY_REPORT_URL = 'https://www.amazon.com/gp/b2b/reports'
 ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 
 
-def fetch_order_history(start_date, end_date, args):
-    email, password = get_email_and_pass(
-        args.amazon_email, args.amazon_password)
-
+def fetch_order_history(report_download_path, start_date, end_date,
+                        email=None, password=None,
+                        session_path=None, headless=False):
+    email = get_email(email)
     name = email.split('@')[0]
+
+    report_shortnames = ['Items', 'Orders', 'Refunds']
     report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(
-                        name, t, start_date, end_date)
-                    for t in ['Items', 'Orders', 'Refunds']]
+                    name, t, start_date, end_date)
+                    for t in report_shortnames]
     report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
-    report_paths = [args.report_download_location + os.path.sep + name + '.csv'
+    report_paths = [report_download_path + os.path.sep + name + '.csv'
                     for name in report_names]
 
-    if not os.path.exists(args.report_download_location):
-        os.makedirs(args.report_download_location)
+    if not os.path.exists(report_download_path):
+        os.makedirs(report_download_path)
 
     # Be lazy with getting the driver, as if no fetching is needed, then it's
     # all good.
     driver = None
-    for report_name, report_type, report_path in zip(
-            report_names, report_types, report_paths):
+    for report_shortname, report_type, report_name, report_path in zip(
+            report_shortnames, report_types, report_names, report_paths):
         if os.path.exists(report_path):
             # Report has already been fetched! Woot
             continue
@@ -53,18 +60,18 @@ def fetch_order_history(start_date, end_date, args):
         # Report is not here. Go get it
         if not driver:
             loginSpin = AsyncProgress(Spinner('Logging into Amazon '))
-            driver = get_amzn_driver(args.amazon_email, args.amazon_password,
-                                     headless=args.headless,
-                                     session_path=args.session_path)
+            driver = get_amzn_driver(email, password,
+                                     headless=headless,
+                                     session_path=session_path)
             loginSpin.finish()
 
         requestSpin = AsyncProgress(Spinner(
-            'Requesting {} report '.format(report_type)))
+            'Requesting {} report '.format(report_shortname)))
         request_report(driver, report_name, report_type, start_date, end_date)
         requestSpin.finish()
 
         processingSpin = AsyncProgress(Spinner(
-            'Waiting for {} report to be ready '.format(report_type)))
+            'Waiting for {} report to be ready '.format(report_shortname)))
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
@@ -77,7 +84,7 @@ def fetch_order_history(start_date, end_date, args):
             exit(1)
 
         downloadSpin = AsyncProgress(Spinner(
-            'Downloading {} report '.format(report_type)))
+            'Downloading {} report '.format(report_shortname)))
         download_report(driver, report_name, report_path)
         downloadSpin.finish()
 
@@ -91,21 +98,26 @@ def fetch_order_history(start_date, end_date, args):
         open(report_paths[2], 'r'))
 
 
-def get_email_and_pass(email, password):
+def get_email(email):
     if not email:
         email = input('Amazon email: ')
 
-    # This was causing my grief. Let's let it rest for a while.
-    # if not password:
-    #     password = keyring.get_password(KEYRING_SERVICE_NAME, email)
+    if not email:
+        logger.error('Empty Amazon email.')
+        exit(1)
 
+    return email
+
+
+def get_password(password):
     if not password:
         password = getpass.getpass('Amazon password: ')
 
-    if not email or not password:
-        logger.error('Missing Amazon email or password.')
+    if not password:
+        logger.error('Empty Amazon password.')
         exit(1)
-    return email, password
+
+    return password
 
 
 CHROME_DRIVER_VERSION = 2.41
@@ -155,7 +167,7 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
     driver = Chrome(chrome_options=chrome_options,
                     executable_path=executable_path)
 
-    driver.get(ORDER_HISTORY_REPORT_URL)
+    driver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
 
     driver.implicitly_wait(2)
 
@@ -173,64 +185,49 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
             pass
         return None
 
-    # Full login on first visit: no user history, just do it
-    if get_element_by_id(driver, 'ap_email'):
-        driver.find_element_by_id('ap_email').send_keys(email)
-        driver.find_element_by_id('ap_password').send_keys(password)
-        driver.find_element_by_name('rememberMe').click()
-        driver.find_element_by_id('signInSubmit').submit()
-    else:
-        current_account = get_element_by_xpath(
-            driver,
-            "//div[contains(text(), '{}')]".format(email))
-        # If the current account was previously logged in, just enter the
-        # password.
-        if current_account:
-            driver.find_element_by_id('ap_password').send_keys(password)
+    # Go straight to the account switcher, and look for the given email.
+    # If present, click on it! Otherwise, click on "Add account".
+    desired_account_element = get_element_by_xpath(
+        driver,
+        "//div[contains(text(), '{}')]".format(email))
+    if desired_account_element:
+        desired_account_element.click()
+        driver.implicitly_wait(2)
+
+        # It's possible this account has already authed recently. If so, the
+        # next block will be skipped and the login is complete!
+        if not get_element_by_id(driver, 'report-confirm'):
+            driver.find_element_by_id('ap_password').send_keys(
+                get_password(password))
             driver.find_element_by_name('rememberMe').click()
             driver.find_element_by_id('signInSubmit').submit()
-        # Go to the account switcher:
-        else:
-            driver.find_element_by_id('ap_switch_account_link').click()
-            driver.implicitly_wait(2)
+    else:
+        # Cannot find the desired account in the switch. Log in via Add Account
+        driver.find_element_by_xpath(
+            '//div[text()="Add account"]').click()
+        driver.implicitly_wait(2)
 
-            current_account = get_element_by_xpath(
-                driver,
-                "//div[contains(text(), '{}')]".format(email))
-            if current_account:
-                current_account.click()
-                driver.implicitly_wait(2)
-
-                driver.find_element_by_id('ap_password').send_keys(password)
-                driver.find_element_by_name('rememberMe').click()
-                driver.find_element_by_id('signInSubmit').submit()
-            else:
-                driver.find_element_by_xpath(
-                    '//div[text()="Add account"]').click()
-                driver.implicitly_wait(2)
-
-                driver.find_element_by_id('ap_email').send_keys(email)
-                driver.find_element_by_id('ap_password').send_keys(password)
-                driver.find_element_by_name('rememberMe').click()
-                driver.find_element_by_id('signInSubmit').submit()
+        driver.find_element_by_id('ap_email').send_keys(email)
+        driver.find_element_by_id('ap_password').send_keys(
+            get_password(password))
+        driver.find_element_by_name('rememberMe').click()
+        driver.find_element_by_id('signInSubmit').submit()
 
     driver.implicitly_wait(2)
 
-    if get_element_by_id(driver, 'auth-mfa-otpcode'):
-        logger.warning('Please answer the OTP challenge in browser! You have '
-                       '5 min')
-        try:
-            wait_cond = EC.presence_of_element_located(
-                (By.ID, 'report-confirm'))
-            WebDriverWait(driver, 60*5).until(wait_cond)
-        except TimeoutException:
-            logger.error('Cannot get past 2factor auth!')
-            exit(1)
+    if not get_element_by_id(driver, 'report-confirm'):
+        logger.warning('Having trouble logging into Amazon. Please see the '
+                       'browser and complete login within the next 5 minutes. '
+                       'This script will continue automatically on success. '
+                       'You may need to manually navigate to: {}'.format(
+                           ORDER_HISTORY_REPORT_URL))
+        if get_element_by_id(driver, 'auth-mfa-otpcode'):
+            logger.warning('Hint: Looks like an OTP challenge!')
     try:
-        driver.find_element_by_id('report-confirm').submit()
-    except NoSuchElementException:
-        # No luck; probably 2factor auth or bad credentials
-        logger.critical('Had trouble logging in!')
+        wait_cond = EC.presence_of_element_located((By.ID, 'report-confirm'))
+        WebDriverWait(driver, 60 * 5).until(wait_cond)
+    except TimeoutException:
+        logger.critical('Cannot complete login!')
         exit(1)
 
     return driver

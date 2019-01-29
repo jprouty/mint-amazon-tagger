@@ -15,10 +15,12 @@ import time
 
 from progress.counter import Counter as ProgressCounter
 from progress.spinner import Spinner
+from outdated import warn_if_outdated
 
 from mintamazontagger import amazon
 from mintamazontagger import mint
 from mintamazontagger import tagger
+from mintamazontagger import VERSION
 from mintamazontagger.asyncprogress import AsyncProgress
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.orderhistory import fetch_order_history
@@ -34,10 +36,16 @@ MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
 
 
 def main():
+    warn_if_outdated('mint-amazon-tagger', VERSION)
+
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
     define_args(parser)
     args = parser.parse_args()
+
+    session_path = args.session_path
+    if session_path.lower() == 'none':
+        session_path = None
 
     items_csv = args.items_csv
     orders_csv = args.orders_csv
@@ -58,7 +66,9 @@ def main():
         else:
             start_date = end_date - duration
         items_csv, orders_csv, refunds_csv = fetch_order_history(
-            start_date, end_date, args)
+            args.report_download_location, start_date, end_date,
+            args.amazon_email, args.amazon_password,
+            session_path, args.headless)
 
     if not items_csv or not orders_csv:  # Refunds are optional
         logger.critical('Order history either not provided at command line or '
@@ -90,7 +100,7 @@ def main():
     )
 
     mint_client = MintClient(args.mint_email, args.mint_password,
-                             args.session_path, args.headless,
+                             session_path, args.headless,
                              args.mint_mfa_method)
 
     if args.pickled_epoch:

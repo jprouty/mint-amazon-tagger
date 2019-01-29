@@ -1,11 +1,12 @@
 import setuptools
+from mintamazontagger import VERSION
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="mint-amazon-tagger",
-    version="1.2",
+    version=VERSION,
     author="Jeff Prouty",
     author_email="jeff.prouty@gmail.com",
     description=("Fetches your Amazon order history and matching/tags your "
@@ -26,6 +27,7 @@ setuptools.setup(
         'interruptingcow',
         'mock',
         'mintapi',
+        'outdated',
         'progress',
         'requests',
         'readchar',

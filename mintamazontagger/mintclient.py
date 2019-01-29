@@ -1,6 +1,5 @@
 import atexit
 import getpass
-import keyring
 import logging
 
 from mintapi.api import Mint, MINT_ROOT_URL
@@ -15,7 +14,6 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 
-KEYRING_SERVICE_NAME = 'mintapi'
 UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
 
 
@@ -41,10 +39,6 @@ class MintClient():
         if not email:
             email = input('Mint email: ')
 
-        # This was causing my grief. Let's let it rest for a while.
-        # if not password:
-        #     password = keyring.get_password(KEYRING_SERVICE_NAME, email)
-
         if not password:
             password = getpass.getpass('Mint password: ')
 
@@ -64,9 +58,6 @@ class MintClient():
                 mint_client.close()
 
         atexit.register(close_mint_client)
-
-        # On success, save off password to keyring.
-        keyring.set_password(KEYRING_SERVICE_NAME, email, password)
 
         asyncSpin.finish()
         self.mintapi = mint_client
