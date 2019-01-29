@@ -43,6 +43,10 @@ def main():
     define_args(parser)
     args = parser.parse_args()
 
+    if args.version:
+        print('mint-amazon-tagger {}\nBy: Jeff Prouty'.format(VERSION))
+        exit(0)
+
     session_path = args.session_path
     if session_path.lower() == 'none':
         session_path = None
@@ -371,6 +375,9 @@ def define_args(parser):
         default=0,
         help=('Only send the first N updates to Mint (or print N updates at '
               'dry run). If not present, all updates are sent or printed.'))
+    parser.add_argument(
+        '-V', '--version', action='store_true',
+        help='Shows the app version and quits.')
 
     # Retag transactions that have already been tagged previously:
     parser.add_argument(
