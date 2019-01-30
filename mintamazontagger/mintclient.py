@@ -46,7 +46,9 @@ class MintClient():
             logger.error('Missing Mint email or password.')
             exit(1)
 
-        asyncSpin = AsyncProgress(Spinner('Logging into Mint '))
+        logger.info('Logging into Mint')
+        logger.info('You may be asked for an auth code at the command line! '
+                    'Be sure to press ENTER after typing the 6 digit code.')
 
         mint_client = Mint.create(email, password,
                                   mfa_method=self.mfa_method,
@@ -59,27 +61,28 @@ class MintClient():
 
         atexit.register(close_mint_client)
 
-        asyncSpin.finish()
         self.mintapi = mint_client
         return mint_client
 
     def get_categories(self):
         # Create a map of Mint category name to category id.
         logger.info('Creating Mint Category Map.')
+        mint_api = self.get_mintapi()
         asyncSpin = AsyncProgress(Spinner('Fetching Categories '))
         categories = dict([
             (cat_dict['name'], cat_id)
             for (cat_id, cat_dict)
-            in self.get_mintapi().get_categories().items()])
+            in mint_api.get_categories().items()])
         asyncSpin.finish()
         return categories
 
     def get_transactions(self, start_date):
         start_date_str = start_date.strftime('%m/%d/%y')
+        mint_api = self.get_mintapi()
         logger.info('Get all Mint transactions since {}.'.format(
             start_date_str))
         asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
-        transactions = self.get_mintapi().get_transactions_json(
+        transactions = mint_api.get_transactions_json(
             start_date=start_date_str,
             include_investment=False,
             skip_duplicates=True)

@@ -144,12 +144,13 @@ def main():
         by_oid = defaultdict(list)
         for uo in unmatched_orders:
             by_oid[uo.order_id].append(uo)
-        for orders in by_oid.values():
-            if orders[0].is_debit:
+        for unmatched_by_oid in by_oid.values():
+            orders = [o for o in unmatched_by_oid if o.is_debit]
+            refunds = [o for o in unmatched_by_oid if not o.is_debit]
+            if orders:
                 print_unmatched(amazon.Order.merge(orders))
-            else:
-                for r in amazon.Refund.merge(orders):
-                    print_unmatched(r)
+            for r in amazon.Refund.merge(refunds):
+                print_unmatched(r)
 
     if not updates:
         logger.info(

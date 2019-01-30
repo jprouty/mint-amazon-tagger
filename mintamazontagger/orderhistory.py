@@ -59,11 +59,9 @@ def fetch_order_history(report_download_path, start_date, end_date,
 
         # Report is not here. Go get it
         if not driver:
-            loginSpin = AsyncProgress(Spinner('Logging into Amazon '))
             driver = get_amzn_driver(email, password,
                                      headless=headless,
                                      session_path=session_path)
-            loginSpin.finish()
 
         requestSpin = AsyncProgress(Spinner(
             'Requesting {} report '.format(report_shortname)))
@@ -79,8 +77,8 @@ def fetch_order_history(report_download_path, start_date, end_date,
                 driver, ORDER_HISTORY_PROCESS_TIMEOUT_S).until(wait_cond)
             processingSpin.finish()
         except TimeoutException:
-            logger.critical("Cannot find download link after a minute!")
             processingSpin.finish()
+            logger.critical("Cannot find download link after a minute!")
             exit(1)
 
         downloadSpin = AsyncProgress(Spinner(
@@ -164,6 +162,8 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
     if session_path is not None:
         chrome_options.add_argument("user-data-dir=" + session_path)
 
+    logger.info('Logging into Amazon.com')
+
     driver = Chrome(chrome_options=chrome_options,
                     executable_path=executable_path)
 
@@ -222,7 +222,8 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
                        'You may need to manually navigate to: {}'.format(
                            ORDER_HISTORY_REPORT_URL))
         if get_element_by_id(driver, 'auth-mfa-otpcode'):
-            logger.warning('Hint: Looks like an OTP challenge!')
+            logger.warning('Hint: Looks like an auth challenge! Maybe check '
+                           'your email')
     try:
         wait_cond = EC.presence_of_element_located((By.ID, 'report-confirm'))
         WebDriverWait(driver, 60 * 5).until(wait_cond)
