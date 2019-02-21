@@ -93,7 +93,7 @@ def fetch_order_history(report_download_path, start_date, end_date,
     return (
         open(report_paths[0], 'r', encoding='utf-8'),
         open(report_paths[1], 'r', encoding='utf-8'),
-        open(report_paths[2], 'r', encoding='utf-8')
+        open(report_paths[2], 'r', encoding='utf-8'))
 
 
 def get_email(email):
