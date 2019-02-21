@@ -40,7 +40,6 @@ setuptools.setup(
     ],
     install_requires=[
         'keyring',
-        'interruptingcow',
         'mock',
         'mintapi',
         'outdated',
