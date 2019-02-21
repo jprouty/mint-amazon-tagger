@@ -275,9 +275,9 @@ def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
         pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
     cats_pickle_path = os.path.join(
         pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
-    with open(trans_pickle_path, 'rb') as f:
+    with open(trans_pickle_path, 'rb', encoding='utf-8') as f:
         trans = pickle.load(f)
-    with open(cats_pickle_path, 'rb') as f:
+    with open(cats_pickle_path, 'rb', encoding='utf-8') as f:
         cats = pickle.load(f)
     asyncSpin.finish()
 
@@ -294,9 +294,9 @@ def dump_trans_and_categories(trans, cats, pickle_epoch, pickle_base_path):
         pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
     cats_pickle_path = os.path.join(
         pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
-    with open(trans_pickle_path, 'wb') as f:
+    with open(trans_pickle_path, 'wb', encoding='utf-8') as f:
         pickle.dump(trans, f)
-    with open(cats_pickle_path, 'wb') as f:
+    with open(cats_pickle_path, 'wb', encoding='utf-8') as f:
         pickle.dump(cats, f)
     asyncSpin.finish()
 

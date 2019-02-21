@@ -65,8 +65,10 @@ def is_empty_csv(csv_file_obj, key='Buyer Name'):
     # Amazon likes to put "No data found for this time period" in the first
     # row.
     filename = csv_file_obj.name
-    return (sum([1 for r in csv.DictReader(open(filename))]) <= 1 and
-            next(csv.DictReader(open(filename)))[key] is None)
+    return (sum([1 for r in csv.DictReader(
+        open(filename, encoding='utf-8'))]) <= 1 and
+            next(csv.DictReader(
+                open(filename, encoding='utf-8')))[key] is None)
 
 
 def parse_from_csv_common(cls, csv_file, progress):

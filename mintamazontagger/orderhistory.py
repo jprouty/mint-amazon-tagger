@@ -91,9 +91,9 @@ def fetch_order_history(report_download_path, start_date, end_date,
         driver.close()
 
     return (
-        open(report_paths[0], 'r'),
-        open(report_paths[1], 'r'),
-        open(report_paths[2], 'r'))
+        open(report_paths[0], 'r', encoding='utf-8'),
+        open(report_paths[1], 'r', encoding='utf-8'),
+        open(report_paths[2], 'r', encoding='utf-8')
 
 
 def get_email(email):
@@ -287,5 +287,5 @@ def download_report(driver, report_name, report_path):
     response = driver.request('GET', report_url,
                               allow_redirects=True)
     response.raise_for_status()
-    with open(report_path, 'w') as fh:
+    with open(report_path, 'w', encoding='utf-8') as fh:
         fh.write(response.text)
