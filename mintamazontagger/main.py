@@ -61,6 +61,7 @@ def main():
         # If a start date is given, adjust the end date based on num_days,
         # ensuring not to go beyond today.
         if start_date:
+            start_date = start_date.date()
             if start_date + duration < end_date:
                 end_date = start_date + duration
         else:
@@ -322,7 +323,7 @@ def define_args(parser):
         help='How many days of order history to retrieve. Default: 90 days')
     parser.add_argument(
         '--order_history_start_date',
-        type=lambda s: datetime.date.strptime(s, '%Y-%m-%d'),
+        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'),
         default=None,
         help=('If None, start_date is num_days ago from today. '
               'If given, this is the start_date, with the end date being '
