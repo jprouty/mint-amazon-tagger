@@ -180,7 +180,7 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
         # attempts (by a 1 sec timeout) before giving up.
         start_time = time.time()
         for item_groupings in algorithm_u(oid_items, len(orders)):
-            if tExceptionime.time() - start_time > 1:
+            if time.time() - start_time > 1:
                 break
             subtotals_with_groupings = sorted(
                 [(Item.sum_subtotals(itms), itms)
