@@ -32,6 +32,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/jprouty/mint-amazon-tagger",
     packages=setuptools.find_packages(),
+    python_requires='>=3',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

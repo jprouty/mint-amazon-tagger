@@ -20,12 +20,14 @@ UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
 class MintClient():
 
     def __init__(self, email=None, password=None,
-                 session_path=None, headless=False, mfa_method='sms'):
+                 session_path=None, headless=False, mfa_method='sms',
+                 wait_for_sync=False):
         self.email = email
         self.password = password
         self.session_path = session_path
         self.headless = headless
         self.mfa_method = mfa_method
+        self.wait_for_sync = wait_for_sync
 
         self.mintapi = None
 
@@ -53,7 +55,8 @@ class MintClient():
         mint_client = Mint.create(email, password,
                                   mfa_method=self.mfa_method,
                                   session_path=self.session_path,
-                                  headless=self.headless)
+                                  headless=self.headless,
+                                  wait_for_sync=self.wait_for_sync)
 
         def close_mint_client():
             if mint_client:

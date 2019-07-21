@@ -102,7 +102,7 @@ def main():
 
     mint_client = MintClient(args.mint_email, args.mint_password,
                              session_path, args.headless,
-                             args.mint_mfa_method)
+                             args.mint_mfa_method, args.wait_for_sync)
 
     if args.pickled_epoch:
         mint_trans, mint_category_name_to_id = (
@@ -360,6 +360,13 @@ def define_args(parser):
         default='sms',
         choices=['sms', 'email'],
         help='The Mint MFA method (2factor auth codes).')
+    parser.add_argument(
+        '--wait_for_sync',
+        action='store_true',
+        default=False,
+        help=('By default, do not wait for accounts to sync with the backing '
+              'financial institutions. If this flag is present, instead '
+              'wait for them to sync, up to 5 minutes.'))
 
     # To itemize or not to itemize; that is the question:
     parser.add_argument(
