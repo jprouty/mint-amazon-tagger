@@ -159,9 +159,11 @@ def get_mint_updates(
     merged_orders = []
     merged_refunds = []
 
-    updateCounter = IncrementalBar('Determining Mint Updates')
+    updateCounter = IncrementalBar('Determining Mint Updates',
+                                   max=len(matched_trans))
     updates = []
-    for t in updateCounter.iter(matched_trans):
+    for t in matched_trans:
+        updateCounter.next()
         if t.is_debit:
             order = amazon.Order.merge(t.orders)
             merged_orders.extend(orders)
