@@ -42,7 +42,7 @@ setuptools.setup(
     install_requires=[
         'keyring',
         'mock',
-        'mintapi',
+        'mintapi>=1.40',
         'outdated',
         'progress',
         'requests',
