@@ -55,9 +55,8 @@ class MintClient():
         mint_client = Mint.create(email, password,
                                   mfa_method=self.mfa_method,
                                   session_path=self.session_path,
-                                  headless=self.headless)
-# Just kidding, wait_for_sync is not yet released :( oh noes.
-#                                  wait_for_sync=self.wait_for_sync)
+                                  headless=self.headless,
+                                  wait_for_sync=self.wait_for_sync)
 
         def close_mint_client():
             if mint_client:

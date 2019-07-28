@@ -15,7 +15,7 @@ import time
 
 from progress.counter import Counter as ProgressCounter
 from progress.spinner import Spinner
-from outdated import warn_if_outdated
+from outdated import check_outdated, warn_if_outdated
 
 from mintamazontagger import amazon
 from mintamazontagger import mint
@@ -33,6 +33,10 @@ logger.setLevel(logging.INFO)
 
 def main():
     warn_if_outdated('mint-amazon-tagger', VERSION)
+    is_outdated, latest_version = check_outdated('mint-amazon-tagger', VERSION)
+    if is_outdated:
+        print('Please update your version by running:\n'
+              'pip3 install mint-amazon-tagger --upgrade')
 
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
