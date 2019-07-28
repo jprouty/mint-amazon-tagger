@@ -274,7 +274,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
     closest_match_num_days = 365  # Large number
 
     for orders in list_of_orders_or_refunds:
-        an_order = next([o for o in orders if o.transact_date()], None)
+        an_order = next((o for o in orders if o.transact_date()), None)
         if not an_order:
             continue
         num_days = (t.odate - an_order.transact_date()).days

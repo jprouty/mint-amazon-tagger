@@ -96,6 +96,23 @@ class Tagger(unittest.TestCase):
 
         self.assertEqual(stats['new_tag'], 1)
 
+    def test_get_mint_updates_refund_no_date(self):
+        r1 = refund(
+            title='Cool item2',
+            refund_amount='$10.95',
+            refund_tax_amount='$1.00',
+            refund_date=None)
+        t1 = transaction(amount='$11.95', is_debit=False, date='3/12/14')
+
+        stats = Counter()
+        updates, _ = tagger.get_mint_updates(
+            [], [], [r1],
+            [t1],
+            get_args(), stats)
+
+        self.assertEqual(len(updates), 0)
+        self.assertEqual(stats['new_tag'], 0)
+
     def test_get_mint_updates_skip_already_tagged(self):
         i1 = item()
         o1 = order()
