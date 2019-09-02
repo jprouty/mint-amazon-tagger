@@ -208,6 +208,12 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
         driver.implicitly_wait(2)
 
         driver.find_element_by_id('ap_email').send_keys(email)
+
+        # Login flow sometimes asks just for the email, then a continue button, then password.
+        if get_element_by_id(driver, 'continue'):
+            driver.find_element_by_id('continue').click()
+            driver.implicitly_wait(2)
+
         driver.find_element_by_id('ap_password').send_keys(
             get_password(password))
         driver.find_element_by_name('rememberMe').click()
