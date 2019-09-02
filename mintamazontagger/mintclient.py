@@ -156,6 +156,10 @@ class MintClient():
                         itemized_split['category{}'.format(i)] = trans.category
                         itemized_split['categoryId{}'.format(i)] = (
                             trans.category_id)
+                    else:
+                        itemized_split['category{}'.format(i)] = orig_trans.category
+                        itemized_split['categoryId{}'.format(i)] = (
+                            orig_trans.category_id)
 
                 logger.debug(
                     'Sending a "split" transaction request: {}'.format(
