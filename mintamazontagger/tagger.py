@@ -108,7 +108,7 @@ def get_mint_updates(
     # Skip t if the original description doesn't contain 'amazon'
     merch_whitelist = args.mint_input_merchant_filter.lower().split(',')
     trans = [t for t in trans if any(
-        merch_str in t.omerchant.lower() for merch_str in merch_whitelist)]
+        merch_str in t.merchant.lower() for merch_str in merch_whitelist)]
     stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
