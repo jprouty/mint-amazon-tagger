@@ -19,14 +19,17 @@ from mintamazontagger import amazon
 from mintamazontagger import category
 from mintamazontagger import mint
 from mintamazontagger.currency import micro_usd_nearly_equal
+from mintamazontagger import arg_utils
 
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
+args = arg_utils.get_args()
 
-def get_mint_category_history_for_items(trans, args):
+
+def get_mint_category_history_for_items(trans):
     """Gets a mapping of item name -> category name.
 
     For use in memorizing personalized categories.
@@ -77,10 +80,9 @@ def get_mint_category_history_for_items(trans, args):
 def get_mint_updates(
         orders, items, refunds,
         trans,
-        args, stats,
+        stats,
         mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS):
-    mint_historic_category_renames = get_mint_category_history_for_items(
-        trans, args)
+    mint_historic_category_renames = get_mint_category_history_for_items(trans)
 
     # Remove items from canceled orders.
     items = [i for i in items if not i.is_cancelled()]
@@ -269,9 +271,10 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
         return
 
     # Only consider it a match if the posted date (transaction date) is
-    # within 3 days of the ship date of the order.
+    # within `max_days_after_shipping` days of the ship date of the order.
     closest_match = None
     closest_match_num_days = 365  # Large number
+    max_days_after_shipping = args.max_days_after_shipping
 
     for orders in list_of_orders_or_refunds:
         an_order = next((o for o in orders if o.transact_date()), None)
@@ -281,7 +284,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
         # TODO: consider orders even if it has a matched_transaction if this
         # transaction is closer.
         already_matched = any([o.matched for o in orders])
-        if (abs(num_days) < 4 and
+        if (abs(num_days) < max_days_after_shipping + 1 and
                 abs(num_days) < closest_match_num_days and
                 not already_matched):
             closest_match = orders
