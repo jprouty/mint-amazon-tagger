@@ -20,7 +20,6 @@ from mintamazontagger import category
 from mintamazontagger import mint
 from mintamazontagger.currency import micro_usd_nearly_equal
 
-
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
@@ -105,10 +104,20 @@ def get_mint_updates(
 
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
+
     # Skip t if the original description doesn't contain 'amazon'
     merch_whitelist = args.mint_input_merchant_filter.lower().split(',')
-    trans = [t for t in trans if any(
-        merch_str in t.merchant.lower() for merch_str in merch_whitelist)]
+    merch_fieldlist = ['merchant', 'omerchant', 'nmerchant']
+
+    def filter_non_amazon_trans(transaction):
+        for field in merch_fieldlist:
+            trans_merch = getattr(transaction, field)
+            if isinstance(trans_merch, str):
+                for whitelisted_merch in merch_whitelist:
+                    if whitelisted_merch in trans_merch.lower():
+                        return True
+            return False
+    trans = list(filter(filter_non_amazon_trans, trans))
     stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
@@ -219,7 +228,7 @@ def get_mint_updates(
             nt.update_category_id(mint_category_name_to_id)
 
         summarize_single_item_order = (
-            t.is_debit and len(order.items) == 1 and not args.verbose_itemize)
+                t.is_debit and len(order.items) == 1 and not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
             new_transactions = mint.summarize_new_trans(
                 t, new_transactions, prefix)
@@ -232,7 +241,7 @@ def get_mint_updates(
             continue
 
         valid_prefixes = (
-            args.amazon_domains.lower().split(',') + [prefix.lower()])
+                args.amazon_domains.lower().split(',') + [prefix.lower()])
         if any(t.merchant.lower().startswith(pre) for pre in valid_prefixes):
             if args.prompt_retag:
                 if args.num_updates > 0 and len(updates) >= args.num_updates:
