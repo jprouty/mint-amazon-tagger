@@ -462,6 +462,22 @@ def define_args(parser):
         help=('Only consider Mint transactions that have one of these strings '
               'in the merchant field. Case-insensitive comma-separated.'))
     parser.add_argument(
+        '--mint_input_include_mmerchant', action='store_true',
+        help=('If set, consider using the mmerchant field when determining if '
+              'a transaction is an Amazon purchase. This can be necessary '
+              'when your bank renames transactions to "Debit card payment". '
+              'Mint sometimes auto-recovers these into "Amazon", and flipping '
+              'this flag will help match these. To know if you should use it, '
+              'find a transaction in the Mint tool, and click on the details. '
+              'Look for "Appears on your BANK ACCOUNT NAME statement as NOT '
+              'USEFUL NAME on DATE".'))
+    parser.add_argument(
+        '--mint_input_include_merchant', action='store_true',
+        help=('If set, consider using the merchant field when determining if '
+              'a transaction is an Amazon purchase. This is similar to '
+              '--mint_input_include_mmerchant but also includes any user '
+              'edits to the transaction name.'))
+    parser.add_argument(
         '--mint_input_categories_filter', type=str,
         help=('If present, only consider Mint transactions that match one of '
               'the given categories here. Comma separated list of Mint '
