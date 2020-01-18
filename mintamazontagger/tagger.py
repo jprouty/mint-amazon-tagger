@@ -118,7 +118,7 @@ def get_mint_updates(
         return result
 
     trans = [t for t in trans if any(
-                 any(merch_str in n for n in get_original_names())
+                 any(merch_str in n for n in get_original_names(t))
                  for merch_str in merch_whitelist)]
     stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
