@@ -24,7 +24,8 @@ def get_args(
         prompt_retag=False,
         num_updates=0,
         retag_changed=False,
-        do_not_predict_categories=True):
+        do_not_predict_categories=True,
+        max_days_between_payment_and_shipping=3):
     return Args(
         description_prefix_override=description_prefix_override,
         description_return_prefix_override=description_return_prefix_override,
@@ -40,6 +41,8 @@ def get_args(
         num_updates=num_updates,
         retag_changed=retag_changed,
         do_not_predict_categories=do_not_predict_categories,
+        max_days_between_payment_and_shipping=(
+            max_days_between_payment_and_shipping),
     )
 
 

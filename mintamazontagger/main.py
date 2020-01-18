@@ -495,6 +495,12 @@ def define_args(parser):
         help=('Do not attempt to predict custom category tagging based on any '
               'tagging overrides. By default (no arg) tagger will attempt to '
               'find items that you have manually changed categories for.'))
+    parser.add_argument(
+        '--max_days_between_payment_and_shipping', type=int,
+        default=3,
+        help=('How many days are allowed to pass between when Amazon has '
+              'shipped an order and when the payment has posted to your '
+              'bank account (as per Mint\'s view).'))
 
     # Mint API options:
     home = os.path.expanduser("~")

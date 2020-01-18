@@ -134,7 +134,7 @@ def get_mint_updates(
     orderMatchProgress = IncrementalBar(
         'Matching Amazon Orders w/ Mint Trans',
         max=len(orders))
-    match_transactions(trans, orders, orderMatchProgress)
+    match_transactions(trans, orders, args, orderMatchProgress)
     orderMatchProgress.finish()
 
     unmatched_trans = [t for t in trans if not t.orders]
@@ -143,7 +143,7 @@ def get_mint_updates(
     refundMatchProgress = IncrementalBar(
         'Matching Amazon Refunds w/ Mint Trans',
         max=len(refunds))
-    match_transactions(unmatched_trans, refunds, refundMatchProgress)
+    match_transactions(unmatched_trans, refunds, args, refundMatchProgress)
     refundMatchProgress.finish()
 
     unmatched_orders = [o for o in orders if not o.matched]
@@ -275,14 +275,15 @@ def get_mint_updates(
     return updates, unmatched_orders + unmatched_refunds
 
 
-def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
+def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
     if not list_of_orders_or_refunds:
         return
 
     # Only consider it a match if the posted date (transaction date) is
-    # within 3 days of the ship date of the order.
+    # within a low number of days of the ship date of the order.
+    max_days = args.max_days_between_payment_and_shipping
+    closest_match_num_days = max_days + 365  # Large number
     closest_match = None
-    closest_match_num_days = 365  # Large number
 
     for orders in list_of_orders_or_refunds:
         an_order = next((o for o in orders if o.transact_date()), None)
@@ -292,7 +293,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
         # TODO: consider orders even if it has a matched_transaction if this
         # transaction is closer.
         already_matched = any([o.matched for o in orders])
-        if (abs(num_days) < 4 and
+        if (abs(num_days) <= max_days and
                 abs(num_days) < closest_match_num_days and
                 not already_matched):
             closest_match = orders
@@ -306,7 +307,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, progress=None):
             progress.next(len(closest_match))
 
 
-def match_transactions(unmatched_trans, unmatched_orders, progress=None):
+def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
     # Also works with Refund objects.
     # First pass: Match up transactions that exactly equal an order's charged
     # amount.
@@ -316,7 +317,7 @@ def match_transactions(unmatched_trans, unmatched_orders, progress=None):
         amount_to_orders[o.transact_amount()].append([o])
 
     for t in unmatched_trans:
-        mark_best_as_matched(t, amount_to_orders[t.amount], progress)
+        mark_best_as_matched(t, amount_to_orders[t.amount], args, progress)
 
     unmatched_orders = [o for o in unmatched_orders if not o.matched]
     unmatched_trans = [t for t in unmatched_trans if not t.orders]
@@ -336,7 +337,7 @@ def match_transactions(unmatched_trans, unmatched_orders, progress=None):
             amount_to_orders[orders_total].append(c)
 
     for t in unmatched_trans:
-        mark_best_as_matched(t, amount_to_orders[t.amount], progress)
+        mark_best_as_matched(t, amount_to_orders[t.amount], args, progress)
 
 
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):

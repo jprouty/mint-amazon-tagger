@@ -90,3 +90,12 @@ matches in under 10 minutes.
 
 To see all options, see:
 `mint-amazon-tagger --help`
+
+## Tips and Tricks ##
+
+Not every bank treats Amazon purchases the same, or processes transactions as quickly as others. If you're having a low match rate (look at the terminal output after completion), then try adjusting some of the command line flags. To see a complete list, run `mint-amazon-tagger --help`.
+
+Some common options to try:
+
+* --mint_input_include_mmerchant and/or --mint_input_include_merchant. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
+* --max_days_between_payment_and_shipping. If your bank is slow at posting payments, adjusting this value up to 7 or more will increase your chance of matching. If you have a high volume of purchases, this can increase your chance of mis-tagging items.
