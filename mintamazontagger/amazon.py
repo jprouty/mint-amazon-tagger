@@ -2,6 +2,7 @@ from collections import defaultdict
 from copy import deepcopy
 import csv
 from datetime import datetime
+import os
 from pprint import pformat
 import re
 import string
@@ -65,6 +66,9 @@ def is_empty_csv(csv_file_obj, key='Buyer Name'):
     # Amazon likes to put "No data found for this time period" in the first
     # row.
     filename = csv_file_obj.name
+    # Amazon appears to be giving 0 sized CSVs now!
+    if os.stat(filename).st_size == 0:
+        return True
     return (sum([1 for r in csv.DictReader(
         open(filename, encoding='utf-8'))]) <= 1 and
             next(csv.DictReader(

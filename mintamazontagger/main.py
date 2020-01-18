@@ -88,6 +88,20 @@ def main():
                else amazon.Refund.parse_from_csv(
                    refunds_csv, ProgressCounter('Parsing Refunds - ')))
 
+    if not len(orders):
+        logger.critical('The Orders report contains no data. Try '
+                        'downloading again. Report used: {}'.format(
+                            orders_csv))
+        exit(1)
+    if not len(items):
+        logger.critical('The Items report contains no data. Try '
+                        'downloading again. Report used: {}'.format(
+                            items_csv))
+        exit(1)
+    if refunds_csv and not len(refunds):
+        logger.warning('No Refunds found, despite having a Refunds '
+                       'Report given.')
+
     if args.dry_run:
         logger.info('\nDry Run; no modifications being sent to Mint.\n')
 
