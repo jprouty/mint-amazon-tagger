@@ -18,7 +18,7 @@ from PyQt5.QtCore import (
     Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, pyqtSlot, pyqtSignal)
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import (
-    QApplication, QAbstractItemView, QCalendarWidget, QCheckBox,
+    QAbstractItemView, QCalendarWidget, QCheckBox,
     QComboBox, QDialog, QErrorMessage, QFileDialog,
     QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QMainWindow, QProgressBar,
