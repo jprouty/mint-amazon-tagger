@@ -1,6 +1,6 @@
 import os
 import setuptools
-from mintamazontagger import VERSION
+from src.main.python.mintamazontagger import VERSION
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -19,6 +19,7 @@ class CleanCommand(setuptools.Command):
     def run(self):
         os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info')
 
+PY_SRC_PATH = "src/main/python"
 
 setuptools.setup(
     name="mint-amazon-tagger",
@@ -31,7 +32,8 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/jprouty/mint-amazon-tagger",
-    packages=setuptools.find_packages(),
+    package_dir={"": PY_SRC_PATH},
+    packages=setuptools.find_packages(where=PY_SRC_PATH),
     python_requires='>=3',
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -53,8 +55,10 @@ setuptools.setup(
     ],
     entry_points=dict(
         console_scripts=[
-            'mint-amazon-tagger=mintamazontagger.gui:main',
             'mint-amazon-tagger-cli=mintamazontagger.cli:main',
+        ],
+        gui_scripts=[
+            'mint-amazon-tagger=mintamazontagger.main:main',
         ],
     ),
     cmdclass={

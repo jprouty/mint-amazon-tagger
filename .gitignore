@@ -21,6 +21,7 @@ __pycache__/
 .Python
 env/
 src/build/settings/secret.json
+src/sign
 develop-eggs/
 dist/
 downloads/
