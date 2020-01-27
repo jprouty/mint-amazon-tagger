@@ -769,5 +769,9 @@ def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
     return trans, cats
 
 
-if __name__ == '__main__':
+def main():
     sys.exit(TaggerGui().create_gui())
+
+
+if __name__ == '__main__':
+    main()
