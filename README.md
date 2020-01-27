@@ -58,7 +58,15 @@ brew cask install chromedriver
 sudo apt-get install chromium-chromedriver
 ```
 
-### Running - Full Auto ###
+### Running - Full Auto GUI ###
+
+This mode will fetch your Amazon Order History for you as well as tag mint.
+
+1. `mint-amazon-tagger`
+
+1. Plug in all your info into the app!
+
+### Running - Full Auto CLI ###
 
 This mode will fetch your Amazon Order History for you as well as tag mint.
 
