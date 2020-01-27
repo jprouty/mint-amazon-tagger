@@ -56,8 +56,6 @@ setuptools.setup(
     entry_points=dict(
         console_scripts=[
             'mint-amazon-tagger-cli=mintamazontagger.cli:main',
-        ],
-        gui_scripts=[
             'mint-amazon-tagger=mintamazontagger.main:main',
         ],
     ),
