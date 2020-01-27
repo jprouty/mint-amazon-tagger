@@ -48,10 +48,12 @@ https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTaggerSetup.exe).
 
 #### Mac ####
 
-Coming soon.
+Download and [install from here](
+https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTagger.dmg).
 
 #### Ubuntu/Debian ####
 
+[Download and install the deb](https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTagger.deb). Or add the repo:
 ```
 sudo apt-get install apt-transport-https
 wget -qO - https://fbs.sh/jeffprouty/MintAmazonTagger/public-key.gpg | sudo apt-key add -
