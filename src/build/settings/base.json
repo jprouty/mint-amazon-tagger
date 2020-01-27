@@ -2,7 +2,7 @@
     "app_name": "MintAmazonTagger",
     "author": "Jeff Prouty",
     "main_module": "src/main/python/mintamazontagger/main.py",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "gpg_key": "CB1608BF9A09BE99908045E6E93C791A0BFE386F",
     "gpg_name": "Jeff Prouty"
 }

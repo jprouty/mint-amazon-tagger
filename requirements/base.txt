@@ -1,5 +1,7 @@
 PyQt5==5.9.2
-PyInstaller==3.4
+PyInstaller==3.5
+boto3
+fbs
 keyring
 mintapi>=1.40
 outdated

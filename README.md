@@ -39,6 +39,27 @@ previously tagged transactions, take a look at --retag_changed and
 
 ## Getting started ##
 
+### Via Installer ###
+
+#### Windows ####
+
+Download and [install from here](
+https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTaggerSetup.exe).
+
+#### Mac ####
+
+Coming soon.
+
+#### Ubuntu/Debian ####
+
+```
+sudo apt-get install apt-transport-https
+wget -qO - https://fbs.sh/jeffprouty/MintAmazonTagger/public-key.gpg | sudo apt-key add -
+echo 'deb [arch=amd64] https://fbs.sh/jeffprouty/MintAmazonTagger/deb stable main' | sudo tee /etc/apt/sources.list.d/mintamazontagger.list
+sudo apt-get update
+sudo apt-get install mintamazontagger
+```
+
 ### Setup ###
 
 1. `pip3 install mint-amazon-tagger`

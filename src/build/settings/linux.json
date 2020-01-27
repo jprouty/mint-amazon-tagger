@@ -1,6 +1,6 @@
 {
     "categories": "Utility;",
-    "description": "",
-    "author_email": "",
-    "url": ""
+    "description": "Mint Amazon tagger matches amazon purchases with your mint transactions, giving them useful descriptions.",
+    "author_email": "jeff.prouty@gmail.com",
+    "url": "https://github.com/jprouty/mint-amazon-tagger"
 }
