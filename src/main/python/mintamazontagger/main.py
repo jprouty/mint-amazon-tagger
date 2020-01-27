@@ -99,12 +99,11 @@ class TaggerGui:
         appctxt = ApplicationContext()
         appctxt.app.setStyle('Fusion')
         self.window = QMainWindow()
-        self.window.show()
 
         self.quit_shortcuts = []
         for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
             s = QShortcut(QKeySequence(seq), self.window)
-            s.activated.connect(app.exit)
+            s.activated.connect(appctxt.app.exit)
             self.quit_shortcuts.append(s)
 
         is_outdated, latest_version = check_outdated(
@@ -285,7 +284,9 @@ class TaggerGui:
         self.start_button.clicked.connect(self.on_start_button_clicked)
         v_layout.addWidget(self.start_button)
 
-        self.window.setLayout(v_layout)
+        main_widget = QWidget()
+        main_widget.setLayout(v_layout)
+        self.window.setCentralWidget(main_widget)
         self.window.show()
         return appctxt.app.exec_()
 

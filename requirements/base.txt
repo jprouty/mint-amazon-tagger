@@ -1,4 +1,5 @@
 PyQt5==5.9.2
+PyInstaller==3.4
 keyring
 mintapi>=1.40
 outdated
