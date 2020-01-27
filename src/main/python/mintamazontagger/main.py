@@ -101,7 +101,7 @@ class TaggerGui:
             appctxt = ApplicationContext()
             app = appctxt.app
         except ImportError:
-            app = QApplication()
+            app = QApplication(sys.argv)
         app.setStyle('Fusion')
         self.window = QMainWindow()
 
