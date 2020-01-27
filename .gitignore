@@ -6,6 +6,7 @@ Refunds.csv
 Returns.csv
 AMZN Reports
 chromedriver*
+tagger-release/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

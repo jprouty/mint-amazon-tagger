@@ -11,7 +11,9 @@ from functools import partial
 import logging
 import pickle
 import os
+import sys
 
+from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from PyQt5.QtCore import (
     Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, pyqtSlot, pyqtSignal)
 from PyQt5.QtGui import QKeySequence
@@ -19,7 +21,7 @@ from PyQt5.QtWidgets import (
     QApplication, QAbstractItemView, QCalendarWidget, QCheckBox,
     QComboBox, QDialog, QErrorMessage, QFileDialog,
     QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QProgressBar,
+    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QProgressBar,
     QPushButton, QShortcut, QTableView, QWidget, QVBoxLayout)
 from outdated import check_outdated
 
@@ -38,12 +40,6 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 NEVER_SAVE_MSG = 'Email & password are *never* saved.'
-
-
-def main():
-    gui = TaggerGui()
-    gui.create_gui()
-    gui.on_quit()
 
 
 class Args:
@@ -100,10 +96,10 @@ class TaggerGui:
         }
 
     def create_gui(self):
-        app = QApplication([])
-        app.setStyle('Fusion')
-
-        self.window = QWidget()
+        appctxt = ApplicationContext()
+        appctxt.app.setStyle('Fusion')
+        self.window = QMainWindow()
+        self.window.show()
 
         self.quit_shortcuts = []
         for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
@@ -291,7 +287,7 @@ class TaggerGui:
 
         self.window.setLayout(v_layout)
         self.window.show()
-        app.exec_()
+        return appctxt.app.exec_()
 
     def create_amazon_fetch_layout(self):
         amazon_fetch_layout = QFormLayout()
@@ -768,4 +764,4 @@ def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(TaggerGui().create_gui())
