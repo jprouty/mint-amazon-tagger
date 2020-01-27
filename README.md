@@ -3,7 +3,11 @@
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
 w/ category "Shopping"? Then this tool is for you!
 
-This tool DOES NOT require an Amazon store card/Visa. All you need is to pay for
+!!!NEW!!! A GUI has been added, making this easier than ever to run. Next up, stand alone binaries that can be downloaded and run, without having to know what "python" is.
+
+This tool *does not* save your username or password. It uses a tool call Selenium to drive a clean Chromium browser, which will then use the given Mint and Amazon credentials to log in as you, and then "drive" thought all the edits for you.
+
+This tool *does not* require an Amazon store card/Visa. All you need is to pay for
 your Amazon orders with an account that is sync'ed with Mint. For example, if
 you alternate between 5 different credit cards to pay for purchases on your
 Amazon account, only the transactions from credit cards sync'ed with Mint will
@@ -19,7 +23,7 @@ The tagger will try to guess the best Mint category for you. It does this by
 looking at each item's category from the Amazon Items report. Look at
 `category.py` to see which Amazon categories map to which Mint categories.
 
-!!!NEW!!! After running the tagger, if you are not happy with the category,
+After running the tagger, if you are not happy with the category,
 simply change it! Next time you run the tagger, it will attempt to remember
 your past personalized category and apply it to future purchases of the same
 item. Caveats: this only works if item names match exactly. also, you must
@@ -58,7 +62,7 @@ sudo apt-get install chromium-chromedriver
 
 This mode will fetch your Amazon Order History for you as well as tag mint.
 
-1. `mint-amazon-tagger --amazon_email email@cool.com --mint_email couldbedifferent@aol.com`
+1. `mint-amazon-tagger-cli --amazon_email email@cool.com --mint_email couldbedifferent@aol.com`
 
 ### Running - Semi-Auto ###
 
@@ -78,10 +82,10 @@ c. Download the completed reports. Let's called them
 Refunds is optional! Yay.
 
 2. (Optional) Do a dry run! Make sure everything looks right first. Run:
-`mint-amazon-tagger --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --dry_run --mint_email yourEmail@here.com`
+`mint-amazon-tagger-cli --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --dry_run --mint_email yourEmail@here.com`
 
 3. Now perform the actual updates, without `--dry_run`:
-`mint-amazon-tagger --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --mint_email yourEmail@here.com`
+`mint-amazon-tagger-cli --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --mint_email yourEmail@here.com`
 
 4. Sit back and relax! The run time depends on the speed of your machine,
 quality of internet connection, and total number of transactions. For
@@ -89,11 +93,11 @@ reference, my machine did about 14k Mint transactions, finding 2k Amazon
 matches in under 10 minutes.
 
 To see all options, see:
-`mint-amazon-tagger --help`
+`mint-amazon-tagger-cli --help`
 
 ## Tips and Tricks ##
 
-Not every bank treats Amazon purchases the same, or processes transactions as quickly as others. If you're having a low match rate (look at the terminal output after completion), then try adjusting some of the command line flags. To see a complete list, run `mint-amazon-tagger --help`.
+Not every bank treats Amazon purchases the same, or processes transactions as quickly as others. If you're having a low match rate (look at the terminal output after completion), then try adjusting some of the command line flags. To see a complete list, run `mint-amazon-tagger-cli --help`.
 
 Some common options to try:
 

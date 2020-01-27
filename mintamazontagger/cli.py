@@ -13,9 +13,10 @@ import pickle
 import os
 import time
 
+from progress.bar import IncrementalBar
 from progress.counter import Counter as ProgressCounter
 from progress.spinner import Spinner
-from outdated import check_outdated, warn_if_outdated
+from outdated import check_outdated
 
 from mintamazontagger import amazon
 from mintamazontagger import mint
@@ -32,11 +33,10 @@ logger.setLevel(logging.INFO)
 
 
 def main():
-    warn_if_outdated('mint-amazon-tagger', VERSION)
     is_outdated, latest_version = check_outdated('mint-amazon-tagger', VERSION)
     if is_outdated:
         print('Please update your version by running:\n'
-              'pip3 install mint-amazon-tagger --upgrade')
+              'pip3 install mint-amazon-tagger --upgrade\n\n')
 
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
@@ -70,10 +70,13 @@ def main():
                 end_date = start_date + duration
         else:
             start_date = end_date - duration
+
         items_csv, orders_csv, refunds_csv = fetch_order_history(
             args.report_download_location, start_date, end_date,
             args.amazon_email, args.amazon_password,
-            session_path, args.headless)
+            session_path, args.headless,
+            progress_factory=lambda x: AsyncProgress(Spinner(x)),
+            progress_doner=lambda x: x.finish())
 
     if not items_csv or not orders_csv:  # Refunds are optional
         logger.critical('Order history either not provided at command line or '
@@ -139,8 +142,14 @@ def main():
         # personalized category tagging overrides.
         today = datetime.date.today()
         start_date = today - (today - start_date) * 2
+
+        asyncSpin = AsyncProgress(Spinner('Fetching Categories '))
         mint_category_name_to_id = mint_client.get_categories()
+        asyncSpin.finish()
+
+        asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
         mint_transactions_json = mint_client.get_transactions(start_date)
+        asyncSpin.finish()
 
         epoch = int(time.time())
         mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
@@ -185,8 +194,14 @@ def main():
                                  ignore_category=args.no_tag_categories)
 
     else:
-        mint_client.send_updates(
-            updates, ignore_category=args.no_tag_categories)
+        num_updates = mint_client.send_updates(
+            updates,
+            progress=IncrementalBar(
+                'Updating Mint',
+                max=len(updates)),
+            ignore_category=args.no_tag_categories)
+
+        logger.info('Sent {} updates to Mint'.format(num_updates))
 
 
 def log_amazon_stats(items, orders, refunds):
@@ -331,10 +346,6 @@ def define_args(parser):
               'prompted for it.'))
 
     # History options"
-    parser.add_argument(
-        '--order_history_location', type=str,
-        default="AMZN Reports",
-        help='Where to store the fetched Amazon "order history" reports.')
     parser.add_argument(
         '--order_history_num_days', type=int,
         default=90,

@@ -13,10 +13,6 @@ from seleniumrequests import Chrome
 from sys import platform as _platform
 import zipfile
 
-from progress.spinner import Spinner
-
-from mintamazontagger.asyncprogress import AsyncProgress
-
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
@@ -33,7 +29,9 @@ ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 
 def fetch_order_history(report_download_path, start_date, end_date,
                         email=None, password=None,
-                        session_path=None, headless=False):
+                        session_path=None, headless=False,
+                        progress_factory=lambda x: None,
+                        progress_doner=lambda x: None):
     email = get_email(email)
     name = email.split('@')[0]
 
@@ -63,30 +61,29 @@ def fetch_order_history(report_download_path, start_date, end_date,
                                      headless=headless,
                                      session_path=session_path)
 
-        requestSpin = AsyncProgress(Spinner(
-            'Requesting {} report '.format(report_shortname)))
+        request_progress = progress_factory(
+            'Requesting {} report '.format(report_shortname))
         request_report(driver, report_name, report_type, start_date, end_date)
-        requestSpin.finish()
+        progress_doner(request_progress)
 
-        processingSpin = AsyncProgress(Spinner(
-            'Waiting for {} report to be ready '.format(report_shortname)))
+        processing_progress = progress_factory(
+            'Waiting for {} report to be ready '.format(report_shortname))
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
             WebDriverWait(
                 driver, ORDER_HISTORY_PROCESS_TIMEOUT_S).until(wait_cond)
-            processingSpin.finish()
+            progress_doner(processing_progress)
         except TimeoutException:
-            processingSpin.finish()
+            progress_doner(processing_progress)
             logger.critical("Cannot find download link after a minute!")
             exit(1)
 
-        downloadSpin = AsyncProgress(Spinner(
-            'Downloading {} report '.format(report_shortname)))
+        download_progress = progress_factory(
+            'Downloading {} report '.format(report_shortname))
         download_report(driver, report_name, report_path)
-        downloadSpin.finish()
+        progress_doner(download_progress)
 
-    logger.info('\nAll Amazon history has been fetched. Onto tagging.')
     if driver:
         driver.close()
 

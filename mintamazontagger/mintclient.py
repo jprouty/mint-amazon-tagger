@@ -3,10 +3,7 @@ import getpass
 import logging
 
 from mintapi.api import Mint, MINT_ROOT_URL
-from progress.bar import IncrementalBar
-from progress.spinner import Spinner
 
-from mintamazontagger.asyncprogress import AsyncProgress
 from mintamazontagger.currency import micro_usd_to_usd_float
 
 logger = logging.getLogger(__name__)
@@ -30,6 +27,11 @@ class MintClient():
         self.wait_for_sync = wait_for_sync
 
         self.mintapi = None
+
+    def close(self):
+        if self.mintapi:
+            self.mintapi.close()
+            self.mintapi = None
 
     def get_mintapi(self):
         if self.mintapi:
@@ -71,12 +73,10 @@ class MintClient():
         # Create a map of Mint category name to category id.
         logger.info('Creating Mint Category Map.')
         mint_api = self.get_mintapi()
-        asyncSpin = AsyncProgress(Spinner('Fetching Categories '))
         categories = dict([
             (cat_dict['name'], cat_id)
             for (cat_id, cat_dict)
             in mint_api.get_categories().items()])
-        asyncSpin.finish()
         return categories
 
     def get_transactions(self, start_date):
@@ -84,20 +84,14 @@ class MintClient():
         mint_api = self.get_mintapi()
         logger.info('Get all Mint transactions since {}.'.format(
             start_date_str))
-        asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
         transactions = mint_api.get_transactions_json(
             start_date=start_date_str,
             include_investment=False,
             skip_duplicates=True)
-        asyncSpin.finish()
         return transactions
 
-    def send_updates(self, updates, ignore_category=False):
+    def send_updates(self, updates, progress, ignore_category=False):
         mint_client = self.get_mintapi()
-        updateProgress = IncrementalBar(
-            'Updating Mint',
-            max=len(updates))
-
         num_requests = 0
         for (orig_trans, new_trans) in updates:
             if len(new_trans) == 1:
@@ -125,7 +119,7 @@ class MintClient():
                         MINT_ROOT_URL,
                         UPDATE_TRANS_ENDPOINT),
                     data=modify_trans).text
-                updateProgress.next()
+                progress.next()
                 logger.debug('Received response: {}'.format(response))
                 num_requests += 1
             else:
@@ -192,10 +186,9 @@ class MintClient():
                         'Received note response: {}'.format(
                             note_response.text))
 
-                updateProgress.next()
+                progress.next()
                 logger.debug('Received response: {}'.format(response.text))
                 num_requests += 1
 
-        updateProgress.finish()
-
-        logger.info('Sent {} updates to Mint'.format(num_requests))
+        progress.finish()
+        return num_requests

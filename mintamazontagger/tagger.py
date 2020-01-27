@@ -12,7 +12,6 @@ from collections import defaultdict, Counter
 import itertools
 import logging
 
-from progress.bar import IncrementalBar
 import readchar
 
 from mintamazontagger import amazon
@@ -74,11 +73,20 @@ def get_mint_category_history_for_items(trans, args):
     return item_to_most_common
 
 
+class NoProgress:
+    def next(self, i=1):
+        pass
+
+    def finish(self):
+        pass
+
+
 def get_mint_updates(
         orders, items, refunds,
         trans,
         args, stats,
-        mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS):
+        mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS,
+        progress_factory=lambda msg, max: NoProgress()):
     mint_historic_category_renames = get_mint_category_history_for_items(
         trans, args)
 
@@ -94,9 +102,9 @@ def get_mint_updates(
     # appropriate order.
     items = [si for i in items for si in i.split_by_quantity()]
 
-    itemProgress = IncrementalBar(
+    itemProgress = progress_factory(
         'Matching Amazon Items with Orders',
-        max=len(items))
+        len(items))
     amazon.associate_items_with_orders(orders, items, itemProgress)
     itemProgress.finish()
 
@@ -131,18 +139,18 @@ def get_mint_updates(
         trans = [t for t in trans if t.category.lower() in cat_whitelist]
 
     # Match orders.
-    orderMatchProgress = IncrementalBar(
+    orderMatchProgress = progress_factory(
         'Matching Amazon Orders w/ Mint Trans',
-        max=len(orders))
+        len(orders))
     match_transactions(trans, orders, args, orderMatchProgress)
     orderMatchProgress.finish()
 
     unmatched_trans = [t for t in trans if not t.orders]
 
     # Match refunds.
-    refundMatchProgress = IncrementalBar(
+    refundMatchProgress = progress_factory(
         'Matching Amazon Refunds w/ Mint Trans',
-        max=len(refunds))
+        len(refunds))
     match_transactions(unmatched_trans, refunds, args, refundMatchProgress)
     refundMatchProgress.finish()
 
@@ -170,8 +178,9 @@ def get_mint_updates(
     merged_orders = []
     merged_refunds = []
 
-    updateCounter = IncrementalBar('Determining Mint Updates',
-                                   max=len(matched_trans))
+    updateCounter = progress_factory(
+        'Determining Mint Updates',
+        len(matched_trans))
     updates = []
     for t in matched_trans:
         updateCounter.next()

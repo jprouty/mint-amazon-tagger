@@ -40,6 +40,7 @@ setuptools.setup(
         "Topic :: Office/Business :: Financial",
     ],
     install_requires=[
+        'PyQt5',
         'keyring',
         'mock',
         'mintapi>=1.40',
@@ -52,7 +53,8 @@ setuptools.setup(
     ],
     entry_points=dict(
         console_scripts=[
-            'mint-amazon-tagger=mintamazontagger.main:main',
+            'mint-amazon-tagger=mintamazontagger.gui:main',
+            'mint-amazon-tagger-cli=mintamazontagger.cli:main',
         ],
     ),
     cmdclass={
