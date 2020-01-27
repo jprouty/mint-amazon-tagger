@@ -1,0 +1,9 @@
+PyQt5==5.9.2
+keyring
+mintapi>=1.40
+outdated
+progress
+requests
+readchar
+selenium
+selenium-requests
