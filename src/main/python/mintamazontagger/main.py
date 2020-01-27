@@ -13,12 +13,11 @@ import pickle
 import os
 import sys
 
-from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from PyQt5.QtCore import (
     Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, pyqtSlot, pyqtSignal)
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QCalendarWidget, QCheckBox,
+    QAbstractItemView, QApplication QCalendarWidget, QCheckBox,
     QComboBox, QDialog, QErrorMessage, QFileDialog,
     QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QMainWindow, QProgressBar,
@@ -96,14 +95,20 @@ class TaggerGui:
         }
 
     def create_gui(self):
-        appctxt = ApplicationContext()
-        appctxt.app.setStyle('Fusion')
+        try:
+            from fbs_runtime.application_context.PyQt5 import (
+                ApplicationContext)
+            appctxt = ApplicationContext()
+            app = appctxt.app
+        except ImportError:
+            app = QApplication()
+        app.setStyle('Fusion')
         self.window = QMainWindow()
 
         self.quit_shortcuts = []
         for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
             s = QShortcut(QKeySequence(seq), self.window)
-            s.activated.connect(appctxt.app.exit)
+            s.activated.connect(app.exit)
             self.quit_shortcuts.append(s)
 
         is_outdated, latest_version = check_outdated(
@@ -288,7 +293,7 @@ class TaggerGui:
         main_widget.setLayout(v_layout)
         self.window.setCentralWidget(main_widget)
         self.window.show()
-        return appctxt.app.exec_()
+        return app.exec_()
 
     def create_amazon_fetch_layout(self):
         amazon_fetch_layout = QFormLayout()
