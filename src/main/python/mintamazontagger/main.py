@@ -5,6 +5,7 @@
 # that are split into multiple shipments/charges, and can even itemized each
 # transaction for maximal control over categorization.
 
+import argparse
 from collections import Counter
 import datetime
 from functools import partial
@@ -28,6 +29,7 @@ from mintamazontagger import amazon
 from mintamazontagger import mint
 from mintamazontagger import tagger
 from mintamazontagger import VERSION
+from mintamazontagger.args import define_gui_args, get_name_to_help_dict
 from mintamazontagger.qt import (
     MintUpdatesTableModel, AmazonUnmatchedTableDialog, AmazonStatsDialog,
     TaggerStatsDialog)
@@ -41,58 +43,10 @@ logger.setLevel(logging.INFO)
 NEVER_SAVE_MSG = 'Email & password are *never* saved.'
 
 
-class Args:
-    def __init__(self, **kwds):
-        self.__dict__.update(kwds)
-
-
 class TaggerGui:
-    def __init__(self):
-        home = os.path.expanduser("~")
-        # This dict's keys exactly match the argparse names/options in cli.
-        # This dict is then made to act like an Args object.
-        self.args = {
-            'session_path': os.path.join(
-                home, '.minttagger', 'session'),
-            'report_download_location': os.path.join(
-                home, 'AMZN Reports'),
-            'headless': False,
-
-            'amazon_email': '',
-            'amazon_password': '',
-            'order_history_start_date': (
-                datetime.date.today() - datetime.timedelta(days=90)),
-            'order_history_end_date': datetime.date.today(),
-            'orders_csv': None,
-            'items_csv': None,
-            'refunds_csv': None,
-            'amazon_domains': (
-                'amazon.com,amazon.cn,amazon.in,amazon.co.jp,'
-                'amazon.com.sg,amazon.com.tr,amazon.fr,amazon.de,'
-                'amazon.it,amazon.nl,amazon.es,amazon.co.uk,amazon.ca,'
-                'amazon.com.mx,amazon.com.au,amazon.com.br'),
-
-            'mint_email': '',
-            'mint_password': '',
-            'mint_mfa_method': 'sms',
-            'wait_for_sync': False,
-            'mint_input_merchant_filter': 'amazon,amzn',
-            'mint_input_categories_filter': '',
-            'mint_input_include_mmerchant': False,
-            'mint_input_include_merchant': False,
-
-            'verbose_itemize': False,
-            'no_itemize': False,
-
-            'description_prefix_override': '',
-            'description_return_prefix_override': '',
-            'num_updates': 0,  # Unlimited
-            'prompt_retag': False,
-            'retag_changed': False,
-            'no_tag_categories': False,
-            'do_not_predict_categories': False,
-            'max_days_between_payment_and_shipping': 3,
-        }
+    def __init__(self, args, arg_name_to_help):
+        self.args = args
+        self.arg_name_to_help = arg_name_to_help
 
     def create_gui(self):
         try:
@@ -152,68 +106,32 @@ class TaggerGui:
 
         mint_layout.addRow(
             'Email:',
-            self.create_line_edit(
-                'mint_email', tool_tip=NEVER_SAVE_MSG))
+            self.create_line_edit('mint_email', tool_tip=NEVER_SAVE_MSG))
         mint_layout.addRow(
             'Password:',
-            self.create_line_edit(
-                'mint_password', tool_tip=NEVER_SAVE_MSG))
+            self.create_line_edit('mint_password', tool_tip=NEVER_SAVE_MSG))
         mint_layout.addRow(
             'MFA Code:',
             self.create_combobox(
                 'mint_mfa_method',
                 ['SMS', 'Email'],
-                lambda x: x.lower(),
-                tool_tip='The Mint MFA method (2factor auth codes).'))
+                lambda x: x.lower()))
         mint_layout.addRow(
             'Sync first?',
-            self.create_checkbox(
-                'wait_for_sync',
-                tool_tip=(
-                    'By default, do not wait for accounts to sync with the \n'
-                    'backing financial institutions. If this flag is \n'
-                    'present, instead wait for them to sync, up to 5 \n'
-                    'minutes.')))
+            self.create_checkbox('mint_wait_for_sync'))
 
         mint_layout.addRow(
             'Merchant Filter',
-            self.create_line_edit(
-                'mint_input_merchant_filter',
-                tool_tip=(
-                    'Only consider Mint transactions that have one of these \n'
-                    'strings in the merchant field. Case-insensitive \n'
-                    'comma-separated.')))
+            self.create_line_edit('mint_input_merchant_filter'))
         mint_layout.addRow(
             'Include MMerchant',
-            self.create_checkbox(
-                'mint_input_include_mmerchant',
-                tool_tip=(
-                    'If set, consider using the mmerchant field when \n'
-                    'determining if a transaction is an Amazon purchase. \n'
-                    'This can be necessary when your bank renames \n'
-                    'transactions to "Debit card payment". Mint sometimes \n'
-                    'auto-recovers these into "Amazon", and flipping this \n'
-                    'flag will help match these. To know if you should use \n'
-                    'it, find a transaction in the Mint tool, and click on \n'
-                    'the details. Look for "Appears on your BANK ACCOUNT \n'
-                    'NAME statement as NOT USEFUL NAME on DATE".')))
+            self.create_checkbox('mint_input_include_mmerchant'))
         mint_layout.addRow(
             'Include Merchant',
-            self.create_checkbox(
-                'mint_input_include_merchant',
-                tool_tip=(
-                    'If set, consider using the merchant field when \n'
-                    'determining if a transaction is an Amazon purchase. \n'
-                    'This is similar to --mint_input_include_mmerchant but \n'
-                    'also includes any user edits to the transaction name.')))
+            self.create_checkbox('mint_input_include_merchant'))
         mint_layout.addRow(
             'Input Categories Filter',
-            self.create_line_edit(
-                'mint_input_categories_filter',
-                tool_tip=(
-                    'Only consider Mint transactions that have one of \n'
-                    'these strings in the merchant field. Case-insensitive \n'
-                    'comma-separated.')))
+            self.create_line_edit('mint_input_categories_filter'))
         mint_group.setLayout(mint_layout)
         h_layout.addWidget(mint_group)
 
@@ -223,62 +141,27 @@ class TaggerGui:
 
         tagger_left.addRow(
             'Verbose Itemize',
-            self.create_checkbox(
-                'verbose_itemize',
-                tool_tip=(
-                    'When unchecked, the behavior is to not itemize out \n'
-                    'shipping/promos/etc if there is only one item per \n'
-                    'Mint transaction. Will also remove free shipping. \n'
-                    'Check this to itemize everything.')))
+            self.create_checkbox('verbose_itemize'))
         tagger_left.addRow(
             'Do not Itemize',
-            self.create_checkbox(
-                'no_itemize',
-                tool_tip=(
-                    'When checked, Do not split Mint transactions into \n'
-                    'individual items with attempted categorization.')))
+            self.create_checkbox('no_itemize'))
         tagger_left.addRow(
             'Retag Changed',
-            self.create_checkbox(
-                'retag_changed',
-                tool_tip=(
-                    'When checked, for transactions that have been \n'
-                    'previously tagged by this script, override any edits \n'
-                    '(like adjusting the category). This feature works by \n'
-                    'looking for "Amazon.com: " at the start of a \n'
-                    'transaction. If the user changes the description, then \n'
-                    'the tagger won\'t know to leave it alone.')))
+            self.create_checkbox('retag_changed'))
 
         tagger_right = QFormLayout()
         tagger_right.addRow(
             'Do not tag categories',
-            self.create_checkbox(
-                'no_tag_categories',
-                tool_tip=(
-                    'If checked, do not update Mint categories. This is \n'
-                    'useful as Amazon doesn\'t provide the best \n'
-                    'categorization and it is pretty common user behavior \n'
-                    'to manually change the categories. This flag prevents \n'
-                    'tagger from wiping out that user work.')))
+            self.create_checkbox('no_tag_categories'))
         tagger_right.addRow(
             'Do not predict categories',
-            self.create_checkbox(
-                'do_not_predict_categories',
-                tool_tip=(
-                    'If checked, do not attempt to predict custom category \n'
-                    'tagging based on any tagging overrides. By default \n'
-                    '(no arg) tagger will attempt to find items that you \n'
-                    'have manually changed categories for.')))
+            self.create_checkbox('do_not_predict_categories'))
         tagger_right.addRow(
             'Max days between payment/shipment',
             self.create_combobox(
                 'max_days_between_payment_and_shipping',
                 ['3', '4', '5', '6', '7', '8', '9', '10'],
-                lambda x: int(x),
-                tool_tip=(
-                    'How many days are allowed to pass between when Amazon \n'
-                    'has shipped an order and when the payment has posted \n'
-                    'to your bank account (as per Mint\'s view).')))
+                lambda x: int(x)))
 
         tagger_layout.addLayout(tagger_left)
         tagger_layout.addLayout(tagger_right)
@@ -300,9 +183,11 @@ class TaggerGui:
         amazon_fetch_layout.addRow(QLabel(
             'Fetches recent Amazon order history for you.'))
         amazon_fetch_layout.addRow(
-            'Email:', self.create_line_edit('amazon_email'))
+            'Email:',
+            self.create_line_edit('amazon_email', tool_tip=NEVER_SAVE_MSG))
         amazon_fetch_layout.addRow(
-            'Password:', self.create_line_edit('amazon_password'))
+            'Password:',
+            self.create_line_edit('amazon_password', tool_tip=NEVER_SAVE_MSG))
         amazon_fetch_layout.addRow(
             'Start date:',
             self.create_date_edit(
@@ -352,7 +237,7 @@ class TaggerGui:
     def on_start_button_clicked(self):
         self.start_button.setEnabled(False)
         self.tagger = TaggerDialog(
-            args=Args(**self.args),
+            args=self.args,
             parent=self.window)
         self.tagger.show()
         self.tagger.finished.connect(
@@ -371,30 +256,37 @@ class TaggerGui:
         x_box = QCheckBox()
         x_box.setTristate(False)
         x_box.setCheckState(
-            Qt.Checked if self.args[name] else Qt.Unchecked)
+            Qt.Checked if getattr(self.args, name) else Qt.Unchecked)
+        if not tool_tip and name in self.arg_name_to_help:
+            tool_tip = 'When checked, ' + self.arg_name_to_help[name]
         if tool_tip:
             x_box.setToolTip(tool_tip)
 
         def on_changed(state):
-            self.args[name] = (
+            setattr(
+                self.args, name,
                 state != Qt.Checked if invert else state == Qt.Checked)
         x_box.stateChanged.connect(on_changed)
         return x_box
 
     def create_line_edit(self, name, tool_tip=None):
-        line_edit = QLineEdit(self.args[name])
+        line_edit = QLineEdit(getattr(self.args, name))
+        if not tool_tip:
+            tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             line_edit.setToolTip(tool_tip)
 
         def on_changed(state):
-            self.args[name] = state
+            setattr(self.args, name, state)
         line_edit.textChanged.connect(on_changed)
         return line_edit
 
     def create_date_edit(
             self, name, popup_title, max_date=datetime.date.today(),
             tool_tip=None):
-        date_edit = QPushButton(str(self.args[name]))
+        date_edit = QPushButton(str(getattr(self.args, name)))
+        if not tool_tip:
+            tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             date_edit.setToolTip(tool_tip)
 
@@ -404,7 +296,7 @@ class TaggerGui:
             layout = QVBoxLayout()
             cal = QCalendarWidget()
             cal.setMaximumDate(QDate(max_date))
-            cal.setSelectedDate(QDate(self.args[name]))
+            cal.setSelectedDate(QDate(getattr(self.args, name)))
             cal.selectionChanged.connect(lambda: dlg.accept())
             layout.addWidget(cal)
             okay = QPushButton('Select')
@@ -413,8 +305,8 @@ class TaggerGui:
             dlg.setLayout(layout)
             dlg.exec()
 
-            self.args[name] = cal.selectedDate().toPyDate()
-            date_edit.setText(str(self.args[name]))
+            setattr(self.args, name, cal.selectedDate().toPyDate())
+            date_edit.setText(str(getattr(self.args, name)))
 
         date_edit.clicked.connect(on_date_edit_clicked)
         return date_edit
@@ -423,9 +315,11 @@ class TaggerGui:
             self, name, popup_title, filter='CSV files (*.csv)',
             tool_tip=None):
         file_button = QPushButton(
-            'Select a file' if not self.args[name]
-            else os.path.split(self.args[name])[1])
+            'Select a file' if not getattr(self.args, name)
+            else os.path.split(getattr(self.args, name).name)[1])
 
+        if not tool_tip:
+            tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             file_button.setToolTip(tool_tip)
 
@@ -434,25 +328,25 @@ class TaggerGui:
             selection = dlg.getOpenFileName(
                 self.window, popup_title, '', filter)
             if selection[0]:
-                if self.args[name]:
-                    self.args[name].close()
-                self.args[name] = open(selection[0], 'r')
+                prev_file = getattr(self.args, name)
+                if prev_file:
+                    prev_file.close()
+                setattr(self.args, name, open(selection[0], 'r'))
                 file_button.setText(os.path.split(selection[0])[1])
-            elif not self.amazon_orders_csv_path:
-                self.args[name] = None
-                file_button.setText('Select a file')
 
         file_button.clicked.connect(on_button)
         return file_button
 
     def create_combobox(self, name, items, transform, tool_tip=None):
         combo = QComboBox()
+        if not tool_tip:
+            tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             combo.setToolTip(tool_tip)
         combo.addItems(items)
 
         def on_change(option):
-            self.args[name] = transform(option)
+            setattr(self.args, name, transform(option))
         combo.currentTextChanged.connect(on_change)
         return combo
 
@@ -639,10 +533,16 @@ class TaggerWorker(QObject):
             return
 
         self.on_progress.emit('Parse Amazon order history', 0, 0)
-        orders = amazon.Order.parse_from_csv(orders_csv)
-        items = amazon.Item.parse_from_csv(items_csv)
-        refunds = ([] if not refunds_csv
-                   else amazon.Refund.parse_from_csv(refunds_csv))
+        try:
+            orders = amazon.Order.parse_from_csv(orders_csv)
+            items = amazon.Item.parse_from_csv(items_csv)
+            refunds = ([] if not refunds_csv
+                       else amazon.Refund.parse_from_csv(refunds_csv))
+        except AttributeError as e:
+            self.on_error.emit(
+                'Error while parsing Amazon Order history report CSV files: {}'.format(
+                    e))
+            return
 
         if not len(orders):
             self.on_error.emit(
@@ -684,7 +584,7 @@ class TaggerWorker(QObject):
         self.mint_client = MintClient(
             args.mint_email, args.mint_password,
             args.session_path, False,
-            args.mint_mfa_method, args.wait_for_sync)
+            args.mint_mfa_method, args.mint_wait_for_sync)
 
         # Get the date of the oldest Amazon order.
         if not start_date:
@@ -770,7 +670,12 @@ def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
 
 
 def main():
-    sys.exit(TaggerGui().create_gui())
+    parser = argparse.ArgumentParser(
+        description='Tag Mint transactions based on itemized Amazon history.')
+    define_gui_args(parser)
+    args = parser.parse_args()
+    
+    sys.exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
 
 
 if __name__ == '__main__':
