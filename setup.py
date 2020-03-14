@@ -19,7 +19,9 @@ class CleanCommand(setuptools.Command):
     def run(self):
         os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info')
 
+
 PY_SRC_PATH = "src/main/python"
+
 
 setuptools.setup(
     name="mint-amazon-tagger",

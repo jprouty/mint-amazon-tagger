@@ -10,9 +10,9 @@ from collections import Counter
 import datetime
 from functools import partial
 import logging
-import pickle
 import os
 import sys
+import time
 
 from PyQt5.QtCore import (
     Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, pyqtSlot, pyqtSignal)
@@ -284,6 +284,7 @@ class TaggerGui:
 
         def on_changed(state):
             setattr(self.args, name, state)
+
         def on_return():
             self.advance_focus()
         line_edit.textChanged.connect(on_changed)
@@ -550,8 +551,8 @@ class TaggerWorker(QObject):
                        else amazon.Refund.parse_from_csv(refunds_csv))
         except AttributeError as e:
             self.on_error.emit(
-                'Error while parsing Amazon Order history report CSV files: {}'.format(
-                    e))
+                'Error while parsing Amazon Order history report CSV files: '
+                '{}'.format(e))
             return
 
         if not len(orders):
@@ -597,8 +598,9 @@ class TaggerWorker(QObject):
             args.mint_mfa_method, args.mint_wait_for_sync)
 
         if args.pickled_epoch:
-            label = 'Un-pickling Mint transactions from epoch: {} '.format(
-                pickle_epoch)
+            self.on_progress.emit(
+                'Un-pickling Mint transactions from epoch: {} '.format(
+                    args.pickle_epoch))
             mint_trans, mint_category_name_to_id = (
                 get_trans_and_categories_from_pickle(
                     args.pickled_epoch, args.mint_pickle_location))
@@ -619,16 +621,18 @@ class TaggerWorker(QObject):
             self.on_progress.emit('Getting Mint Categories', 0, 0)
             mint_category_name_to_id = self.mint_client.get_categories()
             self.on_progress.emit('Getting Mint Transactions', 0, 0)
-            mint_transactions_json = self.mint_client.get_transactions(start_date)
-            mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
+            mint_transactions_json = self.mint_client.get_transactions(
+                start_date)
+            mint_trans = mint.Transaction.parse_from_json(
+                mint_transactions_json)
 
             if self.args.save_pickle_backup:
-                epoch = int(time.time())
+                pickle_epoch = int(time.time())
                 self.on_progress.emit(
                     'Backing up Mint to local pickle file, epoch: {} '.format(
                         pickle_epoch))
                 dump_trans_and_categories(
-                    mint_trans, mint_category_name_to_id, epoch,
+                    mint_trans, mint_category_name_to_id, pickle_epoch,
                     args.mint_pickle_location)
 
         if self.stopping:
@@ -677,23 +681,6 @@ class Progress:
 
     def finish(self):
         pass
-
-
-MINT_TRANS_PICKLE_FMT = 'Mint {} Transactions.pickle'
-MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
-
-
-def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
-    trans_pickle_path = os.path.join(
-        pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
-    cats_pickle_path = os.path.join(
-        pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
-    with open(trans_pickle_path, 'rb') as f:
-        trans = pickle.load(f)
-    with open(cats_pickle_path, 'rb') as f:
-        cats = pickle.load(f)
-
-    return trans, cats
 
 
 def main():

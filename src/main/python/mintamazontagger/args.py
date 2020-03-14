@@ -36,7 +36,7 @@ def define_common_args(parser):
     DEFAULT_REPORT_LOCATON = os.path.join(home, 'AMZN Reports')
     parser.add_argument(
         '--report_download_location', type=str,
-        default='AMZN Reports',
+        default=DEFAULT_REPORT_LOCATON,
         help='Where to place the downloaded reports.')
 
     # Amazon Input, as CSV file:
@@ -190,10 +190,10 @@ def define_common_args(parser):
         '--save_pickle_backup', action='store_true',
         default=False,
         help=('Saves a backup of your Mint transactions to a python "Pickle" '
-              'file, just in case anything goes wrong or for rapid development '
-              'so you don\'t have to download from Mint every time the tool is '
-              'run. Off by default to prevent storing sensitive information '
-              'locally without a user knowing it.'))
+              'file, just in case anything goes wrong or for rapid '
+              'development so you don\'t have to download from Mint every '
+              'time the tool is run. Off by default to prevent storing '
+              'sensitive information locally without a user knowing it.'))
     parser.add_argument(
         '--pickled_epoch', type=int,
         help=('Do not fetch categories or transactions from Mint. Use this '

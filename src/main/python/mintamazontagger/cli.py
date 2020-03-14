@@ -9,8 +9,6 @@ import argparse
 from collections import defaultdict, Counter
 import datetime
 import logging
-import pickle
-import os
 import time
 
 from progress.bar import IncrementalBar
@@ -121,7 +119,7 @@ def main():
 
     if args.pickled_epoch:
         label = 'Un-pickling Mint transactions from epoch: {} '.format(
-            pickle_epoch)
+            args.pickle_epoch)
         asyncSpin = AsyncProgress(Spinner(label))
         mint_trans, mint_category_name_to_id = (
             get_trans_and_categories_from_pickle(
@@ -152,12 +150,12 @@ def main():
         asyncSpin.finish()
 
         if args.save_pickle_backup:
-            epoch = int(time.time())
+            pickle_epoch = int(time.time())
             label = 'Backing up Mint to local pickle file, epoch: {} '.format(
                 pickle_epoch)
             asyncSpin = AsyncProgress(Spinner(label))
             dump_trans_and_categories(
-                mint_trans, mint_category_name_to_id, epoch,
+                mint_trans, mint_category_name_to_id, pickle_epoch,
                 args.mint_pickle_location)
             asyncSpin.finish()
 

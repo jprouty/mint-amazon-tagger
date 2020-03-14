@@ -1,4 +1,4 @@
-from src.main.python.mintamazontagger import VERSION 
+from src.main.python.mintamazontagger import VERSION
 from outdated import check_outdated
 
 
