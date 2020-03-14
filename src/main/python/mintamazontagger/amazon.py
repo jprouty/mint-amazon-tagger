@@ -407,7 +407,7 @@ class Order:
             cat = ('Shipping' if is_free_shipping else
                    category.DEFAULT_MINT_CATEGORY)
             promo = t.split(
-                amount=-self.total_promotions,
+                amount=self.total_promotions,
                 category=cat,
                 desc='Promotion(s)',
                 note=self.get_note(),
