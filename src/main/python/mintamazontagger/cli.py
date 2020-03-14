@@ -25,8 +25,10 @@ from mintamazontagger import VERSION
 from mintamazontagger.args import define_cli_args
 from mintamazontagger.asyncprogress import AsyncProgress
 from mintamazontagger.currency import micro_usd_to_usd_string
-from mintamazontagger.orderhistory import fetch_order_history
+from mintamazontagger.mint import (
+    get_trans_and_categories_from_pickle, dump_trans_and_categories)
 from mintamazontagger.mintclient import MintClient
+from mintamazontagger.orderhistory import fetch_order_history
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
@@ -118,9 +120,13 @@ def main():
                              args.mint_mfa_method, args.mint_wait_for_sync)
 
     if args.pickled_epoch:
+        label = 'Un-pickling Mint transactions from epoch: {} '.format(
+            pickle_epoch)
+        asyncSpin = AsyncProgress(Spinner(label))
         mint_trans, mint_category_name_to_id = (
             get_trans_and_categories_from_pickle(
                 args.pickled_epoch, args.mint_pickle_location))
+        asyncSpin.finish()
     else:
         # Get the date of the oldest Amazon order.
         if not start_date:
@@ -142,13 +148,18 @@ def main():
 
         asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
         mint_transactions_json = mint_client.get_transactions(start_date)
+        mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
         asyncSpin.finish()
 
-        epoch = int(time.time())
-        mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
-        dump_trans_and_categories(
-            mint_trans, mint_category_name_to_id, epoch,
-            args.mint_pickle_location)
+        if args.save_pickle_backup:
+            epoch = int(time.time())
+            label = 'Backing up Mint to local pickle file, epoch: {} '.format(
+                pickle_epoch)
+            asyncSpin = AsyncProgress(Spinner(label))
+            dump_trans_and_categories(
+                mint_trans, mint_category_name_to_id, epoch,
+                args.mint_pickle_location)
+            asyncSpin.finish()
 
     updates, unmatched_orders = tagger.get_mint_updates(
         orders, items, refunds,
@@ -287,44 +298,6 @@ def print_unmatched(amzn_obj):
         micro_usd_to_usd_string(amzn_obj.transact_amount()),
         amazon.get_invoice_url(amzn_obj.order_id)))
     logger.warning('')
-
-
-MINT_TRANS_PICKLE_FMT = 'Mint {} Transactions.pickle'
-MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
-
-
-def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
-    label = 'Un-pickling Mint transactions from epoch: {} '.format(
-        pickle_epoch)
-    asyncSpin = AsyncProgress(Spinner(label))
-    trans_pickle_path = os.path.join(
-        pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
-    cats_pickle_path = os.path.join(
-        pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
-    with open(trans_pickle_path, 'rb') as f:
-        trans = pickle.load(f)
-    with open(cats_pickle_path, 'rb') as f:
-        cats = pickle.load(f)
-    asyncSpin.finish()
-
-    return trans, cats
-
-
-def dump_trans_and_categories(trans, cats, pickle_epoch, pickle_base_path):
-    label = 'Backing up Mint to local pickle file, epoch: {} '.format(
-        pickle_epoch)
-    asyncSpin = AsyncProgress(Spinner(label))
-    if not os.path.exists(pickle_base_path):
-        os.makedirs(pickle_base_path)
-    trans_pickle_path = os.path.join(
-        pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
-    cats_pickle_path = os.path.join(
-        pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
-    with open(trans_pickle_path, 'wb') as f:
-        pickle.dump(trans, f)
-    with open(cats_pickle_path, 'wb') as f:
-        pickle.dump(cats, f)
-    asyncSpin.finish()
 
 
 if __name__ == '__main__':

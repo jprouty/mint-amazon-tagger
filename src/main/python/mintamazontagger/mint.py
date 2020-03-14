@@ -229,3 +229,32 @@ def summarize_new_trans(t, new_trans, prefix):
         summary_trans.category = category.DEFAULT_MINT_CATEGORY
     summary_trans.note = notes
     return [summary_trans]
+
+
+MINT_TRANS_PICKLE_FMT = 'Mint {} Transactions.pickle'
+MINT_CATS_PICKLE_FMT = 'Mint {} Categories.pickle'
+
+
+def get_trans_and_categories_from_pickle(pickle_epoch, pickle_base_path):
+    trans_pickle_path = os.path.join(
+        pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
+    cats_pickle_path = os.path.join(
+        pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
+    with open(trans_pickle_path, 'rb') as f:
+        trans = pickle.load(f)
+    with open(cats_pickle_path, 'rb') as f:
+        cats = pickle.load(f)
+    return trans, cats
+
+
+def dump_trans_and_categories(trans, cats, pickle_epoch, pickle_base_path):
+    if not os.path.exists(pickle_base_path):
+        os.makedirs(pickle_base_path)
+    trans_pickle_path = os.path.join(
+        pickle_base_path, MINT_TRANS_PICKLE_FMT.format(pickle_epoch))
+    cats_pickle_path = os.path.join(
+        pickle_base_path, MINT_CATS_PICKLE_FMT.format(pickle_epoch))
+    with open(trans_pickle_path, 'wb') as f:
+        pickle.dump(trans, f)
+    with open(cats_pickle_path, 'wb') as f:
+        pickle.dump(cats, f)

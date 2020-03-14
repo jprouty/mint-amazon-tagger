@@ -33,8 +33,10 @@ from mintamazontagger.args import define_gui_args, get_name_to_help_dict
 from mintamazontagger.qt import (
     MintUpdatesTableModel, AmazonUnmatchedTableDialog, AmazonStatsDialog,
     TaggerStatsDialog)
-from mintamazontagger.orderhistory import fetch_order_history
+from mintamazontagger.mint import (
+    get_trans_and_categories_from_pickle, dump_trans_and_categories)
 from mintamazontagger.mintclient import MintClient
+from mintamazontagger.orderhistory import fetch_order_history
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
@@ -169,6 +171,7 @@ class TaggerGui:
         v_layout.addWidget(tagger_group)
 
         self.start_button = QPushButton('Start Tagging')
+        self.start_button.setAutoDefault(True)
         self.start_button.clicked.connect(self.on_start_button_clicked)
         v_layout.addWidget(self.start_button)
 
@@ -269,6 +272,9 @@ class TaggerGui:
         x_box.stateChanged.connect(on_changed)
         return x_box
 
+    def advance_focus(self):
+        self.window.focusNextChild()
+
     def create_line_edit(self, name, tool_tip=None):
         line_edit = QLineEdit(getattr(self.args, name))
         if not tool_tip:
@@ -278,13 +284,17 @@ class TaggerGui:
 
         def on_changed(state):
             setattr(self.args, name, state)
+        def on_return():
+            self.advance_focus()
         line_edit.textChanged.connect(on_changed)
+        line_edit.returnPressed.connect(on_return)
         return line_edit
 
     def create_date_edit(
             self, name, popup_title, max_date=datetime.date.today(),
             tool_tip=None):
         date_edit = QPushButton(str(getattr(self.args, name)))
+        date_edit.setAutoDefault(True)
         if not tool_tip:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
@@ -586,24 +596,41 @@ class TaggerWorker(QObject):
             args.session_path, False,
             args.mint_mfa_method, args.mint_wait_for_sync)
 
-        # Get the date of the oldest Amazon order.
-        if not start_date:
-            start_date = min([o.order_date for o in orders])
-            if refunds:
-                start_date = min(
-                    start_date,
-                    min([o.order_date for o in refunds]))
+        if args.pickled_epoch:
+            label = 'Un-pickling Mint transactions from epoch: {} '.format(
+                pickle_epoch)
+            mint_trans, mint_category_name_to_id = (
+                get_trans_and_categories_from_pickle(
+                    args.pickled_epoch, args.mint_pickle_location))
+        else:
+            # Get the date of the oldest Amazon order.
+            if not start_date:
+                start_date = min([o.order_date for o in orders])
+                if refunds:
+                    start_date = min(
+                        start_date,
+                        min([o.order_date for o in refunds]))
 
-        # Double the length of transaction history to help aid in
-        # personalized category tagging overrides.
-        today = datetime.date.today()
-        start_date = today - (today - start_date) * 2
-        self.on_progress.emit('Getting Mint Categories', 0, 0)
-        mint_category_name_to_id = self.mint_client.get_categories()
-        self.on_progress.emit('Getting Mint Transactions', 0, 0)
-        mint_transactions_json = self.mint_client.get_transactions(start_date)
+            # Double the length of transaction history to help aid in
+            # personalized category tagging overrides.
+            # TODO: Revise this logic/date range.
+            today = datetime.date.today()
+            start_date = today - (today - start_date) * 2
+            self.on_progress.emit('Getting Mint Categories', 0, 0)
+            mint_category_name_to_id = self.mint_client.get_categories()
+            self.on_progress.emit('Getting Mint Transactions', 0, 0)
+            mint_transactions_json = self.mint_client.get_transactions(start_date)
+            mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
 
-        mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
+            if self.args.save_pickle_backup:
+                epoch = int(time.time())
+                self.on_progress.emit(
+                    'Backing up Mint to local pickle file, epoch: {} '.format(
+                        pickle_epoch))
+                dump_trans_and_categories(
+                    mint_trans, mint_category_name_to_id, epoch,
+                    args.mint_pickle_location)
+
         if self.stopping:
             self.on_stopped.emit()
             return
@@ -674,7 +701,7 @@ def main():
         description='Tag Mint transactions based on itemized Amazon history.')
     define_gui_args(parser)
     args = parser.parse_args()
-    
+
     sys.exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
 
 

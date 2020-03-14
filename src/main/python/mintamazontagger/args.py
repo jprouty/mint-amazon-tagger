@@ -2,11 +2,11 @@ import argparse
 import datetime
 import os
 
-        
+
 def get_name_to_help_dict(parser):
     return dict([(a.dest, a.help) for a in parser._actions])
 
-        
+
 def define_common_args(parser):
     """Parseargs shared between both CLI & GUI programs."""
     home = os.path.expanduser("~")
@@ -186,10 +186,28 @@ def define_common_args(parser):
               'the given categories here. Comma separated list of Mint '
               'categories.'))
 
+    parser.add_argument(
+        '--save_pickle_backup', action='store_true',
+        default=False,
+        help=('Saves a backup of your Mint transactions to a python "Pickle" '
+              'file, just in case anything goes wrong or for rapid development '
+              'so you don\'t have to download from Mint every time the tool is '
+              'run. Off by default to prevent storing sensitive information '
+              'locally without a user knowing it.'))
+    parser.add_argument(
+        '--pickled_epoch', type=int,
+        help=('Do not fetch categories or transactions from Mint. Use this '
+              'pickled epoch instead. If coupled with --dry_run, no '
+              'connection to Mint is established.'))
+    parser.add_argument(
+        '--mint_pickle_location', type=str,
+        default="Mint Backup",
+        help='Where to store the fetched Mint pickles (for backup).')
+
 
 def define_gui_args(parser):
     define_common_args(parser)
-    
+
     # TODO: Clean up and remove.
     parser.add_argument(
         '--prompt_retag',
@@ -202,15 +220,6 @@ def define_cli_args(parser):
     define_common_args(parser)
 
     # Debugging/testing.
-    parser.add_argument(
-        '--pickled_epoch', type=int,
-        help=('Do not fetch categories or transactions from Mint. Use this '
-              'pickled epoch instead. If coupled with --dry_run, no '
-              'connection to Mint is established.'))
-    parser.add_argument(
-        '--mint_pickle_location', type=str,
-        default="Mint Backup",
-        help='Where to store the fetched Mint pickles (for backup).')
     parser.add_argument(
         '--dry_run', action='store_true',
         help=('Do not modify Mint transaction; instead print the proposed '
