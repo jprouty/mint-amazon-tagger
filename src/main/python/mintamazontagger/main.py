@@ -12,6 +12,7 @@ from functools import partial
 import logging
 import os
 import sys
+from threading import Condition
 import time
 
 from PyQt5.QtCore import (
@@ -20,8 +21,8 @@ from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView, QApplication, QCalendarWidget, QCheckBox,
     QComboBox, QDialog, QErrorMessage, QFileDialog,
-    QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QProgressBar,
+    QFormLayout, QGroupBox, QHBoxLayout, QInputDialog,
+    QLabel, QLineEdit, QMainWindow, QProgressBar,
     QPushButton, QShortcut, QTableView, QWidget, QVBoxLayout)
 from outdated import check_outdated
 
@@ -85,8 +86,14 @@ class TaggerGui:
         amazon_mode = QComboBox()
         amazon_mode.addItem('Fetch Reports')
         amazon_mode.addItem('Use Local Reports')
+        amazon_mode.setFocusPolicy(Qt.StrongFocus)
 
-        self.amazon_mode_layout = self.create_amazon_fetch_layout()
+        has_csv = any([
+            self.args.orders_csv, self.args.items_csv, self.args.refunds_csv])
+        self.amazon_mode_layout = (
+            self.create_amazon_import_layout()
+            if has_csv else self.create_amazon_fetch_layout())
+        amazon_mode.setCurrentIndex(1 if has_csv else 0)
 
         def on_amazon_mode_changed(i):
             self.clear_layout(self.amazon_mode_layout)
@@ -111,7 +118,8 @@ class TaggerGui:
             self.create_line_edit('mint_email', tool_tip=NEVER_SAVE_MSG))
         mint_layout.addRow(
             'Password:',
-            self.create_line_edit('mint_password', tool_tip=NEVER_SAVE_MSG))
+            self.create_line_edit(
+                'mint_password', tool_tip=NEVER_SAVE_MSG, password=True))
         mint_layout.addRow(
             'MFA Code:',
             self.create_combobox(
@@ -190,7 +198,8 @@ class TaggerGui:
             self.create_line_edit('amazon_email', tool_tip=NEVER_SAVE_MSG))
         amazon_fetch_layout.addRow(
             'Password:',
-            self.create_line_edit('amazon_password', tool_tip=NEVER_SAVE_MSG))
+            self.create_line_edit(
+                'amazon_password', tool_tip=NEVER_SAVE_MSG, password=True))
         amazon_fetch_layout.addRow(
             'Start date:',
             self.create_date_edit(
@@ -275,12 +284,14 @@ class TaggerGui:
     def advance_focus(self):
         self.window.focusNextChild()
 
-    def create_line_edit(self, name, tool_tip=None):
+    def create_line_edit(self, name, tool_tip=None, password=False):
         line_edit = QLineEdit(getattr(self.args, name))
         if not tool_tip:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             line_edit.setToolTip(tool_tip)
+        if password:
+            line_edit.setEchoMode(QLineEdit.PasswordEchoOnEdit)
 
         def on_changed(state):
             setattr(self.args, name, state)
@@ -350,6 +361,7 @@ class TaggerGui:
 
     def create_combobox(self, name, items, transform, tool_tip=None):
         combo = QComboBox()
+        combo.setFocusPolicy(Qt.StrongFocus)
         if not tool_tip:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
@@ -378,8 +390,10 @@ class TaggerDialog(QDialog):
         self.worker.on_stopped.connect(self.on_stopped)
         self.worker.on_progress.connect(self.on_progress)
         self.worker.on_updates_sent.connect(self.on_updates_sent)
+        self.worker.on_mint_mfa.connect(self.on_mint_mfa)
 
-        self.thread.started.connect(partial(self.worker.create_updates, args))
+        self.thread.started.connect(
+            partial(self.worker.create_updates, args, self))
         self.thread.start()
 
         self.init_ui()
@@ -502,21 +516,40 @@ class TaggerDialog(QDialog):
         else:
             self.close()
 
+    def on_mint_mfa(self):
+        mfa_code, ok = QInputDialog().getText(
+            self, 'Please enter your Mint Code.',
+            'Mint Code:')
+        QMetaObject.invokeMethod(
+            self.worker, 'mfa_code', Qt.QueuedConnection,
+            Q_ARG(int, mfa_code))
+
 
 class TaggerWorker(QObject):
+    """This class is required to prevent locking up the main Qt thread."""
     on_error = pyqtSignal(str)
     on_review_ready = pyqtSignal(list, list, list, list, list, dict)
     on_updates_sent = pyqtSignal(int)
     on_stopped = pyqtSignal()
+    on_mint_mfa = pyqtSignal()
     on_progress = pyqtSignal(str, int, int)
     stopping = False
+    mfa_condition = Condition()
 
     @pyqtSlot()
     def stop(self):
         self.stopping = True
 
+    @pyqtSlot(str)
+    def mfa_code(self, code):
+        print('Got code')
+        print(code)
+        self.mfa_code = code
+        print('Waking thread')
+        self.mfa_condition.notify()
+
     @pyqtSlot(object)
-    def create_updates(self, args):
+    def create_updates(self, args, parent):
         items_csv = args.items_csv
         orders_csv = args.orders_csv
         refunds_csv = args.refunds_csv
@@ -535,7 +568,8 @@ class TaggerWorker(QObject):
                 args.report_download_location, start_date, end_date,
                 args.amazon_email, args.amazon_password,
                 args.session_path, args.headless,
-                progress_factory=lambda x: self.on_progress.emit(x, 0, 0))
+                progress_factory=lambda msg, max: Progress(
+                    msg, max, self.on_progress.emit))
 
         if not items_csv or not orders_csv:  # Refunds are optional
             self.on_error.emit(
@@ -590,17 +624,30 @@ class TaggerWorker(QObject):
             self.on_error.emit('Missing Mint email or password. Try again')
             return
 
-        self.on_progress.emit(
-            'Logging into Mint', 0, 0)
+        def on_mint_mfa(prompt):
+            print('Asking for Mint MFA')
+            self.on_mint_mfa.emit()
+            print('Blocking')
+            self.mfa_condition.wait()
+            print('got code!')
+            print(self.mfa_code)
+            return self.mfa_code
+
         self.mint_client = MintClient(
-            args.mint_email, args.mint_password,
-            args.session_path, False,
-            args.mint_mfa_method, args.mint_wait_for_sync)
+            email=args.mint_email,
+            password=args.mint_password,
+            session_path=args.session_path,
+            headless=args.headless,
+            mfa_method=args.mint_mfa_method,
+            wait_for_sync=args.mint_wait_for_sync,
+            mfa_input_callback=on_mint_mfa,
+            progress_factory=lambda msg, max: Progress(
+                msg, max, self.on_progress.emit))
 
         if args.pickled_epoch:
             self.on_progress.emit(
                 'Un-pickling Mint transactions from epoch: {} '.format(
-                    args.pickle_epoch))
+                    args.pickled_epoch), 0, 0)
             mint_trans, mint_category_name_to_id = (
                 get_trans_and_categories_from_pickle(
                     args.pickled_epoch, args.mint_pickle_location))
@@ -626,14 +673,17 @@ class TaggerWorker(QObject):
             mint_trans = mint.Transaction.parse_from_json(
                 mint_transactions_json)
 
-            if self.args.save_pickle_backup:
+            if args.save_pickle_backup:
                 pickle_epoch = int(time.time())
                 self.on_progress.emit(
                     'Backing up Mint to local pickle file, epoch: {} '.format(
-                        pickle_epoch))
+                        pickle_epoch), 0, 0)
                 dump_trans_and_categories(
                     mint_trans, mint_category_name_to_id, pickle_epoch,
                     args.mint_pickle_location)
+                logger.info(
+                    'Mint transactions saved to local pickle file, '
+                    'epoch: {} '.format(pickle_epoch))
 
         if self.stopping:
             self.on_stopped.emit()

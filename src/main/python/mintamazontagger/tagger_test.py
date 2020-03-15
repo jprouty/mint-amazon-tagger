@@ -70,7 +70,7 @@ class Tagger(unittest.TestCase):
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
         self.assertEqual(new_trans[0].merchant, 'Amazon.com: 2x Duracell AAs')
-        self.assertEqual(new_trans[0].category, 'Shopping')
+        self.assertEqual(new_trans[0].category, 'Electronics & Software')
         self.assertEqual(new_trans[0].amount, 11950000)
         self.assertTrue(new_trans[0].is_debit)
         self.assertFalse(new_trans[0].is_child)
@@ -96,7 +96,7 @@ class Tagger(unittest.TestCase):
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
         self.assertEqual(new_trans[0].merchant, 'Amazon.com: 2x Cool item')
-        self.assertEqual(new_trans[0].category, 'Clothing')
+        self.assertEqual(new_trans[0].category, 'Returned Purchase')
         self.assertEqual(new_trans[0].amount, -11950000)
         self.assertFalse(new_trans[0].is_debit)
         self.assertFalse(new_trans[0].is_child)
@@ -167,7 +167,7 @@ class Tagger(unittest.TestCase):
         o1 = order()
         t1 = transaction(
             merchant='Amazon.com: 2x Duracell AAs',
-            category='Shopping',
+            category='Electronics & Software',
             note=o1.get_note() + '\nItem(s):\n - 2x Duracell AAs')
 
         stats = Counter()
@@ -218,7 +218,7 @@ class Tagger(unittest.TestCase):
         self.assertEqual(new_trans[1].category, 'Shipping')
         self.assertEqual(new_trans[1].amount, 3990000)
         self.assertEqual(new_trans[2].merchant, 'Amazon.com: 2x Duracell AAs')
-        self.assertEqual(new_trans[2].category, 'Shopping')
+        self.assertEqual(new_trans[2].category, 'Electronics & Software')
         self.assertEqual(new_trans[2].amount, 11950000)
 
         self.assertEqual(stats['new_tag'], 1)
@@ -239,7 +239,7 @@ class Tagger(unittest.TestCase):
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
         self.assertEqual(new_trans[0].merchant, 'Amazon.com: 2x Duracell AAs')
-        self.assertEqual(new_trans[0].category, 'Shopping')
+        self.assertEqual(new_trans[0].category, 'Electronics & Software')
         self.assertEqual(new_trans[0].amount, 15940000)
 
     def test_get_mint_updates_no_itemize_arg_three_items(self):

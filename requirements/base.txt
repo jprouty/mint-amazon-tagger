@@ -6,6 +6,7 @@ keyring
 mintapi>=1.40
 outdated
 progress
+range-key-dict
 requests
 readchar
 selenium

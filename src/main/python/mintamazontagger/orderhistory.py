@@ -27,11 +27,18 @@ ORDER_HISTORY_REPORT_URL = 'https://www.amazon.com/gp/b2b/reports'
 ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 
 
+class NoProgress:
+    def next(self, i=1):
+        pass
+
+    def finish(self):
+        pass
+
+
 def fetch_order_history(report_download_path, start_date, end_date,
                         email=None, password=None,
                         session_path=None, headless=False,
-                        progress_factory=lambda x: None,
-                        progress_doner=lambda x: None):
+                        progress_factory=lambda msg, max: NoProgress()):
     email = get_email(email)
     name = email.split('@')[0]
 
@@ -57,35 +64,42 @@ def fetch_order_history(report_download_path, start_date, end_date,
 
         # Report is not here. Go get it
         if not driver:
+            login_progress = progress_factory(
+                'Launching Chrome and Signing into Amazon.com to request '
+                'order reports.', 0)
             driver = get_amzn_driver(email, password,
                                      headless=headless,
                                      session_path=session_path)
+            login_progress.finish()
 
         request_progress = progress_factory(
-            'Requesting {} report '.format(report_shortname))
+            'Requesting {} report '.format(report_shortname), 0)
         request_report(driver, report_name, report_type, start_date, end_date)
-        progress_doner(request_progress)
+        request_progress.finish()
 
         processing_progress = progress_factory(
-            'Waiting for {} report to be ready '.format(report_shortname))
+            'Waiting for {} report to be ready '.format(report_shortname), 0)
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
             WebDriverWait(
                 driver, ORDER_HISTORY_PROCESS_TIMEOUT_S).until(wait_cond)
-            progress_doner(processing_progress)
+            processing_progress.finish()
         except TimeoutException:
-            progress_doner(processing_progress)
+            processing_progress.finish()
             logger.critical("Cannot find download link after a minute!")
             exit(1)
 
         download_progress = progress_factory(
-            'Downloading {} report '.format(report_shortname))
+            'Downloading {} report '.format(report_shortname), 0)
         download_report(driver, report_name, report_path)
-        progress_doner(download_progress)
+        download_progress.finish(download_progress)
 
     if driver:
+        closer = progress_factory(
+            'Done with the Chrome window for Amazon. Closing', 0)
         driver.close()
+        closer.finish()
 
     return (
         open(report_paths[0], 'r', encoding='utf-8'),

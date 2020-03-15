@@ -33,10 +33,10 @@ def define_common_args(parser):
         help=('The end date for fetching Amazon order history. Defaults to '
               'today. Format: YYYY-MM-DD'))
 
-    DEFAULT_REPORT_LOCATON = os.path.join(home, 'AMZN Reports')
+    default_report_location = os.path.join(home, 'Amazon Order Reports')
     parser.add_argument(
         '--report_download_location', type=str,
-        default=DEFAULT_REPORT_LOCATON,
+        default=default_report_location,
         help='Where to place the downloaded reports.')
 
     # Amazon Input, as CSV file:
@@ -199,9 +199,10 @@ def define_common_args(parser):
         help=('Do not fetch categories or transactions from Mint. Use this '
               'pickled epoch instead. If coupled with --dry_run, no '
               'connection to Mint is established.'))
+    default_pickle_path = os.path.join(home, 'Mint Backup')
     parser.add_argument(
         '--mint_pickle_location', type=str,
-        default="Mint Backup",
+        default=default_pickle_path,
         help='Where to store the fetched Mint pickles (for backup).')
 
 

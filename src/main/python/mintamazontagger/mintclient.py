@@ -14,17 +14,29 @@ logger.setLevel(logging.INFO)
 UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
 
 
-class MintClient():
+class NoProgress:
+    def next(self, i=1):
+        pass
 
-    def __init__(self, email=None, password=None,
-                 session_path=None, headless=False, mfa_method='sms',
-                 wait_for_sync=False):
+    def finish(self):
+        pass
+
+
+class MintClient():
+    def __init__(
+            self,
+            email=None, password=None,
+            session_path=None, headless=False, mfa_method='sms',
+            wait_for_sync=False, mfa_input_callback=None,
+            progress_factory=lambda msg, max: NoProgress()):
         self.email = email
         self.password = password
         self.session_path = session_path
         self.headless = headless
         self.mfa_method = mfa_method
+        self.mfa_input_callback = mfa_input_callback
         self.wait_for_sync = wait_for_sync
+        self.progress_factory = progress_factory
 
         self.mintapi = None
 
@@ -50,15 +62,17 @@ class MintClient():
             logger.error('Missing Mint email or password.')
             exit(1)
 
-        logger.info('Logging into Mint')
         logger.info('You may be asked for an auth code at the command line! '
                     'Be sure to press ENTER after typing the 6 digit code.')
 
+        login_progress = self.progress_factory('Logging into Mint', 0)
         mint_client = Mint.create(email, password,
                                   mfa_method=self.mfa_method,
+                                  mfa_input_callback=self.mfa_input_callback,
                                   session_path=self.session_path,
                                   headless=self.headless,
                                   wait_for_sync=self.wait_for_sync)
+        login_progress.finish()
 
         def close_mint_client():
             if mint_client:
@@ -135,10 +149,6 @@ class MintClient():
                 }
                 for (i, trans) in enumerate(new_trans):
                     amount = trans.amount
-                    # Based on the comment above, if the original transaction
-                    # is a credit, flip the amount sign for things to work out!
-                    if not orig_trans.is_debit:
-                        amount *= -1
                     amount = micro_usd_to_usd_float(amount)
                     itemized_split['amount{}'.format(i)] = amount
                     # Yup. Weird:

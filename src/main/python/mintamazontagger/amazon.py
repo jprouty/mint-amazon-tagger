@@ -371,8 +371,7 @@ class Order:
 
         # Itemize line-items:
         for i in items:
-            new_cat = category.AMAZON_TO_MINT_CATEGORY.get(
-                i.category, category.DEFAULT_MINT_CATEGORY)
+            new_cat = category.get_mint_category_from_unspsc(i.unspsc_code)
             item = t.split(
                 amount=i.item_total,
                 category=new_cat,
@@ -407,7 +406,7 @@ class Order:
             cat = ('Shipping' if is_free_shipping else
                    category.DEFAULT_MINT_CATEGORY)
             promo = t.split(
-                amount=self.total_promotions,
+                amount=-self.total_promotions,
                 category=cat,
                 desc='Promotion(s)',
                 note=self.get_note(),
@@ -582,11 +581,9 @@ class Refund:
                 get_invoice_url(self.order_id))
 
     def to_mint_transaction(self, t):
-        new_cat = category.AMAZON_TO_MINT_CATEGORY.get(
-            self.category, category.DEFAULT_MINT_RETURN_CATEGORY)
         result = t.split(
             desc=self.get_title(88),
-            category=new_cat,
+            category=category.DEFAULT_MINT_RETURN_CATEGORY,
             amount=-self.total_refund_amount,
             note=self.get_note(),
             is_debit=False)

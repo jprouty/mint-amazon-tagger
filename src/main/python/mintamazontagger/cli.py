@@ -48,10 +48,6 @@ def main():
         print('mint-amazon-tagger {}\nBy: Jeff Prouty'.format(VERSION))
         exit(0)
 
-    session_path = args.session_path
-    if session_path.lower() == 'none':
-        session_path = None
-
     items_csv = args.items_csv
     orders_csv = args.orders_csv
     refunds_csv = args.refunds_csv
@@ -66,9 +62,8 @@ def main():
         items_csv, orders_csv, refunds_csv = fetch_order_history(
             args.report_download_location, start_date, end_date,
             args.amazon_email, args.amazon_password,
-            session_path, args.headless,
-            progress_factory=lambda x: AsyncProgress(Spinner(x)),
-            progress_doner=lambda x: x.finish())
+            args.session_path, args.headless,
+            progress_factory=lambda msg, max: AsyncProgress(Spinner(msg)))
 
     if not items_csv or not orders_csv:  # Refunds are optional
         logger.critical('Order history either not provided at command line or '
@@ -113,10 +108,14 @@ def main():
         personal_cat=0,
     )
 
-    mint_client = MintClient(args.mint_email, args.mint_password,
-                             session_path, args.headless,
-                             args.mint_mfa_method, args.mint_wait_for_sync)
-
+    mint_client = MintClient(
+            email=args.mint_email,
+            password=args.mint_password,
+            session_path=args.session_path,
+            headless=args.headless,
+            mfa_method=args.mint_mfa_method,
+            wait_for_sync=args.mint_wait_for_sync,
+            progress_factory=lambda msg, max: AsyncProgress(Spinner(msg)))
     if args.pickled_epoch:
         label = 'Un-pickling Mint transactions from epoch: {} '.format(
             args.pickle_epoch)
@@ -163,7 +162,9 @@ def main():
         orders, items, refunds,
         mint_trans,
         args, stats,
-        mint_category_name_to_id)
+        mint_category_name_to_id,
+        progress_factory=lambda msg, max: IncrementalBar(
+            msg, max=max))
 
     log_amazon_stats(items, orders, refunds)
     log_processing_stats(stats)
