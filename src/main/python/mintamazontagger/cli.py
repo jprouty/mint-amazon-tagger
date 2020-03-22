@@ -68,8 +68,8 @@ def main():
     if not items_csv or not orders_csv:
         logger.info('Missing Items/Orders History csv. Attempting to fetch '
                     'from Amazon.com.')
-        start_date = args.order_history_start_date
-        end_date = args.order_history_end_date
+        start_date = args.order_history_start_date.date()
+        end_date = args.order_history_end_date.date()
 
         items_csv, orders_csv, refunds_csv = fetch_order_history(
             args.report_download_location, start_date, end_date,
@@ -148,7 +148,7 @@ def main():
         # Double the length of transaction history to help aid in
         # personalized category tagging overrides.
         # TODO: Revise this logic/date range.
-        today = datetime.datetime.today()
+        today = datetime.date.today()
         start_date = today - (today - start_date) * 2
 
         # HACK: Work around the nested progress by initializing the mint

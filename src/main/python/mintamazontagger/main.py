@@ -609,8 +609,8 @@ class TaggerWorker(QObject):
         start_date = None
 
         if not items_csv or not orders_csv:
-            start_date = args.order_history_start_date
-            end_date = args.order_history_end_date
+            start_date = args.order_history_start_date.date()
+            end_date = args.order_history_end_date.date()
             if not args.amazon_email or not args.amazon_password:
                 self.on_error.emit(
                     'Amazon email or password is empty. '
@@ -717,7 +717,7 @@ class TaggerWorker(QObject):
             # Double the length of transaction history to help aid in
             # personalized category tagging overrides.
             # TODO: Revise this logic/date range.
-            today = datetime.datetime.today()
+            today = datetime.date.today()
             start_date = today - (today - start_date) * 2
             self.on_progress.emit('Getting Mint Categories', 0, 0)
             mint_category_name_to_id = self.mint_client.get_categories()
