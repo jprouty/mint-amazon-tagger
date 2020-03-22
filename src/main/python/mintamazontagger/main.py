@@ -16,11 +16,12 @@ from threading import Condition
 import time
 
 from PyQt5.QtCore import (
-    Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, pyqtSlot, pyqtSignal)
-from PyQt5.QtGui import QKeySequence
+    Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, QUrl, pyqtSlot,
+    pyqtSignal)
+from PyQt5.QtGui import QDesktopServices, QKeySequence
 from PyQt5.QtWidgets import (
-    QAbstractItemView, QApplication, QCalendarWidget, QCheckBox,
-    QComboBox, QDialog, QErrorMessage, QFileDialog,
+    QAbstractItemView, QApplication, QCalendarWidget,
+    QCheckBox, QComboBox, QDialog, QErrorMessage, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QInputDialog,
     QLabel, QLineEdit, QMainWindow, QProgressBar,
     QPushButton, QShortcut, QTableView, QWidget, QVBoxLayout)
@@ -80,6 +81,7 @@ class TaggerGui:
         v_layout.addLayout(h_layout)
 
         amazon_group = QGroupBox('Amazon Order History')
+        amazon_group.setMinimumWidth(300)
         amazon_layout = QVBoxLayout()
 
         amazon_mode = QComboBox()
@@ -110,6 +112,7 @@ class TaggerGui:
         h_layout.addWidget(amazon_group)
 
         mint_group = QGroupBox('Mint Login && Options')
+        mint_group.setMinimumWidth(350)
         mint_layout = QFormLayout()
 
         mint_layout.addRow(
@@ -223,16 +226,16 @@ class TaggerGui:
         amazon_import_layout.addRow(order_history_link)
 
         amazon_import_layout.addRow(
-            'Orders CSV:',
-            self.create_file_edit(
-                'orders_csv',
-                'Select Amazon Orders Report'
-            ))
-        amazon_import_layout.addRow(
             'Items CSV:',
             self.create_file_edit(
                 'items_csv',
                 'Select Amazon Items Report'
+            ))
+        amazon_import_layout.addRow(
+            'Orders CSV:',
+            self.create_file_edit(
+                'orders_csv',
+                'Select Amazon Orders Report'
             ))
         amazon_import_layout.addRow(
             'Refunds CSV:',
@@ -427,11 +430,32 @@ class TaggerDialog(QDialog):
         self.cancel_button.clicked.connect(self.on_cancel)
 
     def on_error(self, msg):
+        logger.error(msg)
         self.label.setText('Error: {}'.format(msg))
         self.label.setStyleSheet(
             'QLabel { color: red; font-weight: bold; }')
         self.cancel_button.setText('Close')
         self.cancel_button.clicked.connect(self.close)
+
+    def open_amazon_order_id(self, order_id):
+        if order_id:
+            QDesktopServices.openUrl(QUrl(
+                amazon.get_invoice_url(order_id)))
+
+    def on_activated(self, index):
+        # Only handle clicks on the order_id cell.
+        if index.column() != 5:
+            return
+        order_id = self.updates_table_model.data(index, Qt.DisplayRole)
+        self.open_amazon_order_id(order_id)
+
+    def on_double_click(self, index):
+        if index.column() == 5:
+            # Ignore double clicks on the order_id cell.
+            return
+        order_id_cell = self.updates_table_model.createIndex(index.row(), 5)
+        order_id = self.updates_table_model.data(order_id_cell, Qt.DisplayRole)
+        self.open_amazon_order_id(order_id)
 
     def on_review_ready(
             self, updates, unmatched_orders, items, orders, refunds, stats):
@@ -442,6 +466,8 @@ class TaggerDialog(QDialog):
 
         self.updates_table_model = MintUpdatesTableModel(updates)
         self.updates_table = QTableView()
+        self.updates_table.doubleClicked.connect(self.on_double_click)
+        self.updates_table.clicked.connect(self.on_activated)
 
         def resize():
             self.updates_table.resizeColumnsToContents()
@@ -451,7 +477,7 @@ class TaggerDialog(QDialog):
         self.updates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.updates_table.setModel(self.updates_table_model)
         self.updates_table.setSortingEnabled(True)
-        self.updates_table.setMinimumSize(700, 400)
+        self.updates_table.setMinimumSize(700, 600)
         resize()
         self.updates_table_model.layoutChanged.connect(resize)
 

@@ -13,7 +13,7 @@ from mintamazontagger.currency import micro_usd_to_usd_string
 class MintUpdatesTableModel(QAbstractTableModel):
     def __init__(self, updates, **kwargs):
         super(MintUpdatesTableModel, self).__init__(**kwargs)
-        self.data = []
+        self.my_data = []
         for i, update in enumerate(updates):
             orig_trans, new_trans = update
 
@@ -42,7 +42,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
                     categories.append(trans.category)
                     amounts.append(micro_usd_to_usd_string(trans.amount))
 
-            self.data.append([
+            self.my_data.append([
                 update,
                 True,
                 orig_trans.date.strftime('%m/%d/%y'),
@@ -62,7 +62,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
         ]
 
     def rowCount(self, parent):
-        return len(self.data)
+        return len(self.my_data)
 
     def columnCount(self, parent):
         return len(self.header)
@@ -71,10 +71,10 @@ class MintUpdatesTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
         if index.column() == 0:
-            value = ('' if self.data[index.row()][index.column() + 1]
+            value = ('' if self.my_data[index.row()][index.column() + 1]
                      else 'Skip')
         else:
-            value = self.data[index.row()][index.column() + 1]
+            value = self.my_data[index.row()][index.column() + 1]
         if role == Qt.EditRole:
             return value
         elif role == Qt.DisplayRole:
@@ -82,7 +82,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
         elif role == Qt.CheckStateRole:
             if index.column() == 0:
                 return (
-                    Qt.Checked if self.data[index.row()][index.column() + 1]
+                    Qt.Checked if self.my_data[index.row()][index.column() + 1]
                     else Qt.Unchecked)
 
     def headerData(self, col, orientation, role):
@@ -92,9 +92,9 @@ class MintUpdatesTableModel(QAbstractTableModel):
 
     def sort(self, col, order):
         self.layoutAboutToBeChanged.emit()
-        self.data = sorted(self.data, key=operator.itemgetter(col + 1))
+        self.my_data = sorted(self.my_data, key=operator.itemgetter(col + 1))
         if order == Qt.DescendingOrder:
-            self.data.reverse()
+            self.my_data.reverse()
         self.layoutChanged.emit()
 
     def flags(self, index):
@@ -111,12 +111,12 @@ class MintUpdatesTableModel(QAbstractTableModel):
         if not index.isValid():
             return False
         if role == Qt.CheckStateRole and index.column() == 0:
-            self.data[index.row()][index.column() + 1] = value == Qt.Checked
+            self.my_data[index.row()][index.column() + 1] = value == Qt.Checked
         self.dataChanged.emit(index, index)
         return True
 
     def get_selected_updates(self):
-        return [d[0] for d in self.data if d[1]]
+        return [d[0] for d in self.my_data if d[1]]
 
 
 class AmazonUnmatchedTableDialog(QDialog):
@@ -164,7 +164,7 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
             'Amount',
             'Order ID',
         ]
-        self.data = []
+        self.my_data = []
         by_oid = defaultdict(list)
         for uo in unmatched_orders:
             by_oid[uo.order_id].append(uo)
@@ -173,9 +173,9 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
             refunds = [o for o in unmatched_by_oid if not o.is_debit]
             if orders:
                 merged = amazon.Order.merge(orders)
-                self.data.append(self._create_row(merged))
+                self.my_data.append(self._create_row(merged))
             for r in amazon.Refund.merge(refunds):
-                self.data.append(self._create_row(r))
+                self.my_data.append(self._create_row(r))
 
     def _create_row(self, amzn_obj):
         proposed_mint_desc = mint.summarize_title(
@@ -193,14 +193,14 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
         ]
 
     def rowCount(self, parent):
-        return len(self.data)
+        return len(self.my_data)
 
     def columnCount(self, parent):
         return len(self.header)
 
     def data(self, index, role):
         if index.isValid() and role == Qt.DisplayRole:
-            return self.data[index.row()][index.column()]
+            return self.my_data[index.row()][index.column()]
 
     def headerData(self, col, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
@@ -209,9 +209,9 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
 
     def sort(self, col, order):
         self.layoutAboutToBeChanged.emit()
-        self.data = sorted(self.data, key=operator.itemgetter(col))
+        self.my_data = sorted(self.my_data, key=operator.itemgetter(col))
         if order == Qt.DescendingOrder:
-            self.data.reverse()
+            self.my_data.reverse()
         self.layoutChanged.emit()
 
     def flags(self, index):

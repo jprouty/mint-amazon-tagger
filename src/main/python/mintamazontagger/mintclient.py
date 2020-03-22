@@ -177,6 +177,13 @@ class MintClient():
                 # The first id is always the original transaction (now
                 # parent transaction id).
                 new_trans_ids = json_resp['txnId'][1:]
+                # REMOVE/DEBUG ONLY
+                if not len(new_trans_ids) == len(new_trans):
+                    from pprint import pprint
+                    print(response.status_code)
+                    pprint(new_trans)
+                    pprint(json_resp['txnId'][1:])
+                    pprint(response)
                 assert len(new_trans_ids) == len(new_trans)
                 for itemized_id, trans in zip(new_trans_ids, new_trans):
                     # Now send the note for each itemized transaction.
