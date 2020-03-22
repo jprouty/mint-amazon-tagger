@@ -255,7 +255,10 @@ class TaggerGui:
         for attr_name in ('orders_csv', 'items_csv', 'refunds_csv'):
             file = getattr(self.args, attr_name)
             if file:
-                setattr(self.args, attr_name, open(file.name, 'r', encoding='utf-8'))
+                setattr(
+                    self.args,
+                    attr_name,
+                    open(file.name, 'r', encoding='utf-8'))
 
     def on_start_button_clicked(self):
         self.start_button.setEnabled(False)
@@ -363,7 +366,10 @@ class TaggerGui:
                 prev_file = getattr(self.args, name)
                 if prev_file:
                     prev_file.close()
-                setattr(self.args, name, open(selection[0], 'r', encoding='utf-8'))
+                setattr(
+                    self.args,
+                    name,
+                    open(selection[0], 'r', encoding='utf-8'))
                 file_button.setText(os.path.split(selection[0])[1])
 
         file_button.clicked.connect(on_button)
