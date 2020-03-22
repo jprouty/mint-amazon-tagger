@@ -50,8 +50,7 @@ def fetch_order_history(report_download_path, start_date, end_date,
     report_paths = [os.path.join(report_download_path, name + '.csv')
                     for name in report_names]
 
-    if not os.path.exists(report_download_path):
-        os.makedirs(report_download_path)
+    os.makedirs(report_download_path, exist_ok=True)
 
     # Be lazy with getting the driver, as if no fetching is needed, then it's
     # all good.

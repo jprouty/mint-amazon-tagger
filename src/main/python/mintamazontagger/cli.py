@@ -41,7 +41,7 @@ def main():
     # mindful of what exceptions might be thrown).
     home = os.path.expanduser("~")
     log_directory = os.path.join(home, 'Tagger Logs')
-    os.makedirs(log_directory)
+    os.makedirs(log_directory, exist_ok=True)
     log_filename = os.path.join(log_directory, '{}.log'.format(
         time.strftime("%Y-%m-%d_%H-%M-%S")))
     root_logger.addHandler(logging.FileHandler(log_filename))
