@@ -102,6 +102,10 @@ def get_mint_updates(
     # appropriate order.
     items = [si for i in items for si in i.split_by_quantity()]
 
+    order_item_to_unspsc = dict(
+        ((i.order_i.title, i.order_id), i.unspsc_code)
+        for i in items)
+
     itemProgress = progress_factory(
         'Matching Amazon Items with Orders',
         len(items))
@@ -218,9 +222,16 @@ def get_mint_updates(
             if args.description_return_prefix_override:
                 prefix = args.description_return_prefix_override
 
-            new_transactions = [
-                r.to_mint_transaction(t)
-                for r in refunds]
+            new_transactions = []
+            for r in refunds:
+                new_tran = r.to_mint_transaction(t)
+                new_transactions.append(new_tran)
+
+                # Attempt to find the category from the original purchase.
+                unspsc = order_item_to_unspsc.get((r.title, r.order_id), None)
+                if unspsc:
+                    new_tran.category = category.get_mint_category_from_unspsc(
+                        unspsc)
 
         assert micro_usd_nearly_equal(
             t.amount,

@@ -37,6 +37,11 @@ next run will wipe everything out. However, if you _DO_ want to re-tag
 previously tagged transactions, take a look at --retag_changed and
 --prompt_retag arguments.
 
+Some things the tagger cannot do:
+
+- Amazon credit card award points are not reported anywhere in the order/item reports.
+- Amazon gift cards are not yet supported (see #59)
+
 ## Getting started ##
 
 ### Via Installer ###
