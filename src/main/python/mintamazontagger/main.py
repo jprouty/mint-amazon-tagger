@@ -472,12 +472,13 @@ class TaggerDialog(QDialog):
         def resize():
             self.updates_table.resizeColumnsToContents()
             self.updates_table.resizeRowsToContents()
+            min_width = sum(self.updates_table.columnWidth(i) for i in range(6))
+            self.updates_table.setMinimumSize(min_width + 20, 600)
 
         self.updates_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.updates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.updates_table.setModel(self.updates_table_model)
         self.updates_table.setSortingEnabled(True)
-        self.updates_table.setMinimumSize(700, 600)
         resize()
         self.updates_table_model.layoutChanged.connect(resize)
 
