@@ -1,3 +1,4 @@
+import atexit
 import getpass
 import io
 import logging
@@ -72,6 +73,12 @@ def fetch_order_history(report_download_path, start_date, end_date,
                                      session_path=session_path)
             login_progress.finish()
 
+            def close_webdriver():
+                if driver:
+                    driver.close()
+
+            atexit.register(close_webdriver)
+
         request_progress = progress_factory(
             'Requesting {} report '.format(report_shortname), 0)
         request_report(driver, report_name, report_type, start_date, end_date)
@@ -99,6 +106,7 @@ def fetch_order_history(report_download_path, start_date, end_date,
         closer = progress_factory(
             'Done with the Chrome window for Amazon. Closing', 0)
         driver.close()
+        driver = None
         closer.finish()
 
     return (
@@ -175,7 +183,7 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
 
     logger.info('Logging into Amazon.com')
 
-    driver = Chrome(chrome_options=chrome_options,
+    driver = Chrome(options=chrome_options,
                     executable_path=executable_path)
 
     driver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
