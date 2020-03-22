@@ -509,6 +509,8 @@ class TaggerDialog(QDialog):
         self.button_bar.addWidget(self.confirm_button)
         self.confirm_button.clicked.connect(self.on_send)
 
+        self.setGeometry(50, 50, self.width(), self.height())
+
     def on_updates_sent(self, num_sent):
         self.label.setText(
             'All done! {} newly tagged Mint transactions'.format(num_sent))

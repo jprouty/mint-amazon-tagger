@@ -130,8 +130,8 @@ class AmazonUnmatchedTableDialog(QDialog):
         self.setLayout(v_layout)
 
         label = QLabel(
-            'Below are the {} Amazon Orders/Refunds which did not match a Mint '
-            'transaction.'.format(len(unmatched_orders)))
+            'Below are the {} Amazon Orders/Refunds which did not match a '
+            'Mint transaction.'.format(len(unmatched_orders)))
         v_layout.addWidget(label)
 
         table = QTableView()
