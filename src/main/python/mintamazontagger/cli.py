@@ -9,6 +9,7 @@ import argparse
 from collections import defaultdict, Counter
 import datetime
 import logging
+import os
 import time
 
 from progress.bar import IncrementalBar
@@ -29,11 +30,22 @@ from mintamazontagger.mintclient import MintClient
 from mintamazontagger.orderhistory import fetch_order_history
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 
 def main():
+    root_logger = logging.getLogger()
+    root_logger.addHandler(logging.StreamHandler())
+    # For helping remote debugging, also log to file.
+    # Developers should be vigilant to NOT log any PII, ever (including being
+    # mindful of what exceptions might be thrown).
+    home = os.path.expanduser("~")
+    log_directory = os.path.join(home, 'Tagger Logs')
+    os.makedirs(log_directory)
+    log_filename = os.path.join(log_directory, '{}.log'.format(
+        time.strftime("%Y-%m-%d_%H-%M-%S")))
+    root_logger.addHandler(logging.FileHandler(log_filename))
+
     is_outdated, latest_version = check_outdated('mint-amazon-tagger', VERSION)
     if is_outdated:
         print('Please update your version by running:\n'

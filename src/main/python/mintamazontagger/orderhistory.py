@@ -15,7 +15,6 @@ from sys import platform as _platform
 import zipfile
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
@@ -100,7 +99,7 @@ def fetch_order_history(report_download_path, start_date, end_date,
         download_progress = progress_factory(
             'Downloading {} report '.format(report_shortname), 0)
         download_report(driver, report_name, report_path)
-        download_progress.finish(download_progress)
+        download_progress.finish()
 
     if driver:
         closer = progress_factory(

@@ -10,7 +10,6 @@
 
 from collections import defaultdict, Counter
 import itertools
-import logging
 
 import readchar
 
@@ -18,11 +17,6 @@ from mintamazontagger import amazon
 from mintamazontagger import category
 from mintamazontagger import mint
 from mintamazontagger.currency import micro_usd_nearly_equal
-
-
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
 
 
 def get_mint_category_history_for_items(trans, args):
@@ -103,7 +97,7 @@ def get_mint_updates(
     items = [si for i in items for si in i.split_by_quantity()]
 
     order_item_to_unspsc = dict(
-        ((i.order_i.title, i.order_id), i.unspsc_code)
+        ((i.title, i.order_id), i.unspsc_code)
         for i in items)
 
     itemProgress = progress_factory(
@@ -268,11 +262,11 @@ def get_mint_updates(
             if args.prompt_retag:
                 if args.num_updates > 0 and len(updates) >= args.num_updates:
                     break
-                logger.info('\nTransaction already tagged:')
+                print('\nTransaction already tagged:')
                 print_dry_run(
                     [(t, new_transactions)],
                     ignore_category=args.no_tag_categories)
-                logger.info('\nUpdate tag to proposed? [Yn] ')
+                print('\nUpdate tag to proposed? [Yn] ')
                 action = readchar.readchar()
                 if action == '':
                     exit(1)
@@ -363,27 +357,27 @@ def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):
     for orig_trans, new_trans in orig_trans_to_tagged:
         oid = orig_trans.orders[0].order_id
-        logger.info('\nFor Amazon {}: {}\nInvoice URL: {}'.format(
+        print('\nFor Amazon {}: {}\nInvoice URL: {}'.format(
             'Order' if orig_trans.is_debit else 'Refund',
             oid, amazon.get_invoice_url(oid)))
 
         if orig_trans.children:
             for i, trans in enumerate(orig_trans.children):
-                logger.info('{}{}) Current: \t{}'.format(
+                print('{}{}) Current: \t{}'.format(
                     '\n' if i == 0 else '',
                     i + 1,
                     trans.dry_run_str()))
         else:
-            logger.info('\nCurrent: \t{}'.format(
+            print('\nCurrent: \t{}'.format(
                 orig_trans.dry_run_str()))
 
         if len(new_trans) == 1:
             trans = new_trans[0]
-            logger.info('\nProposed: \t{}'.format(
+            print('\nProposed: \t{}'.format(
                 trans.dry_run_str(ignore_category)))
         else:
             for i, trans in enumerate(reversed(new_trans)):
-                logger.info('{}{}) Proposed: \t{}'.format(
+                print('{}{}) Proposed: \t{}'.format(
                     '\n' if i == 0 else '',
                     i + 1,
                     trans.dry_run_str(ignore_category)))

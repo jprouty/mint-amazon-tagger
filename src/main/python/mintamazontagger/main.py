@@ -40,7 +40,6 @@ from mintamazontagger.mintclient import MintClient
 from mintamazontagger.orderhistory import fetch_order_history
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 NEVER_SAVE_MSG = 'Email & password are *never* saved.'
@@ -558,11 +557,29 @@ class TaggerWorker(QObject):
 
     @pyqtSlot(object)
     def create_updates(self, args, parent):
+        try:
+            self.do_create_updates(args, parent)
+        except Exception as e:
+            msg = 'Internal error while creating updates: {}'.format(e)
+            self.on_error.emit(msg)
+            logger.exception(msg)
+
+    @pyqtSlot(list, object)
+    def send_updates(self, updates, args):
+        try:
+            self.do_send_updates(updates, args)
+        except Exception as e:
+            msg = 'Internal error while sending updates: {}'.format(e)
+            self.on_error.emit(msg)
+            logger.exception(msg)
+
+    def do_create_updates(self, args, parent):
         items_csv = args.items_csv
         orders_csv = args.orders_csv
         refunds_csv = args.refunds_csv
 
         start_date = None
+
         if not items_csv or not orders_csv:
             start_date = args.order_history_start_date
             end_date = args.order_history_end_date
@@ -711,8 +728,7 @@ class TaggerWorker(QObject):
         self.on_review_ready.emit(
             updates, unmatched_orders, items, orders, refunds, dict(stats))
 
-    @pyqtSlot(list, object)
-    def send_updates(self, updates, args):
+    def do_send_updates(self, updates, args):
         num_updates = self.mint_client.send_updates(
             updates,
             progress=Progress(
@@ -743,6 +759,18 @@ class Progress:
 
 
 def main():
+    root_logger = logging.getLogger()
+    root_logger.addHandler(logging.StreamHandler())
+    # For helping remote debugging, also log to file.
+    # Developers should be vigilant to NOT log any PII, ever (including being
+    # mindful of what exceptions might be thrown).
+    home = os.path.expanduser("~")
+    log_directory = os.path.join(home, 'Tagger Logs')
+    os.makedirs(log_directory)
+    log_filename = os.path.join(log_directory, '{}.log'.format(
+        time.strftime("%Y-%m-%d_%H-%M-%S")))
+    root_logger.addHandler(logging.FileHandler(log_filename))
+
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
     define_gui_args(parser)

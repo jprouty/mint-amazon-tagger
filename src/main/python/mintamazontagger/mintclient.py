@@ -7,7 +7,6 @@ from mintapi.api import Mint, MINT_ROOT_URL
 from mintamazontagger.currency import micro_usd_to_usd_float
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 
