@@ -2,7 +2,6 @@ PyQt5==5.12.2
 PyInstaller==3.4
 boto3
 fbs
-keyring
 mintapi>=1.40
 outdated
 progress
