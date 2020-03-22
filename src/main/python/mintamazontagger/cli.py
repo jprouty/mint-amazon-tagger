@@ -109,7 +109,6 @@ def main():
         else:
             tagger.print_dry_run(results.updates,
                                  ignore_category=args.no_tag_categories)
-
     else:
         num_updates = mint_client.send_updates(
             results.updates,
