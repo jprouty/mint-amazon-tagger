@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # This script takes Amazon "Order History Reports" and annotates your Mint
 # transactions based on actual items in each purchase. It can handle orders
 # that are split into multiple shipments/charges, and can even itemized each
@@ -8,15 +6,178 @@
 # First, you must generate and download your order history reports from:
 # https://www.amazon.com/gp/b2b/reports
 
-from collections import defaultdict, Counter
+from collections import defaultdict, namedtuple, Counter
+import datetime
 import itertools
-
+import logging
 import readchar
+import time
 
 from mintamazontagger import amazon
 from mintamazontagger import category
 from mintamazontagger import mint
+from mintamazontagger.progress import no_progress_factory
 from mintamazontagger.currency import micro_usd_nearly_equal
+
+from mintamazontagger.mint import (
+    get_trans_and_categories_from_pickle, dump_trans_and_categories)
+from mintamazontagger.orderhistory import fetch_order_history
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+UpdatesResult = namedtuple(
+    'UpdatesResult',
+    field_names=(
+        'success',
+        'items', 'orders', 'refunds', 'updates', 'unmatched_orders', 'stats'),
+    defaults=(
+        False,
+        None, None, None, None, None, None))
+
+
+def create_updates(
+        args,
+        mint_client,
+        on_critical,
+        indeterminate_progress_factory=no_progress_factory,
+        determinate_progress_factory=no_progress_factory,
+        counter_progress_factory=no_progress_factory):
+    items_csv = args.items_csv
+    orders_csv = args.orders_csv
+    refunds_csv = args.refunds_csv
+
+    start_date = None
+
+    if not items_csv or not orders_csv:
+        start_date = args.order_history_start_date
+        end_date = args.order_history_end_date
+        if not args.amazon_email or not args.amazon_password:
+            on_critical(
+                'Amazon email or password is empty. Please try again')
+            return UpdatesResult()
+
+        items_csv, orders_csv, refunds_csv = fetch_order_history(
+            args.report_download_location, start_date, end_date,
+            args.amazon_email, args.amazon_password,
+            args.session_path, args.headless,
+            progress_factory=indeterminate_progress_factory)
+
+    if not items_csv or not orders_csv:  # Refunds are optional
+        on_critical(
+            'Order history either not provided at or unable to fetch. '
+            'Exiting.')
+        return UpdatesResult()
+
+    try:
+        orders = amazon.Order.parse_from_csv(
+            orders_csv,
+            progress_factory=determinate_progress_factory)
+        items = amazon.Item.parse_from_csv(
+            items_csv,
+            progress_factory=determinate_progress_factory)
+        refunds = ([] if not refunds_csv
+                   else amazon.Refund.parse_from_csv(
+                       refunds_csv,
+                       progress_factory=determinate_progress_factory))
+
+    except AttributeError as e:
+        msg = (
+            'Error while parsing Amazon Order history report CSV files: '
+            '{}'.format(e))
+        logger.exception(msg)
+        on_critical(msg)
+        return UpdatesResult()
+
+    if not len(orders):
+        on_critical(
+            'The Orders report contains no data. Try '
+            'downloading again. Report used: {}'.format(
+                orders_csv))
+        return UpdatesResult()
+    if not len(items):
+        on_critical(
+            'The Items report contains no data. Try '
+            'downloading again. Report used: {}'.format(
+                items_csv))
+        return UpdatesResult()
+
+    # Initialize the stats. Explicitly initialize stats that might not be
+    # accumulated (conditionals).
+    stats = Counter(
+        adjust_itemized_tax=0,
+        already_up_to_date=0,
+        misc_charge=0,
+        new_tag=0,
+        no_retag=0,
+        retag=0,
+        user_skipped_retag=0,
+        personal_cat=0,
+    )
+
+    if not args.pickled_epoch and (
+            not args.mint_email or not args.mint_password):
+        on_critical('Missing Mint email or password. Try again')
+        return UpdatesResult()
+
+    if args.pickled_epoch:
+        pickle_progress = indeterminate_progress_factory(
+            'Un-pickling Mint transactions from epoch: {} '.format(
+                args.pickled_epoch))
+        mint_trans, mint_category_name_to_id = (
+            get_trans_and_categories_from_pickle(
+                args.pickled_epoch, args.mint_pickle_location))
+        pickle_progress.finish()
+    else:
+        # Get the date of the oldest Amazon order.
+        if not start_date:
+            start_date = min([o.order_date for o in orders])
+            if refunds:
+                start_date = min(
+                    start_date,
+                    min([o.order_date for o in refunds]))
+
+        # Double the length of transaction history to help aid in
+        # personalized category tagging overrides.
+        # TODO: Revise this logic/date range.
+        today = datetime.date.today()
+        start_date = today - (today - start_date) * 2
+
+        cat_progress = indeterminate_progress_factory(
+            'Getting Mint Categories')
+        mint_category_name_to_id = mint_client.get_categories()
+        cat_progress.finish()
+
+        trans_progress = indeterminate_progress_factory(
+            'Getting Mint Transactions')
+        mint_transactions_json = mint_client.get_transactions(
+            start_date)
+        trans_progress.finish()
+
+        parse_progress = determinate_progress_factory(
+            'Parsing Mint Transactions', len(mint_transactions_json))
+        mint_trans = mint.Transaction.parse_from_json(
+            mint_transactions_json, parse_progress)
+        parse_progress.finish()
+
+        if args.save_pickle_backup:
+            pickle_epoch = int(time.time())
+            pickle_progress = indeterminate_progress_factory(
+                'Backing up Mint to local pickl epoch: {} '.format(
+                    pickle_epoch))
+            dump_trans_and_categories(
+                mint_trans, mint_category_name_to_id, pickle_epoch,
+                args.mint_pickle_location)
+            pickle_progress.finish()
+
+    updates, unmatched_orders = get_mint_updates(
+        orders, items, refunds,
+        mint_trans,
+        args, stats,
+        mint_category_name_to_id,
+        progress_factory=determinate_progress_factory)
+    return UpdatesResult(
+        True, items, orders, refunds, updates, unmatched_orders, stats)
 
 
 def get_mint_category_history_for_items(trans, args):
@@ -67,20 +228,12 @@ def get_mint_category_history_for_items(trans, args):
     return item_to_most_common
 
 
-class NoProgress:
-    def next(self, i=1):
-        pass
-
-    def finish(self):
-        pass
-
-
 def get_mint_updates(
         orders, items, refunds,
         trans,
         args, stats,
         mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS,
-        progress_factory=lambda msg, max: NoProgress()):
+        progress_factory=no_progress_factory):
     mint_historic_category_renames = get_mint_category_history_for_items(
         trans, args)
 

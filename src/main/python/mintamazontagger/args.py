@@ -2,6 +2,8 @@ import argparse
 import datetime
 import os
 
+TAGGER_BASE_PATH = os.path.join(os.path.expanduser("~"), 'MintAmazonTagger')
+
 
 def get_name_to_help_dict(parser):
     return dict([(a.dest, a.help) for a in parser._actions])
@@ -9,7 +11,6 @@ def get_name_to_help_dict(parser):
 
 def define_common_args(parser):
     """Parseargs shared between both CLI & GUI programs."""
-    home = os.path.expanduser("~")
     # Amazon creds:
     parser.add_argument(
         '--amazon_email', default=None,
@@ -33,7 +34,8 @@ def define_common_args(parser):
         help=('The end date for fetching Amazon order history. Defaults to '
               'today. Format: YYYY-MM-DD'))
 
-    default_report_location = os.path.join(home, 'Amazon Order Reports')
+    default_report_location = os.path.join(
+        TAGGER_BASE_PATH, 'Amazon Order Reports')
     parser.add_argument(
         '--report_download_location', type=str,
         default=default_report_location,
@@ -75,7 +77,8 @@ def define_common_args(parser):
               'financial institutions.'))
 
     # Mint API options:
-    default_session_path = os.path.join(home, '.mintapi', 'session')
+    default_session_path = os.path.join(
+        TAGGER_BASE_PATH, '.mintapi', 'session')
     parser.add_argument(
         '--session-path', nargs='?',
         default=default_session_path,
@@ -200,7 +203,7 @@ def define_common_args(parser):
         help=('Do not fetch categories or transactions from Mint. Use this '
               'pickled epoch instead. If coupled with --dry_run, no '
               'connection to Mint is established.'))
-    default_pickle_path = os.path.join(home, 'Mint Backup')
+    default_pickle_path = os.path.join(TAGGER_BASE_PATH, 'Mint Backup')
     parser.add_argument(
         '--mint_pickle_location', type=str,
         default=default_pickle_path,

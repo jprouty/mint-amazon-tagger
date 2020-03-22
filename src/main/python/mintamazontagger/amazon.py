@@ -15,6 +15,7 @@ from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.currency import parse_usd_as_micro_usd
 from mintamazontagger.currency import CENT_MICRO_USD, MICRO_USD_EPS
 from mintamazontagger.mint import truncate_title
+from mintamazontagger.progress import NoProgress, no_progress_factory
 
 PRINTABLE = set(string.printable)
 
@@ -62,28 +63,37 @@ RENAME_FIELD_NAMES = {
 }
 
 
-def is_empty_csv(csv_file_obj, key='Buyer Name'):
+def num_lines_csv(csv_file):
+    return sum([1 for r in csv.DictReader(
+        open(csv_file.name, encoding='utf-8'))])
+
+
+def is_empty_csv(csv_file, num_records, key='Buyer Name'):
     # Amazon likes to put "No data found for this time period" in the first
     # row.
-    filename = csv_file_obj.name
     # Amazon appears to be giving 0 sized CSVs now!
-    if os.stat(filename).st_size == 0:
+    if os.stat(csv_file.name).st_size == 0:
         return True
-    return (sum([1 for r in csv.DictReader(
-        open(filename, encoding='utf-8'))]) <= 1 and
-            next(csv.DictReader(
-                open(filename, encoding='utf-8')))[key] is None)
+    return (num_records <= 1 and next(csv.DictReader(
+        open(csv_file.name, encoding='utf-8')))[key] is None)
 
 
-def parse_from_csv_common(cls, csv_file, progress):
-    if is_empty_csv(csv_file):
+def parse_from_csv_common(
+        cls,
+        csv_file,
+        progress_label='Parse from csv',
+        progress_factory=no_progress_factory):
+    num_records = num_lines_csv(csv_file)
+    if is_empty_csv(csv_file, num_records):
         return []
 
+    progress = progress_factory(progress_label, num_records)
     reader = csv.DictReader(csv_file)
-    iter = progress.iter(reader) if progress else reader
-    result = [cls(raw_dict) for raw_dict in iter]
-    if progress:
-        print()
+    result = []
+    for raw_dict in reader:
+        result.append(cls(raw_dict))
+        progress.next()
+    progress.finish()
     return result
 
 
@@ -128,7 +138,8 @@ def get_invoice_url(order_id):
         'orderID={oid}'.format(oid=order_id))
 
 
-def associate_items_with_orders(all_orders, all_items, itemProgress=None):
+def associate_items_with_orders(
+        all_orders, all_items, item_progress=NoProgress()):
     items_by_oid = defaultdict(list)
     for i in all_items:
         items_by_oid[i.order_id].append(i)
@@ -148,8 +159,7 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
 
         if len(orders) == 1:
             orders[0].set_items(oid_items, assert_unmatched=True)
-            if itemProgress:
-                itemProgress.next(len(oid_items))
+            item_progress.next(len(oid_items))
             continue
 
         # First try to divy up the items by tracking.
@@ -167,8 +177,7 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
                     order.subtotal):
                 # A perfect fit.
                 order.set_items(items, assert_unmatched=True)
-                if itemProgress:
-                    itemProgress.next(len(items))
+                item_progress.next(len(items))
                 # Remove the selected items.
                 oid_items = [i for i in oid_items if i not in items]
         # Remove orders that have items.
@@ -199,9 +208,9 @@ def associate_items_with_orders(all_orders, all_items, itemProgress=None):
                     items = subtotals_with_groupings[idx][1]
                     order.set_items(items,
                                     assert_unmatched=True)
-                    if itemProgress:
-                        itemProgress.next(len(items))
+                    item_progress.next(len(items))
                 break
+    item_progress.finish()
 
 
 ORDER_MERGE_FIELDS = {
@@ -225,8 +234,9 @@ class Order:
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
 
     @classmethod
-    def parse_from_csv(cls, csv_file, progress=None):
-        return parse_from_csv_common(cls, csv_file, progress)
+    def parse_from_csv(cls, csv_file, progress_factory=no_progress_factory):
+        return parse_from_csv_common(
+            cls, csv_file, 'Parsing Amazon Orders', progress_factory)
 
     @staticmethod
     def sum_subtotals(orders):
@@ -452,8 +462,9 @@ class Item:
         self.__dict__['original_item_subtotal_tax'] = self.item_subtotal_tax
 
     @classmethod
-    def parse_from_csv(cls, csv_file, progress=None):
-        return parse_from_csv_common(cls, csv_file, progress)
+    def parse_from_csv(cls, csv_file, progress_factory=no_progress_factory):
+        return parse_from_csv_common(
+            cls, csv_file, 'Parsing Amazon Items', progress_factory)
 
     @staticmethod
     def sum_subtotals(items):
@@ -549,8 +560,9 @@ class Refund:
         return sum([r.total_refund_amount for r in refunds])
 
     @classmethod
-    def parse_from_csv(cls, csv_file, progress=None):
-        return parse_from_csv_common(cls, csv_file, progress)
+    def parse_from_csv(cls, csv_file, progress_factory=no_progress_factory):
+        return parse_from_csv_common(
+            cls, csv_file, 'Parsing Amazon Refunds', progress_factory)
 
     def match(self, trans):
         self.matched = True
@@ -581,6 +593,7 @@ class Refund:
                 get_invoice_url(self.order_id))
 
     def to_mint_transaction(self, t):
+        # Refunds have a positive amount.
         result = t.split(
             desc=self.get_title(88),
             category=category.DEFAULT_MINT_RETURN_CATEGORY,

@@ -5,21 +5,13 @@ import os
 
 from mintapi.api import Mint, MINT_ROOT_URL
 
+from mintamazontagger import progress
 from mintamazontagger.currency import micro_usd_to_usd_float
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
 UPDATE_TRANS_ENDPOINT = '/updateTransaction.xevent'
-
-
-class NoProgress:
-    def next(self, i=1):
-        pass
-
-    def finish(self):
-        pass
 
 
 class MintClient():
@@ -28,7 +20,7 @@ class MintClient():
             email=None, password=None,
             session_path=None, headless=False, mfa_method='sms',
             wait_for_sync=False, mfa_input_callback=None,
-            progress_factory=lambda msg, max: NoProgress()):
+            progress_factory=progress.no_progress_factory):
         self.email = email
         self.password = password
         self.session_path = session_path
@@ -152,9 +144,12 @@ class MintClient():
                     'data': '',  # Yup this is weird.
                     'token': mint_client.token,
                 }
+                all_credit = all(not trans.is_debit for trans in new_trans)
+
                 for (i, trans) in enumerate(new_trans):
                     amount = trans.amount
-                    if not trans.is_debit:
+                    # If it's a split credit, everything should be positive
+                    if all_credit and amount < 0:
                         amount = -amount
                     amount = micro_usd_to_usd_float(amount)
                     itemized_split['amount{}'.format(i)] = amount

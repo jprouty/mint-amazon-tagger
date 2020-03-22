@@ -6,28 +6,22 @@
 # transaction for maximal control over categorization.
 
 import argparse
-from collections import defaultdict, Counter
-import datetime
+from collections import defaultdict
 import logging
 import os
 import time
 
-from progress.bar import IncrementalBar
-from progress.counter import Counter as ProgressCounter
-from progress.spinner import Spinner
 from outdated import check_outdated
 
 from mintamazontagger import amazon
 from mintamazontagger import mint
 from mintamazontagger import tagger
 from mintamazontagger import VERSION
-from mintamazontagger.args import define_cli_args
-from mintamazontagger.asyncprogress import AsyncProgress
+from mintamazontagger.args import define_cli_args, TAGGER_BASE_PATH
+from mintamazontagger.progress import (
+    counter_progress_cli, determinate_progress_cli, indeterminate_progress_cli)
 from mintamazontagger.currency import micro_usd_to_usd_string
-from mintamazontagger.mint import (
-    get_trans_and_categories_from_pickle, dump_trans_and_categories)
 from mintamazontagger.mintclient import MintClient
-from mintamazontagger.orderhistory import fetch_order_history
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -39,8 +33,7 @@ def main():
     # For helping remote debugging, also log to file.
     # Developers should be vigilant to NOT log any PII, ever (including being
     # mindful of what exceptions might be thrown).
-    home = os.path.expanduser("~")
-    log_directory = os.path.join(home, 'Tagger Logs')
+    log_directory = os.path.join(TAGGER_BASE_PATH, 'Tagger Logs')
     os.makedirs(log_directory, exist_ok=True)
     log_filename = os.path.join(log_directory, '{}.log'.format(
         time.strftime("%Y-%m-%d_%H-%M-%S")))
@@ -60,135 +53,41 @@ def main():
         print('mint-amazon-tagger {}\nBy: Jeff Prouty'.format(VERSION))
         exit(0)
 
-    items_csv = args.items_csv
-    orders_csv = args.orders_csv
-    refunds_csv = args.refunds_csv
-
-    start_date = None
-    if not items_csv or not orders_csv:
-        logger.info('Missing Items/Orders History csv. Attempting to fetch '
-                    'from Amazon.com.')
-        start_date = args.order_history_start_date
-        end_date = args.order_history_end_date
-
-        items_csv, orders_csv, refunds_csv = fetch_order_history(
-            args.report_download_location, start_date, end_date,
-            args.amazon_email, args.amazon_password,
-            args.session_path, args.headless,
-            progress_factory=lambda msg, max: AsyncProgress(Spinner(msg)))
-
-    if not items_csv or not orders_csv:  # Refunds are optional
-        logger.critical('Order history either not provided at command line or '
-                        'unable to fetch. Exiting.')
-        exit(1)
-
-    orders = amazon.Order.parse_from_csv(
-        orders_csv, ProgressCounter('Parsing Orders - '))
-    items = amazon.Item.parse_from_csv(
-        items_csv, ProgressCounter('Parsing Items - '))
-    refunds = ([] if not refunds_csv
-               else amazon.Refund.parse_from_csv(
-                   refunds_csv, ProgressCounter('Parsing Refunds - ')))
-
-    if not len(orders):
-        logger.critical('The Orders report contains no data. Try '
-                        'downloading again. Report used: {}'.format(
-                            orders_csv))
-        exit(1)
-    if not len(items):
-        logger.critical('The Items report contains no data. Try '
-                        'downloading again. Report used: {}'.format(
-                            items_csv))
-        exit(1)
-    if refunds_csv and not len(refunds):
-        logger.warning('No Refunds found, despite having a Refunds '
-                       'Report given.')
+    mint_client = MintClient(
+        email=args.mint_email,
+        password=args.mint_password,
+        session_path=args.session_path,
+        headless=args.headless,
+        mfa_method=args.mint_mfa_method,
+        wait_for_sync=args.mint_wait_for_sync,
+        progress_factory=indeterminate_progress_cli)
 
     if args.dry_run:
         logger.info('\nDry Run; no modifications being sent to Mint.\n')
 
-    # Initialize the stats. Explicitly initialize stats that might not be
-    # accumulated (conditionals).
-    stats = Counter(
-        adjust_itemized_tax=0,
-        already_up_to_date=0,
-        misc_charge=0,
-        new_tag=0,
-        no_retag=0,
-        retag=0,
-        user_skipped_retag=0,
-        personal_cat=0,
-    )
+    def on_critical(msg):
+        logger.critical(msg)
+        exit(1)
 
-    mint_client = MintClient(
-            email=args.mint_email,
-            password=args.mint_password,
-            session_path=args.session_path,
-            headless=args.headless,
-            mfa_method=args.mint_mfa_method,
-            wait_for_sync=args.mint_wait_for_sync,
-            progress_factory=lambda msg, max: AsyncProgress(Spinner(msg)))
-    if args.pickled_epoch:
-        label = 'Un-pickling Mint transactions from epoch: {} '.format(
-            args.pickled_epoch)
-        asyncSpin = AsyncProgress(Spinner(label))
-        mint_trans, mint_category_name_to_id = (
-            get_trans_and_categories_from_pickle(
-                args.pickled_epoch, args.mint_pickle_location))
-        asyncSpin.finish()
-    else:
-        # Get the date of the oldest Amazon order.
-        if not start_date:
-            start_date = min([o.order_date for o in orders])
-            if refunds:
-                start_date = min(
-                    start_date,
-                    min([o.order_date for o in refunds]))
+    results = tagger.create_updates(
+        args, mint_client,
+        on_critical=on_critical,
+        indeterminate_progress_factory=indeterminate_progress_cli,
+        determinate_progress_factory=determinate_progress_cli,
+        counter_progress_factory=counter_progress_cli)
 
-        # Double the length of transaction history to help aid in
-        # personalized category tagging overrides.
-        # TODO: Revise this logic/date range.
-        today = datetime.date.today()
-        start_date = today - (today - start_date) * 2
+    if not results.success:
+        logger.critical('Uncaught error from create_updates. Exiting')
+        exit(1)
 
-        # HACK: Work around the nested progress by initializing the mint
-        # connection here.
-        mint_client.get_mintapi()
-        asyncSpin = AsyncProgress(Spinner('Fetching Categories '))
-        mint_category_name_to_id = mint_client.get_categories()
-        asyncSpin.finish()
+    log_amazon_stats(results.items, results.orders, results.refunds)
+    log_processing_stats(results.stats)
 
-        asyncSpin = AsyncProgress(Spinner('Fetching Transactions '))
-        mint_transactions_json = mint_client.get_transactions(start_date)
-        mint_trans = mint.Transaction.parse_from_json(mint_transactions_json)
-        asyncSpin.finish()
-
-        if args.save_pickle_backup:
-            pickle_epoch = int(time.time())
-            label = 'Backing up Mint to local pickle file, epoch: {} '.format(
-                pickle_epoch)
-            asyncSpin = AsyncProgress(Spinner(label))
-            dump_trans_and_categories(
-                mint_trans, mint_category_name_to_id, pickle_epoch,
-                args.mint_pickle_location)
-            asyncSpin.finish()
-
-    updates, unmatched_orders = tagger.get_mint_updates(
-        orders, items, refunds,
-        mint_trans,
-        args, stats,
-        mint_category_name_to_id,
-        progress_factory=lambda msg, max: IncrementalBar(
-            msg, max=max))
-
-    log_amazon_stats(items, orders, refunds)
-    log_processing_stats(stats)
-
-    if args.print_unmatched and unmatched_orders:
+    if args.print_unmatched and results.unmatched_orders:
         logger.warning(
             'The following were not matched to Mint transactions:\n')
         by_oid = defaultdict(list)
-        for uo in unmatched_orders:
+        for uo in results.unmatched_orders:
             by_oid[uo.order_id].append(uo)
         for unmatched_by_oid in by_oid.values():
             orders = [o for o in unmatched_by_oid if o.is_debit]
@@ -198,7 +97,7 @@ def main():
             for r in amazon.Refund.merge(refunds):
                 print_unmatched(r)
 
-    if not updates:
+    if not results.updates:
         logger.info(
             'All done; no new tags to be updated at this point in time!')
         exit(0)
@@ -208,15 +107,15 @@ def main():
         if args.skip_dry_print:
             logger.info('Dry run print results skipped!')
         else:
-            tagger.print_dry_run(updates,
+            tagger.print_dry_run(results.updates,
                                  ignore_category=args.no_tag_categories)
 
     else:
         num_updates = mint_client.send_updates(
-            updates,
-            progress=IncrementalBar(
+            results.updates,
+            progress=determinate_progress_cli(
                 'Updating Mint',
-                max=len(updates)),
+                max=len(results.updates)),
             ignore_category=args.no_tag_categories)
 
         logger.info('Sent {} updates to Mint'.format(num_updates))

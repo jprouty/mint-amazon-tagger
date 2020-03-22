@@ -9,6 +9,7 @@ from mintamazontagger import category
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.currency import parse_usd_as_micro_usd
 from mintamazontagger.currency import round_micro_usd_to_cent
+from mintamazontagger.progress import NoProgress
 
 
 def truncate_title(title, target_length, base_str=None):
@@ -139,8 +140,12 @@ class Transaction(object):
                 has_note=has_note))
 
     @classmethod
-    def parse_from_json(cls, json_dicts):
-        return [cls(raw_dict) for raw_dict in json_dicts]
+    def parse_from_json(cls, json_dicts, progress=NoProgress()):
+        result = []
+        for raw_dict in json_dicts:
+            result.append(cls(raw_dict))
+            progress.next()
+        return result
 
     @staticmethod
     def sum_amounts(trans):

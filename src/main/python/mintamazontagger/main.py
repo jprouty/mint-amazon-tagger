@@ -6,7 +6,6 @@
 # transaction for maximal control over categorization.
 
 import argparse
-from collections import Counter
 import datetime
 from functools import partial
 import logging
@@ -28,17 +27,15 @@ from PyQt5.QtWidgets import (
 from outdated import check_outdated
 
 from mintamazontagger import amazon
-from mintamazontagger import mint
 from mintamazontagger import tagger
 from mintamazontagger import VERSION
-from mintamazontagger.args import define_gui_args, get_name_to_help_dict
+from mintamazontagger.args import (
+    define_gui_args, get_name_to_help_dict, TAGGER_BASE_PATH)
 from mintamazontagger.qt import (
     MintUpdatesTableModel, AmazonUnmatchedTableDialog, AmazonStatsDialog,
     TaggerStatsDialog)
-from mintamazontagger.mint import (
-    get_trans_and_categories_from_pickle, dump_trans_and_categories)
 from mintamazontagger.mintclient import MintClient
-from mintamazontagger.orderhistory import fetch_order_history
+from mintamazontagger.progress import QtProgress
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -463,14 +460,13 @@ class TaggerDialog(QDialog):
         order_id = self.updates_table_model.data(order_id_cell, Qt.DisplayRole)
         self.open_amazon_order_id(order_id)
 
-    def on_review_ready(
-            self, updates, unmatched_orders, items, orders, refunds, stats):
+    def on_review_ready(self, results):
         self.reviewing = True
         self.progress_bar.hide()
 
         self.label.setText('Select below which updates to send to Mint.')
 
-        self.updates_table_model = MintUpdatesTableModel(updates)
+        self.updates_table_model = MintUpdatesTableModel(results.updates)
         self.updates_table = QTableView()
         self.updates_table.doubleClicked.connect(self.on_double_click)
         self.updates_table.clicked.connect(self.on_activated)
@@ -494,17 +490,20 @@ class TaggerDialog(QDialog):
         unmatched_button = QPushButton('View Unmatched Amazon orders')
         self.button_bar.addWidget(unmatched_button)
         unmatched_button.clicked.connect(
-            partial(self.on_open_unmatched, unmatched_orders))
+            partial(self.on_open_unmatched, results.unmatched_orders))
 
         amazon_stats_button = QPushButton('Amazon Stats')
         self.button_bar.addWidget(amazon_stats_button)
         amazon_stats_button.clicked.connect(
-            partial(self.on_open_amazon_stats, items, orders, refunds))
+            partial(self.on_open_amazon_stats,
+                    results.items,
+                    results.orders,
+                    results.refunds))
 
         tagger_stats_button = QPushButton('Tagger Stats')
         self.button_bar.addWidget(tagger_stats_button)
         tagger_stats_button.clicked.connect(
-            partial(self.on_open_tagger_stats, stats))
+            partial(self.on_open_tagger_stats, results.stats))
 
         self.confirm_button = QPushButton('Send to Mint')
         self.button_bar.addWidget(self.confirm_button)
@@ -569,7 +568,7 @@ class TaggerDialog(QDialog):
 class TaggerWorker(QObject):
     """This class is required to prevent locking up the main Qt thread."""
     on_error = pyqtSignal(str)
-    on_review_ready = pyqtSignal(list, list, list, list, list, dict)
+    on_review_ready = pyqtSignal(tagger.UpdatesResult)
     on_updates_sent = pyqtSignal(int)
     on_stopped = pyqtSignal()
     on_mint_mfa = pyqtSignal()
@@ -583,10 +582,10 @@ class TaggerWorker(QObject):
 
     @pyqtSlot(str)
     def mfa_code(self, code):
-        print('Got code')
-        print(code)
+        logger.info('Got code')
+        logger.info(code)
         self.mfa_code = code
-        print('Waking thread')
+        logger.info('Waking thread')
         self.mfa_condition.notify()
 
     @pyqtSlot(object)
@@ -608,90 +607,18 @@ class TaggerWorker(QObject):
             logger.exception(msg)
 
     def do_create_updates(self, args, parent):
-        items_csv = args.items_csv
-        orders_csv = args.orders_csv
-        refunds_csv = args.refunds_csv
-
-        start_date = None
-
-        if not items_csv or not orders_csv:
-            start_date = args.order_history_start_date
-            end_date = args.order_history_end_date
-            if not args.amazon_email or not args.amazon_password:
-                self.on_error.emit(
-                    'Amazon email or password is empty. '
-                    'Please try again')
-                return
-
-            items_csv, orders_csv, refunds_csv = fetch_order_history(
-                args.report_download_location, start_date, end_date,
-                args.amazon_email, args.amazon_password,
-                args.session_path, args.headless,
-                progress_factory=lambda msg, max: Progress(
-                    msg, max, self.on_progress.emit))
-
-        if not items_csv or not orders_csv:  # Refunds are optional
-            self.on_error.emit(
-                'Order history either not provided at or '
-                'unable to fetch. Exiting.')
-            return
-
-        self.on_progress.emit('Parse Amazon order history', 0, 0)
-        try:
-            orders = amazon.Order.parse_from_csv(orders_csv)
-            items = amazon.Item.parse_from_csv(items_csv)
-            refunds = ([] if not refunds_csv
-                       else amazon.Refund.parse_from_csv(refunds_csv))
-        except AttributeError as e:
-            self.on_error.emit(
-                'Error while parsing Amazon Order history report CSV files: '
-                '{}'.format(e))
-            return
-
-        if not len(orders):
-            self.on_error.emit(
-                'The Orders report contains no data. Try '
-                'downloading again. Report used: {}'.format(
-                    orders_csv))
-            return
-        if not len(items):
-            self.on_error.emit(
-                'The Items report contains no data. Try '
-                'downloading again. Report used: {}'.format(
-                    items_csv))
-            return
-
-        if self.stopping:
-            print(self.stopped)
-            self.on_stopped.emit()
-            return
-
-        # Initialize the stats. Explicitly initialize stats that might not be
-        # accumulated (conditionals).
-        stats = Counter(
-            adjust_itemized_tax=0,
-            already_up_to_date=0,
-            misc_charge=0,
-            new_tag=0,
-            no_retag=0,
-            retag=0,
-            user_skipped_retag=0,
-            personal_cat=0,
-        )
-
-        if not args.pickled_epoch and (
-                not args.mint_email or not args.mint_password):
-            self.on_error.emit('Missing Mint email or password. Try again')
-            return
-
         def on_mint_mfa(prompt):
-            print('Asking for Mint MFA')
+            logger.info('Asking for Mint MFA')
             self.on_mint_mfa.emit()
-            print('Blocking')
+            logger.info('Blocking')
             self.mfa_condition.wait()
-            print('got code!')
-            print(self.mfa_code)
+            logger.info('got code!')
+            logger.info(self.mfa_code)
             return self.mfa_code
+
+        # Factory that handles indeterminite, determinite, and counter style.
+        def progress_factory(msg, max=0):
+            return QtProgress(msg, max, self.on_progress.emit)
 
         self.mint_client = MintClient(
             email=args.mint_email,
@@ -701,71 +628,22 @@ class TaggerWorker(QObject):
             mfa_method=args.mint_mfa_method,
             wait_for_sync=args.mint_wait_for_sync,
             mfa_input_callback=on_mint_mfa,
-            progress_factory=lambda msg, max: Progress(
-                msg, max, self.on_progress.emit))
+            progress_factory=progress_factory)
 
-        if args.pickled_epoch:
-            self.on_progress.emit(
-                'Un-pickling Mint transactions from epoch: {} '.format(
-                    args.pickled_epoch), 0, 0)
-            mint_trans, mint_category_name_to_id = (
-                get_trans_and_categories_from_pickle(
-                    args.pickled_epoch, args.mint_pickle_location))
-        else:
-            # Get the date of the oldest Amazon order.
-            if not start_date:
-                start_date = min([o.order_date for o in orders])
-                if refunds:
-                    start_date = min(
-                        start_date,
-                        min([o.order_date for o in refunds]))
+        results = tagger.create_updates(
+            args, self.mint_client,
+            on_critical=self.on_error.emit,
+            indeterminate_progress_factory=progress_factory,
+            determinate_progress_factory=progress_factory,
+            counter_progress_factory=progress_factory)
 
-            # Double the length of transaction history to help aid in
-            # personalized category tagging overrides.
-            # TODO: Revise this logic/date range.
-            today = datetime.date.today()
-            start_date = today - (today - start_date) * 2
-            self.on_progress.emit('Getting Mint Categories', 0, 0)
-            mint_category_name_to_id = self.mint_client.get_categories()
-            self.on_progress.emit('Getting Mint Transactions', 0, 0)
-            mint_transactions_json = self.mint_client.get_transactions(
-                start_date)
-            mint_trans = mint.Transaction.parse_from_json(
-                mint_transactions_json)
-
-            if args.save_pickle_backup:
-                pickle_epoch = int(time.time())
-                self.on_progress.emit(
-                    'Backing up Mint to local pickle file, epoch: {} '.format(
-                        pickle_epoch), 0, 0)
-                dump_trans_and_categories(
-                    mint_trans, mint_category_name_to_id, pickle_epoch,
-                    args.mint_pickle_location)
-                logger.info(
-                    'Mint transactions saved to local pickle file, '
-                    'epoch: {} '.format(pickle_epoch))
-
-        if self.stopping:
-            self.on_stopped.emit()
-            return
-
-        self.on_progress.emit(
-            'Matching Amazon orders to Mint transactions', 0, 0)
-        updates, unmatched_orders = tagger.get_mint_updates(
-            orders, items, refunds,
-            mint_trans,
-            args, stats,
-            mint_category_name_to_id,
-            progress_factory=lambda msg, max: Progress(
-                msg, max, self.on_progress.emit))
-
-        self.on_review_ready.emit(
-            updates, unmatched_orders, items, orders, refunds, dict(stats))
+        if results.success and not self.stopping:
+            self.on_review_ready.emit(results)
 
     def do_send_updates(self, updates, args):
         num_updates = self.mint_client.send_updates(
             updates,
-            progress=Progress(
+            progress=QtProgress(
                 'Sending updates to Mint',
                 len(updates),
                 self.on_progress.emit),
@@ -775,31 +653,13 @@ class TaggerWorker(QObject):
         self.mint_client.close()
 
 
-class Progress:
-    def __init__(self, msg, max, emitter):
-        self.msg = msg
-        self.curr = 0
-        self.max = max
-        self.emitter = emitter
-
-        self.emitter(self.msg, self.max, self.curr)
-
-    def next(self, incr=1):
-        self.curr += incr
-        self.emitter(self.msg, self.max, self.curr)
-
-    def finish(self):
-        pass
-
-
 def main():
     root_logger = logging.getLogger()
     root_logger.addHandler(logging.StreamHandler())
     # For helping remote debugging, also log to file.
     # Developers should be vigilant to NOT log any PII, ever (including being
     # mindful of what exceptions might be thrown).
-    home = os.path.expanduser("~")
-    log_directory = os.path.join(home, 'Tagger Logs')
+    log_directory = os.path.join(TAGGER_BASE_PATH, 'Tagger Logs')
     os.makedirs(log_directory, exist_ok=True)
     log_filename = os.path.join(log_directory, '{}.log'.format(
         time.strftime("%Y-%m-%d_%H-%M-%S")))

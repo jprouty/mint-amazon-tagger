@@ -45,7 +45,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
             self.my_data.append([
                 update,
                 True,
-                orig_trans.date.strftime('%m/%d/%y'),
+                orig_trans.date.strftime('%Y/%m/%d'),
                 '\n'.join(descriptions),
                 '\n'.join(categories),
                 '\n'.join(amounts),

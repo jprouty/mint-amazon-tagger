@@ -14,6 +14,8 @@ from seleniumrequests import Chrome
 from sys import platform as _platform
 import zipfile
 
+from mintamazontagger import progress
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -27,18 +29,10 @@ ORDER_HISTORY_REPORT_URL = 'https://www.amazon.com/gp/b2b/reports'
 ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 
 
-class NoProgress:
-    def next(self, i=1):
-        pass
-
-    def finish(self):
-        pass
-
-
 def fetch_order_history(report_download_path, start_date, end_date,
                         email=None, password=None,
                         session_path=None, headless=False,
-                        progress_factory=lambda msg, max: NoProgress()):
+                        progress_factory=progress.no_progress_factory):
     email = get_email(email)
     name = email.split('@')[0]
 
