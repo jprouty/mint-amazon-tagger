@@ -1,6 +1,7 @@
 import atexit
 import getpass
 import logging
+import os
 
 from mintapi.api import Mint, MINT_ROOT_URL
 
@@ -65,12 +66,17 @@ class MintClient():
                     'Be sure to press ENTER after typing the 6 digit code.')
 
         login_progress = self.progress_factory('Logging into Mint', 0)
+        # The cwd when installed on a users system is typically not writable.
+        # HACK: Pass through desired download location once that's supported.
+        cwd = os.getcwd()
+        os.chdir(os.path.expanduser("~"))
         mint_client = Mint.create(email, password,
                                   mfa_method=self.mfa_method,
                                   mfa_input_callback=self.mfa_input_callback,
                                   session_path=self.session_path,
                                   headless=self.headless,
                                   wait_for_sync=self.wait_for_sync)
+        os.chdir(cwd)
         login_progress.finish()
 
         def close_mint_client():
