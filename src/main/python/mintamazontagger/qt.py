@@ -1,7 +1,8 @@
 from collections import defaultdict
 import operator
 
-from PyQt5.QtCore import Qt, QAbstractTableModel
+from PyQt5.QtCore import Qt, QAbstractTableModel, QUrl
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QAbstractItemView, QDialog, QLabel, QPushButton, QTableView, QVBoxLayout)
 
@@ -134,16 +135,20 @@ class AmazonUnmatchedTableDialog(QDialog):
         v_layout.addWidget(label)
 
         table = QTableView()
+        table.doubleClicked.connect(self.on_double_click)
+        table.clicked.connect(self.on_activated)
 
         def resize():
             table.resizeColumnsToContents()
             table.resizeRowsToContents()
+            min_width = sum(
+                table.columnWidth(i) for i in range(5))
+            table.setMinimumSize(min_width + 20, 600)
 
         table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setModel(self.model)
         table.setSortingEnabled(True)
-        table.setMinimumSize(700, 400)
         resize()
         self.model.layoutChanged.connect(resize)
 
@@ -153,14 +158,34 @@ class AmazonUnmatchedTableDialog(QDialog):
         v_layout.addWidget(close_button)
         close_button.clicked.connect(self.close)
 
+    def open_amazon_order_id(self, order_id):
+        if order_id:
+            QDesktopServices.openUrl(QUrl(
+                amazon.get_invoice_url(order_id)))
+
+    def on_activated(self, index):
+        # Only handle clicks on the order_id cell.
+        if index.column() != 3:
+            return
+        order_id = self.model.data(index, Qt.DisplayRole)
+        self.open_amazon_order_id(order_id)
+
+    def on_double_click(self, index):
+        if index.column() == 3:
+            # Ignore double clicks on the order_id cell.
+            return
+        order_id_cell = self.model.createIndex(index.row(), 3)
+        order_id = self.model.data(order_id_cell, Qt.DisplayRole)
+        self.open_amazon_order_id(order_id)
+
 
 class AmazonUnmatchedTableModel(QAbstractTableModel):
     def __init__(self, unmatched_orders, **kwargs):
         super(AmazonUnmatchedTableModel, self).__init__(**kwargs)
 
         self.header = [
-            'Proposed Mint Description',
             'Ship Date',
+            'Proposed Mint Description',
             'Amount',
             'Order ID',
         ]
@@ -184,10 +209,10 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
             '{}{}: '.format(
                 amzn_obj.website, '' if amzn_obj.is_debit else ' refund'))
         return [
-            proposed_mint_desc,
             amzn_obj.transact_date().strftime('%m/%d/%y')
             if amzn_obj.transact_date()
             else 'Never shipped!',
+            proposed_mint_desc,
             micro_usd_to_usd_string(amzn_obj.transact_amount()),
             amzn_obj.order_id,
         ]
