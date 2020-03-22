@@ -472,7 +472,8 @@ class TaggerDialog(QDialog):
         def resize():
             self.updates_table.resizeColumnsToContents()
             self.updates_table.resizeRowsToContents()
-            min_width = sum(self.updates_table.columnWidth(i) for i in range(6))
+            min_width = sum(
+                self.updates_table.columnWidth(i) for i in range(6))
             self.updates_table.setMinimumSize(min_width + 20, 600)
 
         self.updates_table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -716,7 +717,7 @@ class TaggerWorker(QObject):
             # Double the length of transaction history to help aid in
             # personalized category tagging overrides.
             # TODO: Revise this logic/date range.
-            today = datetime.date.today()
+            today = datetime.datetime.today()
             start_date = today - (today - start_date) * 2
             self.on_progress.emit('Getting Mint Categories', 0, 0)
             mint_category_name_to_id = self.mint_client.get_categories()

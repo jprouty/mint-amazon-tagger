@@ -130,7 +130,7 @@ def main():
             progress_factory=lambda msg, max: AsyncProgress(Spinner(msg)))
     if args.pickled_epoch:
         label = 'Un-pickling Mint transactions from epoch: {} '.format(
-            args.pickle_epoch)
+            args.pickled_epoch)
         asyncSpin = AsyncProgress(Spinner(label))
         mint_trans, mint_category_name_to_id = (
             get_trans_and_categories_from_pickle(
@@ -148,9 +148,12 @@ def main():
         # Double the length of transaction history to help aid in
         # personalized category tagging overrides.
         # TODO: Revise this logic/date range.
-        today = datetime.date.today()
+        today = datetime.datetime.today()
         start_date = today - (today - start_date) * 2
 
+        # HACK: Work around the nested progress by initializing the mint
+        # connection here.
+        mint_client.get_mintapi()
         asyncSpin = AsyncProgress(Spinner('Fetching Categories '))
         mint_category_name_to_id = mint_client.get_categories()
         asyncSpin.finish()

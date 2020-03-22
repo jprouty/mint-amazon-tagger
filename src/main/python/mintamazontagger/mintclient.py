@@ -148,6 +148,8 @@ class MintClient():
                 }
                 for (i, trans) in enumerate(new_trans):
                     amount = trans.amount
+                    if not trans.is_debit:
+                        amount = -amount
                     amount = micro_usd_to_usd_float(amount)
                     itemized_split['amount{}'.format(i)] = amount
                     # Yup. Weird:
@@ -178,7 +180,9 @@ class MintClient():
                 # parent transaction id).
                 new_trans_ids = json_resp['txnId'][1:]
                 # REMOVE/DEBUG ONLY
-                if not len(new_trans_ids) == len(new_trans):
+                if len(new_trans_ids) != len(new_trans):
+                    print(len(new_trans_ids))
+                    print(len(new_trans))
                     from pprint import pprint
                     print(response.status_code)
                     pprint(new_trans)

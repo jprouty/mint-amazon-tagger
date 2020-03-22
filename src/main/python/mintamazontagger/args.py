@@ -85,6 +85,7 @@ def define_common_args(parser):
     parser.add_argument(
         '--headless',
         action='store_true',
+        default=False,
         help='Whether to execute chromedriver with no visible window.')
 
     # Prefix customization:
