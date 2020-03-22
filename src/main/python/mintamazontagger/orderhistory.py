@@ -148,8 +148,9 @@ CHROME_ZIP_TYPES = {
 
 
 def get_amzn_driver(email, password, headless=False, session_path=None):
+    home = os.path.expanduser("~")
     zip_type = ""
-    executable_path = os.path.join(os.getcwd(), 'chromedriver')
+    executable_path = os.path.join(home, 'chromedriver')
     if _platform in ['win32', 'win64']:
         executable_path += '.exe'
 
@@ -166,7 +167,7 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
                     zip_file_url, request.status_code))
 
         zip_file = zipfile.ZipFile(io.BytesIO(request.content))
-        zip_file.extractall()
+        zip_file.extractall(path=home)
         os.chmod(executable_path, 0o755)
 
     chrome_options = ChromeOptions()
