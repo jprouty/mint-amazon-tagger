@@ -15,7 +15,7 @@ from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.currency import parse_usd_as_micro_usd
 from mintamazontagger.currency import CENT_MICRO_USD, MICRO_USD_EPS
 from mintamazontagger.mint import truncate_title
-from mintamazontagger.progress import NoProgress, no_progress_factory
+from mintamazontagger.my_progress import NoProgress, no_progress_factory
 
 PRINTABLE = set(string.printable)
 

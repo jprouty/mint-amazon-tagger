@@ -16,7 +16,7 @@ import time
 from mintamazontagger import amazon
 from mintamazontagger import category
 from mintamazontagger import mint
-from mintamazontagger.progress import no_progress_factory
+from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.currency import micro_usd_nearly_equal
 
 from mintamazontagger.mint import (

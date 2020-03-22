@@ -18,7 +18,7 @@ from mintamazontagger import mint
 from mintamazontagger import tagger
 from mintamazontagger import VERSION
 from mintamazontagger.args import define_cli_args, TAGGER_BASE_PATH
-from mintamazontagger.progress import (
+from mintamazontagger.my_progress import (
     counter_progress_cli, determinate_progress_cli, indeterminate_progress_cli)
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.mintclient import MintClient

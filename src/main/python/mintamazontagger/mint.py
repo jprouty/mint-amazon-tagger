@@ -9,7 +9,7 @@ from mintamazontagger import category
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.currency import parse_usd_as_micro_usd
 from mintamazontagger.currency import round_micro_usd_to_cent
-from mintamazontagger.progress import NoProgress
+from mintamazontagger.my_progress import NoProgress
 
 
 def truncate_title(title, target_length, base_str=None):

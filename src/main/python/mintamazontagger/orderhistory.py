@@ -14,7 +14,7 @@ from seleniumrequests import Chrome
 from sys import platform as _platform
 import zipfile
 
-from mintamazontagger import progress
+from mintamazontagger.my_progress import no_progress_factory
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -32,7 +32,7 @@ ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 def fetch_order_history(report_download_path, start_date, end_date,
                         email=None, password=None,
                         session_path=None, headless=False,
-                        progress_factory=progress.no_progress_factory):
+                        progress_factory=no_progress_factory):
     email = get_email(email)
     name = email.split('@')[0]
 

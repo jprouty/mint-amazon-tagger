@@ -35,7 +35,7 @@ from mintamazontagger.qt import (
     MintUpdatesTableModel, AmazonUnmatchedTableDialog, AmazonStatsDialog,
     TaggerStatsDialog)
 from mintamazontagger.mintclient import MintClient
-from mintamazontagger.progress import QtProgress
+from mintamazontagger.my_progress import QtProgress
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
