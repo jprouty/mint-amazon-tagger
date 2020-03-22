@@ -22,13 +22,13 @@ def define_common_args(parser):
 
     parser.add_argument(
         '--order_history_start_date',
-        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'),
+        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d').date(),
         default=datetime.date.today() - datetime.timedelta(days=90),
         help=('The start date for fetching Amazon order history. Defaults to '
               '90 days ago from today. Format: YYYY-MM-DD'))
     parser.add_argument(
         '--order_history_end_date',
-        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'),
+        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d').date(),
         default=datetime.date.today(),
         help=('The end date for fetching Amazon order history. Defaults to '
               'today. Format: YYYY-MM-DD'))

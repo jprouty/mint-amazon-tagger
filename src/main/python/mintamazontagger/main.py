@@ -609,8 +609,8 @@ class TaggerWorker(QObject):
         start_date = None
 
         if not items_csv or not orders_csv:
-            start_date = args.order_history_start_date.date()
-            end_date = args.order_history_end_date.date()
+            start_date = args.order_history_start_date
+            end_date = args.order_history_end_date
             if not args.amazon_email or not args.amazon_password:
                 self.on_error.emit(
                     'Amazon email or password is empty. '

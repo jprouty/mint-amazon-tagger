@@ -68,8 +68,8 @@ def main():
     if not items_csv or not orders_csv:
         logger.info('Missing Items/Orders History csv. Attempting to fetch '
                     'from Amazon.com.')
-        start_date = args.order_history_start_date.date()
-        end_date = args.order_history_end_date.date()
+        start_date = args.order_history_start_date
+        end_date = args.order_history_end_date
 
         items_csv, orders_csv, refunds_csv = fetch_order_history(
             args.report_download_location, start_date, end_date,
