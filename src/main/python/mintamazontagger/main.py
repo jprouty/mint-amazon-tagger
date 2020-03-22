@@ -246,14 +246,22 @@ class TaggerGui:
     def on_quit(self):
         pass
 
+    def on_tagger_dialog_closed(self):
+        self.start_button.setEnabled(True)
+        # Reset any csv file handles, as there might have been an error and
+        # they user may try again (could already be consumed/closed).
+        for attr_name in ('orders_csv', 'items_csv', 'refunds_csv'):
+            file = getattr(self.args, attr_name)
+            if file:
+                setattr(self.args, attr_name, open(file.name, 'r'))
+
     def on_start_button_clicked(self):
         self.start_button.setEnabled(False)
         self.tagger = TaggerDialog(
             args=self.args,
             parent=self.window)
         self.tagger.show()
-        self.tagger.finished.connect(
-            lambda x: self.start_button.setEnabled(True))
+        self.tagger.finished.connect(self.on_tagger_dialog_closed)
 
     def clear_layout(self, layout):
         if layout:
@@ -620,7 +628,8 @@ class TaggerWorker(QObject):
             personal_cat=0,
         )
 
-        if not args.mint_email or not args.mint_password:
+        if not args.pickled_epoch and (
+                not args.mint_email or not args.mint_password):
             self.on_error.emit('Missing Mint email or password. Try again')
             return
 

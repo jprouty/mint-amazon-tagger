@@ -89,6 +89,8 @@ UNSPSC_TO_MINT_CATEGORY = RangeKeyDict({
 
 def get_mint_category_from_unspsc(unspsc_code):
     """Traverses the UNSPSC tree to find a Mint category for unspsc_code."""
+    if not unspsc_code:
+        return DEFAULT_MINT_CATEGORY
     if type(unspsc_code) != int:
         unspsc_code = int(unspsc_code)
 
