@@ -15,7 +15,7 @@ fbs clean
 echo "Open the app: verify it works"
 fbs run
 
-echo "Now make and upload the release"
+echo "Now freeze the app"
 fbs freeze
 
 echo "Now verify the built version works"
@@ -27,5 +27,7 @@ fi
 
 fbs installer
 fbs upload
+
+deactivate
 
 rm -rf release_venv
