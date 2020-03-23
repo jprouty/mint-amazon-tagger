@@ -1,13 +1,11 @@
 #!/bin/bash
 
-# exit when any command fails
-set -e
-
 echo "Setup the venv"
-python3 -m venv release_venv
-source release_venv/bin/activate
+python -m venv release_venv
+release_venv\Scripts\activate.ps1
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt
+pip install --upgrade -r requirements/windows.txt
 
 echo "Clean it"
 fbs clean
@@ -19,11 +17,7 @@ echo "Now make and upload the release"
 fbs freeze
 
 echo "Now verify the built version works"
-if [[ "$OSTYPE" == "linux-gnu" ]]; then
-    target/MintAmazonTagger/MintAmazonTagger
-else
-    target/MintAmazonTagger.app/Contents/MacOS/MintAmazonTagger
-fi
+target/MintAmazonTagger.app/Contents/MacOS/MintAmazonTagger
 
 fbs installer
 fbs upload
