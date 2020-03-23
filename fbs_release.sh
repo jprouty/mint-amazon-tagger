@@ -19,7 +19,14 @@ echo "Now make and upload the release"
 fbs freeze
 
 echo "Now verify the built version works"
-target/MintAmazonTagger.app/Contents/MacOS/MintAmazonTagger
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    target/MintAmazonTagger/MintAmazonTagger
+else
+    target/MintAmazonTagger.app/Contents/MacOS/MintAmazonTagger
+fi
 
 fbs installer
 fbs upload
+
+exit
+rm -rf release_venv
