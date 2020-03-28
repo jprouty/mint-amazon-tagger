@@ -21,11 +21,41 @@ fbs freeze
 echo "Now verify the built version works"
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
     target/MintAmazonTagger/MintAmazonTagger
-else
+
+    echo "Creating installer"
+    fbs installer
+elif [[ "$OSTYPE" == darwin* ]]; then
     target/MintAmazonTagger.app/Contents/MacOS/MintAmazonTagger
+
+    echo "Signing the app"
+    APP_IDENTITY="Developer ID Application: Jeff Prouty (NRC455QXS5)"
+    EMAIL="jeff.prouty@gmail.com"
+
+    codesign --verify --verbose --force --deep --sign "${APP_IDENTITY}" --entitlements entitlements.plist --options=runtime target/MintAmazonTagger.app
+
+    echo "Creating installer"
+    fbs installer
+
+    echo "Signing installer"
+    codesign --verify --verbose --force --deep --sign "${APP_IDENTITY}" --entitlements entitlements.plist --options=runtime target/MintAmazonTagger.dmg
+
+    echo "Creating an Apple notary request"
+    xcrun altool --notarize-app \
+        --primary-bundle-id "com.jeffprouty.mintamazontagger" \
+        --username "${EMAIL}" \
+        --password "@keychain:AC_PASSWORD" \
+        --file target/MintAmazonTagger.dmg
+
+    echo "Check notary status later via: "
+    echo "xcrun altool --notarization-history 0 -u \"${EMAIL}\" -p \"@keychain:AC_PASSWORD\""
+    echo "  AND"
+    echo "xcrun altool --notarization-info <REQUEST_ID> -u \"${EMAIL}\""
+    echo
+    echo "Once successful, staple and re-upload:"
+    echo "xcrun stapler staple \"target/MintAmazonTagger.dmg\" && fbs upload"
 fi
 
-fbs installer
+echo "Uploading installer"
 fbs upload
 
 deactivate
