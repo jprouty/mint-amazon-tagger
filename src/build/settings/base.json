@@ -4,5 +4,6 @@
     "main_module": "src/main/python/mintamazontagger/main.py",
     "version": "1.0.6",
     "gpg_key": "CB1608BF9A09BE99908045E6E93C791A0BFE386F",
-    "gpg_name": "Jeff Prouty"
+    "gpg_name": "Jeff Prouty",
+    "url": "https://github.com/jprouty/mint-amazon-tagger"
 }

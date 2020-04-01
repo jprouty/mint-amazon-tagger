@@ -21,8 +21,17 @@ fbs freeze
 echo "Now verify the built version works"
 target\MintAmazonTagger\MintAmazonTagger.exe
 
+echo "Signing the app"
+fbs sign
+
+echo "Building the installer"
 fbs installer
+
+echo "Signing the installer"
+fbs sign_installer
+
+echo "Uploading"
 fbs upload
 
-# deactive 
+# deactive
 # rm -rf release_venv
