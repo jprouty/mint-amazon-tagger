@@ -1,12 +1,13 @@
 # Application specific:
 Mint *.pickle
+Mint Backup
 Orders.csv
 Items.csv
 Refunds.csv
 Returns.csv
 AMZN Reports
 chromedriver*
-tagger-release/*
+tagger-release
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -18,9 +19,10 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+build
 .Python
 env/
-src/build/settings/secret.json
+secret.json
 src/sign
 cache/
 develop-eggs/

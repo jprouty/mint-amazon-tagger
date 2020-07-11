@@ -1,6 +1,9 @@
 import os
 import setuptools
-from src.main.python.mintamazontagger import VERSION
+from outdated import check_outdated
+from mintamazontagger import VERSION
+from distutils.errors import DistutilsError
+
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -17,10 +20,28 @@ class CleanCommand(setuptools.Command):
         pass
 
     def run(self):
-        os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info')
+        os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info '
+                  './tagger-release ./target ./release_venv')
 
 
-PY_SRC_PATH = "src/main/python"
+class BlockReleaseCommand(setuptools.Command):
+    """Raises an error if VERSION is already present on PyPI."""
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        try:
+            stale, latest = check_outdated('mint-amazon-tagger', VERSION)
+            raise DistutilsError(
+                'Please update VERSION in __init__. '
+                'Current {} PyPI latest {}'.format(VERSION, latest))
+        except ValueError:
+            pass
 
 
 setuptools.setup(
@@ -34,8 +55,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/jprouty/mint-amazon-tagger",
-    package_dir={"": PY_SRC_PATH},
-    packages=setuptools.find_packages(where=PY_SRC_PATH),
+    packages=setuptools.find_packages(),
     python_requires='>=3',
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -46,7 +66,7 @@ setuptools.setup(
     # Note: this is a subset of the fbs requirements; only what's needed to
     # directly launch the gui or cli from python.
     install_requires=[
-        'PyQt5==5.12.2',
+        'PyQt5',
         'mock',
         'mintapi>=1.43',
         'outdated',
@@ -65,5 +85,6 @@ setuptools.setup(
     ),
     cmdclass={
         'clean': CleanCommand,
+        'block_on_version': BlockReleaseCommand,
     },
 )

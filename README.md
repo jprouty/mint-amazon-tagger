@@ -1,5 +1,7 @@
 # Mint Transactions Tagger for Amazon Purchases
 
+## Overview ##
+
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
 w/ category "Shopping"? Then this tool is for you!
 
@@ -42,32 +44,15 @@ Some things the tagger cannot do:
 - Amazon credit card award points are not reported anywhere in the order/item reports.
 - Amazon gift cards are not yet supported (see #59)
 
-## Getting started ##
+## Install and Getting started ##
 
-### Via Installer ###
+### EASIEST - Pre-built binaries ###
 
-#### Windows ####
+Please download the latest version from [github's releases page](https://github.com/jprouty/mint-amazon-tagger/releases)
 
-Download and [install from here](
-https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTaggerSetup.exe).
+### ADVANCED - Run from python source ###
 
-#### Mac ####
-
-Download and [install from here](
-https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTagger.dmg).
-
-#### Ubuntu/Debian ####
-
-[Download and install the deb](https://fbs.sh/jeffprouty/MintAmazonTagger/MintAmazonTagger.deb). Or add the repo:
-```
-sudo apt-get install apt-transport-https
-wget -qO - https://fbs.sh/jeffprouty/MintAmazonTagger/public-key.gpg | sudo apt-key add -
-echo 'deb [arch=amd64] https://fbs.sh/jeffprouty/MintAmazonTagger/deb stable main' | sudo tee /etc/apt/sources.list.d/mintamazontagger.list
-sudo apt-get update
-sudo apt-get install mintamazontagger
-```
-
-### Setup ###
+#### Setup ####
 
 1. `pip3 install mint-amazon-tagger`
 
@@ -86,7 +71,7 @@ brew cask install chromedriver
 sudo apt-get install chromium-chromedriver
 ```
 
-### Running - Full Auto GUI ###
+#### Running - Full Auto GUI ####
 
 This mode will fetch your Amazon Order History for you as well as tag mint.
 
@@ -94,13 +79,13 @@ This mode will fetch your Amazon Order History for you as well as tag mint.
 
 1. Plug in all your info into the app!
 
-### Running - Full Auto CLI ###
+#### Running - Full Auto CLI ####
 
 This mode will fetch your Amazon Order History for you as well as tag mint.
 
 1. `mint-amazon-tagger-cli --amazon_email email@cool.com --mint_email couldbedifferent@aol.com`
 
-### Running - Semi-Auto ###
+#### Running - Semi-Auto ####
 
 This mode requires you to fetch your Amazon Order History manually, then the
 tagger automates the rest.

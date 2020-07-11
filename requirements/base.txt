@@ -1,7 +1,6 @@
-PyQt5==5.12.2
-PyInstaller==3.4
+PyQt5
+PyInstaller
 boto3
-fbs
 mintapi>=1.43
 outdated
 progress
