@@ -2,7 +2,7 @@ PyQt5==5.12.2
 PyInstaller==3.4
 boto3
 fbs
-mintapi>=1.40
+mintapi>=1.43
 outdated
 progress
 range-key-dict

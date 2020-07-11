@@ -1,9 +1,7 @@
 import atexit
 import getpass
-import io
 import logging
 import os
-import requests
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.common.by import By
@@ -11,8 +9,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from seleniumrequests import Chrome
-from sys import platform as _platform
-import zipfile
+
+from mintapi.api import get_stable_chrome_driver
 
 from mintamazontagger.my_progress import no_progress_factory
 
@@ -129,58 +127,23 @@ def get_password(password):
     return password
 
 
-CHROME_DRIVER_VERSION = 2.41
-CHROME_DRIVER_BASE_URL = ('https://chromedriver.storage.googleapis.com/'
-                          '{}/chromedriver_{}.zip')
-CHROME_ZIP_TYPES = {
-    'linux': 'linux64',
-    'linux2': 'linux64',
-    'darwin': 'mac64',
-    'win32': 'win32',
-    'win64': 'win32'
-}
-
-
 def get_amzn_driver(email, password, headless=False, session_path=None):
-    home = os.path.expanduser("~")
-    zip_type = ""
-    executable_path = os.path.join(home, 'chromedriver')
-    if _platform in ['win32', 'win64']:
-        executable_path += '.exe'
-
-    zip_type = CHROME_ZIP_TYPES.get(_platform)
-
-    if not os.path.exists(executable_path):
-        zip_file_url = CHROME_DRIVER_BASE_URL.format(
-            CHROME_DRIVER_VERSION, zip_type)
-        request = requests.get(zip_file_url)
-
-        if request.status_code != 200:
-            raise RuntimeError(
-                'Error finding chromedriver at {}, status = {}'.format(
-                    zip_file_url, request.status_code))
-
-        zip_file = zipfile.ZipFile(io.BytesIO(request.content))
-        zip_file.extractall(path=home)
-        os.chmod(executable_path, 0o755)
-
     chrome_options = ChromeOptions()
     if headless:
         chrome_options.add_argument('headless')
         chrome_options.add_argument('no-sandbox')
         chrome_options.add_argument('disable-dev-shm-usage')
         chrome_options.add_argument('disable-gpu')
-        # chrome_options.add_argument("--window-size=1920x1080")
     if session_path is not None:
         chrome_options.add_argument("user-data-dir=" + session_path)
 
     logger.info('Logging into Amazon.com')
 
     driver = Chrome(options=chrome_options,
-                    executable_path=executable_path)
+                    executable_path=get_stable_chrome_driver(
+                        os.getcwd()))
 
     driver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
-
     driver.implicitly_wait(2)
 
     def get_element_by_id(driver, id):
