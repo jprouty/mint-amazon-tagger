@@ -92,13 +92,16 @@ class TaggerGui:
             self.create_amazon_import_layout()
             if has_csv else self.create_amazon_fetch_layout())
         amazon_mode.setCurrentIndex(1 if has_csv else 0)
+        self.fetch_amazon = not has_csv
 
         def on_amazon_mode_changed(i):
             self.clear_layout(self.amazon_mode_layout)
             if i == 0:
                 self.amazon_mode_layout = self.create_amazon_fetch_layout()
+                self.fetch_amazon = True
             elif i == 1:
                 self.amazon_mode_layout = self.create_amazon_import_layout()
+                self.fetch_amazon = False
             amazon_layout.addLayout(self.amazon_mode_layout)
         amazon_mode.currentIndexChanged.connect(
             on_amazon_mode_changed)
@@ -259,8 +262,16 @@ class TaggerGui:
 
     def on_start_button_clicked(self):
         self.start_button.setEnabled(False)
+        # If the fetch tab is selected for Amazon order history, clear out any
+        # provided csv file paths, so the tagger actually fetches (versus using
+        # the given paths).
+        args = argparse.Namespace(**vars(self.args))
+        if self.fetch_amazon:
+            for attr_name in ('orders_csv', 'items_csv', 'refunds_csv'):
+                setattr(args, attr_name, None)
+
         self.tagger = TaggerDialog(
-            args=self.args,
+            args=args,
             parent=self.window)
         self.tagger.show()
         self.tagger.finished.connect(self.on_tagger_dialog_closed)
