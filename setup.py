@@ -30,10 +30,7 @@ class CleanCommand(setuptools.Command):
             'cache',
         ]
         for tree in dirs:
-            try:
-                shutil.rmtree(tree)
-            except:
-                pass
+            shutil.rmtree(tree, ignore_errors=True)
         import os
         from glob import glob
         globs = ('**/*.pyc', '**/*.tgz', '**/*.egg-info')
