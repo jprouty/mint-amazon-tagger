@@ -23,7 +23,7 @@ build
 .Python
 env/
 secret.json
-src/sign
+/sign
 cache/
 develop-eggs/
 dist/

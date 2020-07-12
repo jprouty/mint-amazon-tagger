@@ -20,8 +20,29 @@ class CleanCommand(setuptools.Command):
         pass
 
     def run(self):
-        os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info '
-                  './tagger-release ./target ./release_venv')
+        import shutil
+        dirs = [
+            'build',
+            'dist',
+            'tagger-release',
+            'target',
+            'release_venv',
+            'cache',
+        ]
+        for tree in dirs:
+            try:
+                shutil.rmtree(tree)
+            except:
+                pass
+        import os
+        from glob import glob
+        globs = ('**/*.pyc', '**/*.tgz', '**/*.egg-info')
+        for g in globs:
+            for file in glob(g, recursive=True):
+                try:
+                    os.remove(file)
+                except OSError:
+                    print("Error while deleting file: {}".format(file))
 
 
 class BlockReleaseCommand(setuptools.Command):

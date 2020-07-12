@@ -12,10 +12,12 @@
 # exit when any command fails
 set -e
 
+cd "$(dirname "$0")/.."
+
 echo "Clean everything"
 python3 setup.py clean
 
-echo "Setup the venv"
+echo "Setup the release venv"
 python -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
@@ -27,7 +29,7 @@ pyinstaller \
   --name="MintAmazonTagger" \
   --windowed \
   --onefile \
-  src/main/python/mintamazontagger/main.py
+  mintamazontagger/main.py
 
 deactivate
 rm -rf release_venv

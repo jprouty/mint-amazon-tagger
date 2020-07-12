@@ -3,6 +3,8 @@
 # exit when any command fails
 set -e
 
+cd "$(dirname "$0")/.."
+
 # "app_name": "MintAmazonTagger",
 # "author": "Jeff Prouty",
 # "main_module": "src/main/python/mintamazontagger/main.py",
@@ -17,7 +19,7 @@ set -e
 echo "Clean everything"
 python3 setup.py clean
 
-echo "Setup the venv"
+echo "Setup the release venv"
 python -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
@@ -29,7 +31,7 @@ pyinstaller \
   --windowed \
   --onefile \
   --hidden-import='pkg_resources.py2_warn' \
-  src/main/python/mintamazontagger/main.py
+  mintamazontagger/main.py
 
 deactivate
 rm -rf release_venv
