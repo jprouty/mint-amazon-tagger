@@ -27,12 +27,13 @@ class CleanCommand(setuptools.Command):
             'target',
             'release_venv',
             'cache',
+            'mint_amazon_tagger.egg-info',
         ]
         for tree in dirs:
             shutil.rmtree(tree, ignore_errors=True)
         import os
         from glob import glob
-        globs = ('**/*.pyc', '**/*.tgz', '**/*.egg-info')
+        globs = ('**/*.pyc', '**/*.tgz')
         for g in globs:
             for file in glob(g, recursive=True):
                 try:
