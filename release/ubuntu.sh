@@ -25,13 +25,15 @@ source release_venv/bin/activate
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt
 
-# https://github.com/pypa/setuptools/issues/1963
 pyinstaller \
   --name="MintAmazonTagger" \
   --windowed \
   --onefile \
-  --hidden-import='pkg_resources.py2_warn' \
+  --icon=icons/Icon.ico \
   mintamazontagger/main.py
+
+echo "Now verify the built version works"
+dist/MintAmazonTagger
 
 deactivate
 rm -rf release_venv
