@@ -20,7 +20,7 @@ echo "Clean everything"
 python3 setup.py clean
 
 echo "Setup the release venv"
-python -m venv release_venv
+python3 -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt
