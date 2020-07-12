@@ -1,4 +1,3 @@
-import os
 import setuptools
 from outdated import check_outdated
 from mintamazontagger import VERSION
