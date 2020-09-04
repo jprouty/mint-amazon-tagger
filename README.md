@@ -1,5 +1,10 @@
 # Mint Transactions Tagger for Amazon Purchases
 
+**CRITICAL UPDATE: Amazon has recently removed Order History Reports from their
+webpage. The tagger relies on this Amazon tool for processing your Amazon orders.
+Hopefully this is a temporarily removal, and Amazon will restore the report functinoality.
+Follow along on the [issue page](https://github.com/jprouty/mint-amazon-tagger/issues/67).**
+
 ## Overview ##
 
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
