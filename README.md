@@ -10,8 +10,6 @@ generation process. The latest develops are in
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
 w/ category "Shopping"? Then this tool is for you!
 
-!!!NEW!!! A GUI has been added, making this easier than ever to run. Next up, stand alone binaries that can be downloaded and run, without having to know what "python" is.
-
 This tool *does not* save your username or password. It uses a tool call Selenium to drive a clean Chromium browser, which will then use the given Mint and Amazon credentials to log in as you, and then "drive" thought all the edits for you.
 
 This tool *does not* require an Amazon store card/Visa. All you need is to pay for
