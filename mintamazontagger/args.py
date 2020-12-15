@@ -78,7 +78,7 @@ def define_common_args(parser):
 
     # Mint API options:
     default_session_path = os.path.join(
-        TAGGER_BASE_PATH, '.mintapi', 'session')
+        TAGGER_BASE_PATH, '.mintapi2020', 'session')
     parser.add_argument(
         '--session-path', nargs='?',
         default=default_session_path,

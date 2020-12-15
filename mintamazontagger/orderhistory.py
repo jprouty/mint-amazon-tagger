@@ -139,9 +139,9 @@ def get_amzn_driver(email, password, headless=False, session_path=None):
 
     logger.info('Logging into Amazon.com')
 
+    home_dir = os.path.expanduser("~")
     driver = Chrome(options=chrome_options,
-                    executable_path=get_stable_chrome_driver(
-                        os.getcwd()))
+                    executable_path=get_stable_chrome_driver(home_dir))
 
     driver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
     driver.implicitly_wait(2)
