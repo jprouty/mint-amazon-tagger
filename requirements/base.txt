@@ -9,3 +9,4 @@ requests
 readchar
 selenium
 selenium-requests
+wheel
