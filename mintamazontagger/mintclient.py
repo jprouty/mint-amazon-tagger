@@ -3,7 +3,8 @@ import getpass
 import logging
 import os
 
-from mintapi.api import Mint, MINT_ROOT_URL
+# REVERT TO mintapi once upstream change is taken.
+from mintamazontagger.api import Mint, MINT_ROOT_URL
 
 from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.currency import micro_usd_to_usd_float

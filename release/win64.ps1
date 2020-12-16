@@ -4,14 +4,13 @@ $scriptpath = $MyInvocation.MyCommand.Path
 $dir = Split-Path $scriptpath
 Push-Location $dir\..
 
-python3 setup.py clean
+python setup.py clean
 
 echo "Setup the release venv"
 python -m venv release_venv
 .\release_venv\Scripts\activate.ps1
 pip install --upgrade pip
-pip install --upgrade -r requirements/base.txt
-pip install --upgrade -r requirements/windows.txt
+pip install --upgrade -r requirements/base.txt -r requirements/windows.txt
 
 echo "Build it"
 # --icon .\icons\base\32.ico `

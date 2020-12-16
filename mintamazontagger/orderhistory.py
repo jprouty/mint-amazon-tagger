@@ -10,7 +10,8 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from seleniumrequests import Chrome
 
-from mintapi.api import get_stable_chrome_driver
+# REVERT TO mintapi once upstream change is taken.
+from mintamazontagger.api import get_stable_chrome_driver
 
 from mintamazontagger.my_progress import no_progress_factory
 

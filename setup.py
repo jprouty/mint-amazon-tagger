@@ -33,7 +33,7 @@ class CleanCommand(setuptools.Command):
             shutil.rmtree(tree, ignore_errors=True)
         import os
         from glob import glob
-        globs = ('**/*.pyc', '**/*.tgz')
+        globs = ('**/*.pyc', '**/*.tgz', '**/*.pyo')
         for g in globs:
             for file in glob(g, recursive=True):
                 try:
