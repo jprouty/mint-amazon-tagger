@@ -37,3 +37,5 @@ dist/MintAmazonTagger
 
 deactivate
 rm -rf release_venv
+
+echo "TODO: Package as a .deb"

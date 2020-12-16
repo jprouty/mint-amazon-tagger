@@ -101,9 +101,9 @@ xcrun altool --notarize-app \
     --file "${dmg_path}"
 
 echo "Check notary status later via: "
-echo "xcrun altool --notarization-history 0 -u \"${email}\" -p \"@keychain:AC_PASSWORD\""
-echo "  AND"
-echo "xcrun altool --notarization-info <REQUEST_ID> -u \"${email}\""
+echo "  xcrun altool --notarization-history 0 -u \"${email}\" -p \"@keychain:AC_PASSWORD\""
+echo "    AND"
+echo "  xcrun altool --notarization-info <REQUEST_ID> -u \"${email}\""
 echo
 echo "Once successful, staple and you're done!:"
-echo "xcrun stapler staple \"${dmg_path}\"
+echo "  xcrun stapler staple \"${dmg_path}\""
