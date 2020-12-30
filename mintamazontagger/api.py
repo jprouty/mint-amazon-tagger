@@ -180,8 +180,8 @@ CHROME_ZIP_TYPES = {
     'win64': 'win32'
 }
 version_pattern = re.compile(
-    ".*(?P<version>(?P<major>\\d+)\\.(?P<minor>\\d+)\\."
-    "(?P<build>\\d+)\\.(?P<patch>\\d+)).*")
+    "(?P<version>(?P<major>\\d+)\\.(?P<minor>\\d+)\\."
+    "(?P<build>\\d+)\\.(?P<patch>\\d+))")
 
 
 def get_chrome_driver_url(version, arch):
@@ -195,8 +195,8 @@ def get_chrome_driver_major_version_from_executable(local_executable_path):
     # To protect against this, use explicit pipes for STDIN/STDERR.
     # See: https://github.com/pyinstaller/pyinstaller/issues/3392
     with open(os.devnull, 'wb') as DEVNULL:
-        version = subprocess.check_output([local_executable_path, '--version'], shell=True, stderr=DEVNULL, stdin=DEVNULL)
-        version_match = version_pattern.match(version.decode())
+        version = subprocess.check_output([local_executable_path, '--version'], stderr=DEVNULL, stdin=DEVNULL)
+        version_match = version_pattern.search(version.decode())
         if not version_match:
             return None
         return version_match.groupdict()['major']
