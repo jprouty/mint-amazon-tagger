@@ -1,8 +1,8 @@
 # Mint Transactions Tagger for Amazon Purchases
 **UPDATE: Amazon has restored the "Order History Reports" function in December
-2020 (was taken down in Sept) but did not restore the link from "My Account"
-page. Please use the direct link below, or rely on the automatic report
-generation process. The latest develops are in
+2020 (it was taken down in Sept) but did not restore the link from "My Account"
+page. Please use the direct link in the instructions below, or rely on the
+tagger to pull your reports for you. For more background, please see
 [this issue](https://github.com/jprouty/mint-amazon-tagger/issues/67).**
 
 ## Overview ##
