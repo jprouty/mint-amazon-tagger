@@ -11,12 +11,13 @@ DEFAULT_MINT_RETURN_CATEGORY = 'Returned Purchase'
 # to the Mint category taxonomy. Nodes can be either a RangeKeyDict (meaning
 # look another level deeper during lookup), or a str, meaning this cateogory is
 # valid for this sub-tree of the UNSPSC taxonomy. For each sub-level, 00 is
-# used to denote a default category.
+# used to denote a default category (or can be '(0, 1):' as a key).
 UNSPSC_TO_MINT_CATEGORY = RangeKeyDict({
     (10, 11): RangeKeyDict({
+        (0, 1): 'Lawn & Garden',
         (10, 11): 'Pets',
         (11, 15): 'Pet Food & Supplies',
-        (15, 51): 'Lawn & Garden',
+        (16, 17): 'Arts',  # Fabric
     }),
     (13, 14): 'Home Supplies',
     (14, 15): RangeKeyDict({
@@ -25,13 +26,14 @@ UNSPSC_TO_MINT_CATEGORY = RangeKeyDict({
             (17, 18): 'Home Supplies',  # Paper products like TP, paper towels
         }),
     }),
+    (15, 16): 'Home Supplies',
     (20, 25): 'Home Supplies',
     (25, 26): 'Service & Parts',  # Auto
     (26, 27): 'Electronics & Software',  # Batteries/cables
-    (27, 28): 'Home Supplies',  # Tools
+    (27, 28): 'Home Improvement',  # Tools
     (30, 32): 'Home Improvement',  # Building mtls/plumbing/hardware/tape/glue
     (32, 33): 'Electronics & Software',  # Computers!
-    (39, 40): 'Home Improvement',  # Lights and lighting accessories/cords
+    (39, 40): 'Furnishings',  # Lights and lighting accessories/cords
     (40, 41): RangeKeyDict({  # Mostly home improvement/parts
         (0, 1): 'Home Improvement',
         (16, 17): RangeKeyDict({
@@ -42,26 +44,28 @@ UNSPSC_TO_MINT_CATEGORY = RangeKeyDict({
     }),
     (41, 42): 'Home Supplies',  # Tools and measurement equip
     (42, 43): 'Personal Care',  # Medical
-    (43, 44): 'Electronics & Software',  # Computers/networking/cables
+    (43, 44): 'Electronics & Software',  # Computers/networking/cables/gaming
     (44, 45): 'Office Supplies',
     (45, 46): 'Electronics & Software',  # Cameras and AV gear
     (46, 47): RangeKeyDict({
-        (17, 18): 'Electronics & Software',  # Security cams/etc
-        (18, 19): 'Home Supplies',  # Gloves and other personal consumables
+        (0, 1): 'Home Improvement',  # Security cams/smoke detectors/etc
+        (18, 19): 'Clothing',  # Gloves and other personal consumables
     }),
     (47, 49): 'Home Supplies',
     (49, 50): 'Sporting Goods',
-    # Personal care, but has groceries mixed up. I need more grocery examples
-    # to clean this up.
-    (50, 52): 'Personal Care',
+    # Mostly groceries. Lots of Amazon fresh groceries are simply: 50000000
+    (50, 51): 'Groceries',
+    (51, 52): 'Personal Care',
     (52, 53): RangeKeyDict({
         (0, 1): 'Home Supplies',
+        (14, 15): DEFAULT_MINT_CATEGORY,  # Random - revert to Shopping
         (16, 17): 'Electronics & Software',  # More AV/audio/speaker gear
     }),
     (53, 54): RangeKeyDict({
         (0, 1): 'Clothing',
         (13, 14): 'Personal Care',
     }),
+    (54, 55): 'Clothing',
     (55, 56): RangeKeyDict({
         (10, 11): 'Books',
         (11, 12): RangeKeyDict({
@@ -70,11 +74,13 @@ UNSPSC_TO_MINT_CATEGORY = RangeKeyDict({
                 (14, 15): 'Movies & DVDs',
             }),
         }),
+        (12, 13): 'Office Supplies',
     }),
     (56, 57): RangeKeyDict({
         (0, 1): 'Home Supplies',
         (10, 11): RangeKeyDict({
             (16, 17): 'Lawn & Garden',
+            (17, 18): 'Furnishings',
             (18, 19): 'Baby Supplies',
         }),
     }),

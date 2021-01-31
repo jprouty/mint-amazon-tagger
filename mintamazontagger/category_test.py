@@ -28,7 +28,7 @@ class CurrencyMethods(unittest.TestCase):
         self.assertEqual(
             get_mint_category_from_unspsc(30181701), 'Home Improvement')
         self.assertEqual(
-            get_mint_category_from_unspsc(39101600), 'Home Improvement')
+            get_mint_category_from_unspsc(39101600), 'Furnishings')
         self.assertEqual(
             get_mint_category_from_unspsc(40161504), 'Service & Parts')
         self.assertEqual(
@@ -43,3 +43,9 @@ class CurrencyMethods(unittest.TestCase):
             get_mint_category_from_unspsc(56101800), 'Baby Supplies')
         self.assertEqual(
             get_mint_category_from_unspsc(60141100), 'Toys')
+        self.assertEqual(
+            get_mint_category_from_unspsc(50000000), 'Groceries')
+        self.assertEqual(
+            get_mint_category_from_unspsc(50181900), 'Groceries')
+        self.assertEqual(
+            get_mint_category_from_unspsc(50192100), 'Groceries')
