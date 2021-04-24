@@ -337,21 +337,110 @@ class OrderClass(unittest.TestCase):
 
         self.assertFalse(o.attribute_itemized_diff_to_per_item_tax())
 
-    def test_attribute_itemized_diff_to_per_item_tax_itemize_due_to_tax(self):
+    def test_attribute_itemized_diff_to_per_item_tax_one_item_under(self):
         o = order(
             total_charged='$10.00',
             subtotal='$9.00',
             tax_charged='$1.00')
         i = item(
-            item_total='$9.99',
+            item_total='$9.90',
             item_subtotal='$9.00',
-            item_subtotal_tax='$0.99')
+            item_subtotal_tax='$0.90')
         o.set_items([i])
 
         self.assertTrue(o.attribute_itemized_diff_to_per_item_tax())
         self.assertEqual(i.item_total, 10000000)
         self.assertEqual(i.item_subtotal, 9000000)
         self.assertEqual(i.item_subtotal_tax, 1000000)
+
+    def test_attribute_itemized_diff_to_per_item_tax_one_item_over(self):
+        o = order(
+            total_charged='$10.00',
+            subtotal='$9.00',
+            tax_charged='$1.00')
+        i = item(
+            item_total='$10.90',
+            item_subtotal='$9.00',
+            item_subtotal_tax='$1.90')
+        o.set_items([i])
+
+        self.assertTrue(o.attribute_itemized_diff_to_per_item_tax())
+        self.assertEqual(i.item_total, 10000000)
+        self.assertEqual(i.item_subtotal, 9000000)
+        self.assertEqual(i.item_subtotal_tax, 1000000)
+
+    def test_attribute_itemized_diff_to_per_item_tax_two_items_under(self):
+        o = order(
+            total_charged='$20.00',
+            subtotal='$18.00',
+            tax_charged='$2.00')
+        # This item has no tax, so all of the diff should go to the second
+        # item.
+        i1 = item(
+            item_total='$9.00',
+            item_subtotal='$9.00',
+            item_subtotal_tax='$0.00')
+        i2 = item(
+            item_total='$9.99',
+            item_subtotal='$9.00',
+            item_subtotal_tax='$0.99')
+        o.set_items([i1, i2])
+
+        self.assertTrue(o.attribute_itemized_diff_to_per_item_tax())
+        self.assertEqual(i1.item_total, 9000000)
+        self.assertEqual(i1.item_subtotal, 9000000)
+        self.assertEqual(i1.item_subtotal_tax, 0)
+        self.assertEqual(i2.item_total, 11000000)
+        self.assertEqual(i2.item_subtotal, 9000000)
+        self.assertEqual(i2.item_subtotal_tax, 2000000)
+
+    def test_attribute_itemized_diff_to_per_item_tax_two_items_notax(self):
+        o = order(
+            total_charged='$20.00',
+            subtotal='$18.00',
+            tax_charged='$2.00')
+        # Both itemes have no tax, so all of the diff should go to the first
+        # item (the default fallback).
+        i1 = item(
+            item_total='$9.00',
+            item_subtotal='$9.00',
+            item_subtotal_tax='$0.00')
+        i2 = item(
+            item_total='$9.00',
+            item_subtotal='$9.00',
+            item_subtotal_tax='$0.00')
+        o.set_items([i1, i2])
+
+        self.assertTrue(o.attribute_itemized_diff_to_per_item_tax())
+        self.assertEqual(i1.item_total, 11000000)
+        self.assertEqual(i1.item_subtotal, 9000000)
+        self.assertEqual(i1.item_subtotal_tax, 2000000)
+        self.assertEqual(i2.item_total, 9000000)
+        self.assertEqual(i2.item_subtotal, 9000000)
+        self.assertEqual(i2.item_subtotal_tax, 0)
+
+    def test_attribute_itemized_diff_to_per_item_tax_two_items_over(self):
+        o = order(
+            total_charged='$20.00',
+            subtotal='$18.00',
+            tax_charged='$2.00')
+        i1 = item(
+            item_total='$5.50',
+            item_subtotal='$4.50',
+            item_subtotal_tax='$1.00')
+        i2 = item(
+            item_total='$15.50',
+            item_subtotal='$13.50',
+            item_subtotal_tax='$2.00')
+        o.set_items([i1, i2])
+
+        self.assertTrue(o.attribute_itemized_diff_to_per_item_tax())
+        self.assertEqual(i1.item_total, 5000000)
+        self.assertEqual(i1.item_subtotal, 4500000)
+        self.assertEqual(i1.item_subtotal_tax, 500000)
+        self.assertEqual(i2.item_total, 15000000)
+        self.assertEqual(i2.item_subtotal, 13500000)
+        self.assertEqual(i2.item_subtotal_tax, 1500000)
 
     def test_to_mint_transactions_free_shipping(self):
         orig_trans = transaction(amount='$20.00')

@@ -329,7 +329,7 @@ class Order:
             return False
 
         tax_diff = self.tax_charged - Item.sum_subtotals_tax(self.items)
-        if itemized_diff - tax_diff > MICRO_USD_EPS:
+        if abs(itemized_diff - tax_diff) > MICRO_USD_EPS:
             return False
 
         # The per-item tax was not computed correctly; the tax miscalculation
@@ -337,9 +337,7 @@ class Order:
         # and most of the time it's simply a rounding error. To keep the line
         # items adding up correctly, spread the tax difference across the
         # items.
-        tax_rate_per_item = [
-            round(i.item_subtotal_tax * 100.0 / i.item_subtotal, 1)
-            for i in self.items]
+        tax_rate_per_item = [i.tax_rate() for i in self.items]
         while abs(tax_diff) > MICRO_USD_EPS:
             if abs(tax_diff) < CENT_MICRO_USD:
                 # If the difference is under a penny, round that
@@ -347,26 +345,30 @@ class Order:
                 adjust_amount = tax_diff
                 adjust_idx = 0
             elif tax_diff > 0:
-                adjust_idx = None
+                # The order has more tax than the sum of all items.
+                # Find the lowest taxed item (by rate) and add a penny. Try to
+                # ignore items that have no tax (a rate of zero) however
+                # default to the first item if no items were taxed.
+                adjust_amount = CENT_MICRO_USD
+                adjust_idx = 0
                 min_rate = None
                 for (idx, rate) in enumerate(tax_rate_per_item):
                     if rate != 0 and (not min_rate or rate < min_rate):
                         adjust_idx = idx
                         min_rate = rate
-                adjust_amount = CENT_MICRO_USD
             else:
+                # The order has less tax than the sum of all items.
                 # Find the highest taxed item (by rate) and discount it
                 # a penny.
                 (adjust_idx, _) = max(
                     enumerate(tax_rate_per_item), key=lambda x: x[1])
                 adjust_amount = -CENT_MICRO_USD
 
-            self.items[adjust_idx].item_subtotal_tax += adjust_amount
-            self.items[adjust_idx].item_total += adjust_amount
+            adjust_item = self.items[adjust_idx]
+            adjust_item.item_subtotal_tax += adjust_amount
+            adjust_item.item_total += adjust_amount
             tax_diff -= adjust_amount
-            tax_rate_per_item[adjust_idx] = round(
-                self.items[adjust_idx].item_subtotal_tax * 100.0 /
-                self.items[adjust_idx].item_subtotal, 1)
+            tax_rate_per_item[adjust_idx] = adjust_item.tax_rate()
         return True
 
     def to_mint_transactions(self,
@@ -477,6 +479,9 @@ class Item:
     @staticmethod
     def sum_subtotals_tax(items):
         return sum([i.item_subtotal_tax for i in items])
+
+    def tax_rate(self):
+        return round(self.item_subtotal_tax * 100.0 / self.item_subtotal, 1)
 
     def get_title(self, target_length=100):
         return get_title(self, target_length)
