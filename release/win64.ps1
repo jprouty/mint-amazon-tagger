@@ -1,5 +1,3 @@
-#!/bin/bash
-
 $scriptpath = $MyInvocation.MyCommand.Path
 $dir = Split-Path $scriptpath
 Push-Location $dir\..
@@ -12,8 +10,26 @@ python -m venv release_venv
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt -r requirements/windows.txt
 
+
+echo "Install PyInstaller locally, with a locally built bootloader. This helps avoid any anti-virus conflation with other PyInstaller apps from the publicly built version."
+# See more here: https://stackoverflow.com/questions/43777106/program-made-with-pyinstaller-now-seen-as-a-trojan-horse-by-avg
+$pyinstaller = Join-Path 'C:\' $(New-Guid) | %{ mkdir $_ }
+Push-Location $pyinstaller
+
+$PyInstallerArchiveUrl = "https://github.com/pyinstaller/pyinstaller/archive/refs/tags/v4.2.zip"
+$PyInstallerLocalZip = Join-Path $pyinstaller 'PyInstaller_v4.2.zip'
+Invoke-WebRequest -OutFile $PyInstallerLocalZip $PyInstallerArchiveUrl
+$PyInstallerLocalZip | Expand-Archive -DestinationPath $pyinstaller -Force
+
+Push-Location pyinstaller-4.2
+Push-Location bootloader
+python ./waf all
+Pop-Location
+python setup.py install
+Pop-Location
+Pop-Location
+
 echo "Build it"
-# --icon .\icons\base\32.ico `
 pyinstaller `
   --name="MintAmazonTagger" `
   --onefile `
@@ -26,16 +42,11 @@ $password = Get-Content .\sign\password -Raw
 signtool sign `
   /f .\sign\certificate.pfx `
   /p $password.trim() `
+  /fd sha256 `
   /d "Mint Amazon tagger matches amazon purchases with your mint transactions, giving them useful descriptions."  `
   /du "https://github.com/jprouty/mint-amazon-tagger" `
-  .\dist\MintAmazonTagger.exe
-
-signtool sign `
-  /f .\sign\certificate.pfx `
-  /p $password.trim() `
-  /d "Mint Amazon tagger matches amazon purchases with your mint transactions, giving them useful descriptions."  `
-  /du "https://github.com/jprouty/mint-amazon-tagger" `
-  /as /fd sha256 /td sha256  `
+  /tr http://timestamp.sectigo.com `
+  /td sha256  `
   .\dist\MintAmazonTagger.exe
 
 echo "Now verify the built version works"
@@ -43,3 +54,4 @@ echo "Now verify the built version works"
 
 deactivate
 Remove-Item .\release_venv\ -recurse
+Pop-Location

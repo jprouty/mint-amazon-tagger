@@ -22,7 +22,7 @@ echo "Setup the release venv"
 python3 -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
-pip install --upgrade -r requirements/base.txt
+pip install --upgrade -r requirements/base.txt requirements/mac.txt
 
 mkdir build
 
