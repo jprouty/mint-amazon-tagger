@@ -11,7 +11,6 @@ from functools import partial
 import logging
 import os
 import sys
-from threading import Condition
 import time
 
 from PyQt5.QtCore import (
