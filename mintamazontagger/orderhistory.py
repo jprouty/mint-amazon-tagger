@@ -1,6 +1,7 @@
 import atexit
 import getpass
 import logging
+from mintapi.api import get_stable_chrome_driver
 import os
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver import ChromeOptions
@@ -9,9 +10,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from seleniumrequests import Chrome
-
-# REVERT TO mintapi once upstream change is taken.
-from mintamazontagger.api import get_stable_chrome_driver
 
 from mintamazontagger.my_progress import no_progress_factory
 

@@ -1,6 +1,6 @@
 PyQt5
 boto3
-mintapi>=1.44
+mintapi>=1.47
 outdated
 progress
 range-key-dict

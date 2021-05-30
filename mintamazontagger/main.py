@@ -15,8 +15,8 @@ from threading import Condition
 import time
 
 from PyQt5.QtCore import (
-    Q_ARG, QDate, Qt, QMetaObject, QObject, QThread, QUrl, pyqtSlot,
-    pyqtSignal)
+    Q_ARG, QDate, QEventLoop, Qt, QMetaObject, QObject, QThread, QUrl,
+    pyqtSlot, pyqtSignal)
 from PyQt5.QtGui import QDesktopServices, QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView, QApplication, QCalendarWidget,
@@ -573,9 +573,11 @@ class TaggerDialog(QDialog):
         mfa_code, ok = QInputDialog().getText(
             self, 'Please enter your Mint Code.',
             'Mint Code:')
+        self.worker.mfa_code = mfa_code
         QMetaObject.invokeMethod(
             self.worker, 'mfa_code', Qt.QueuedConnection,
-            Q_ARG(int, mfa_code))
+            Q_ARG(str, mfa_code))
+        self.worker.on_mint_mfa_done.emit()
 
 
 class TaggerWorker(QObject):
@@ -585,9 +587,9 @@ class TaggerWorker(QObject):
     on_updates_sent = pyqtSignal(int)
     on_stopped = pyqtSignal()
     on_mint_mfa = pyqtSignal()
+    on_mint_mfa_done = pyqtSignal()
     on_progress = pyqtSignal(str, int, int)
     stopping = False
-    mfa_condition = Condition()
 
     @pyqtSlot()
     def stop(self):
@@ -595,11 +597,8 @@ class TaggerWorker(QObject):
 
     @pyqtSlot(str)
     def mfa_code(self, code):
-        logger.info('Got code')
         logger.info(code)
         self.mfa_code = code
-        logger.info('Waking thread')
-        self.mfa_condition.notify()
 
     @pyqtSlot(object)
     def create_updates(self, args, parent):
@@ -624,7 +623,9 @@ class TaggerWorker(QObject):
             logger.info('Asking for Mint MFA')
             self.on_mint_mfa.emit()
             logger.info('Blocking')
-            self.mfa_condition.wait()
+            loop = QEventLoop()
+            self.on_mint_mfa_done.connect(loop.quit)
+            loop.exec_()
             logger.info('got code!')
             logger.info(self.mfa_code)
             return self.mfa_code
