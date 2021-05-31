@@ -86,7 +86,7 @@ setuptools.setup(
     install_requires=[
         'PyQt5',
         'mock',
-        'mintapi>=1.43',
+        'mintapi>=1.47',
         'outdated',
         'progress',
         'range-key-dict',
