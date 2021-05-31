@@ -9,7 +9,8 @@ python -m venv release_venv
 .\release_venv\Scripts\activate.ps1
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt -r requirements/windows.txt
-
+# Manually uninstall pandas and numpy, as they are huge and unused by this app.
+pip uninstall -y numpy pandas
 
 echo "Install PyInstaller locally, with a locally built bootloader. This helps avoid any anti-virus conflation with other PyInstaller apps from the publicly built version."
 # See more here: https://stackoverflow.com/questions/43777106/program-made-with-pyinstaller-now-seen-as-a-trojan-horse-by-avg

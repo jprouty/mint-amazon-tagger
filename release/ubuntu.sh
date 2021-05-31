@@ -24,6 +24,8 @@ python3 -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt -r requirements/ubuntu.txt
+# Manually uninstall pandas and numpy, as they are huge and unused by this app.
+pip uninstall -y numpy pandas
 
 pyinstaller \
   --name="MintAmazonTagger" \

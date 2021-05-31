@@ -23,6 +23,8 @@ python3 -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt -r requirements/mac.txt
+# Manually uninstall pandas and numpy, as they are huge and unused by this app.
+pip uninstall -y numpy pandas
 
 mkdir build
 
@@ -30,8 +32,8 @@ mkdir build
 iconutil -c icns icons/mac.iconset --output="${icon_icns}"
 
 pyinstaller \
-  --name="${app_name}" \
   --windowed \
+  --name="${app_name}" \
   --icon="${icon_icns}" \
   --osx-bundle-identifier="${bundle_ident}" \
   mintamazontagger/main.py
