@@ -61,7 +61,8 @@ def create_updates(
             args.report_download_location, start_date, end_date,
             args.amazon_email, args.amazon_password,
             args.session_path, args.headless,
-            progress_factory=indeterminate_progress_factory)
+            progress_factory=indeterminate_progress_factory,
+            timeout=args.order_history_timeout)
 
     if not items_csv or not orders_csv:  # Refunds are optional
         on_critical(
