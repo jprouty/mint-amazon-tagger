@@ -64,10 +64,18 @@ def define_common_args(parser):
         help=('Mint password for login. If not provided here, will be '
               'prompted for.'))
     parser.add_argument(
-        '--mint_mfa_method',
-        default='sms',
-        choices=['sms', 'email'],
-        help='The Mint MFA method (2factor auth codes).')
+        '--mint_mfa_preferred_method',
+        default='email',
+        choices=['sms', 'email', 'soft-token'],
+        help='The perferred Mint MFA method (2factor auth codes).')
+    parser.add_argument(
+        '--mfa_soft_token',
+        default=None,
+        help='The MFA soft-token to pass to oathtool.')
+    parser.add_argument(
+        '--mint_login_timeout',
+        default=60*5,
+        help='The number of seconds to wait attempting to log into Mint.')
     parser.add_argument(
         '--mint_wait_for_sync',
         action='store_true',
@@ -75,6 +83,16 @@ def define_common_args(parser):
         help=('Wait for Mint accounts to sync, up to 5 minutes. By '
               'default, do not wait for accounts to sync with the backing '
               'financial institutions.'))
+    parser.add_argument(
+        '--mint_user_will_login',
+        action='store_true',
+        default=False,
+        help='If set, let the user log in on their own.')
+    parser.add_argument(
+        '--mint_intuit_account',
+        default=None,
+        help=('The intuit account to select if multiple are associated with '
+              '--mint_email.'))
 
     # Mint API options:
     default_session_path = os.path.join(

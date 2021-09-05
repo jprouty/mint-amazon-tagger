@@ -35,6 +35,8 @@ from mintamazontagger.qt import (
     TaggerStatsDialog)
 from mintamazontagger.mintclient import MintClient
 from mintamazontagger.my_progress import QtProgress
+from mintamazontagger.orderhistory import fetch_order_history
+from mintamazontagger.webdriver import get_webdriver
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -124,7 +126,7 @@ class TaggerGui:
         mint_layout.addRow(
             'MFA Code:',
             self.create_combobox(
-                'mint_mfa_method',
+                'mint_mfa_preferred_method',
                 ['SMS', 'Email'],
                 lambda x: x.lower()))
         mint_layout.addRow(
@@ -633,15 +635,26 @@ class TaggerWorker(QObject):
         def progress_factory(msg, max=0):
             return QtProgress(msg, max, self.on_progress.emit)
 
+        webdriver = None
+
+        def close_webdriver():
+            if webdriver:
+                webdriver.close()
+
+        # atexit.register(close_webdriver)
+
+        def webdriver_factory():
+            if webdriver:
+                return webdriver
+            return get_webdriver(args.headless, args.session_path)
+
         self.mint_client = MintClient(
-            email=args.mint_email,
-            password=args.mint_password,
-            session_path=args.session_path,
-            headless=args.headless,
-            mfa_method=args.mint_mfa_method,
-            wait_for_sync=args.mint_wait_for_sync,
-            mfa_input_callback=on_mint_mfa,
-            progress_factory=progress_factory)
+            args,
+            webdriver_factory,
+            mfa_input_callback=on_mint_mfa)
+
+        if not fetch_order_history(args, webdriver_factory, progress_factory):
+            self.on_error('Failed to fetch Amazon order history.')
 
         results = tagger.create_updates(
             args, self.mint_client,

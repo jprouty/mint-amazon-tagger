@@ -6,6 +6,7 @@
 # transaction for maximal control over categorization.
 
 import argparse
+import atexit
 from collections import defaultdict
 import logging
 import os
@@ -22,6 +23,8 @@ from mintamazontagger.my_progress import (
     counter_progress_cli, determinate_progress_cli, indeterminate_progress_cli)
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.mintclient import MintClient
+from mintamazontagger.orderhistory import fetch_order_history
+from mintamazontagger.webdriver import get_webdriver
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -53,14 +56,25 @@ def main():
         print('mint-amazon-tagger {}\nBy: Jeff Prouty'.format(VERSION))
         exit(0)
 
-    mint_client = MintClient(
-        email=args.mint_email,
-        password=args.mint_password,
-        session_path=args.session_path,
-        headless=args.headless,
-        mfa_method=args.mint_mfa_method,
-        wait_for_sync=args.mint_wait_for_sync,
-        progress_factory=indeterminate_progress_cli)
+    webdriver = None
+
+    def close_webdriver():
+        if webdriver:
+            webdriver.close()
+
+    atexit.register(close_webdriver)
+
+    def webdriver_factory():
+        if webdriver:
+            return webdriver
+        return get_webdriver(args.headless, args.session_path)
+
+    mint_client = MintClient(args, webdriver_factory)
+
+    if not fetch_order_history(
+            args, webdriver_factory, indeterminate_progress_cli):
+        logger.critical('Failed to fetch Amazon order history.')
+        exit(1)
 
     if args.dry_run:
         logger.info('\nDry Run; no modifications being sent to Mint.\n')

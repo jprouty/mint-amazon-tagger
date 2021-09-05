@@ -21,7 +21,6 @@ from mintamazontagger.currency import micro_usd_nearly_equal
 
 from mintamazontagger.mint import (
     get_trans_and_categories_from_pickle, dump_trans_and_categories)
-from mintamazontagger.orderhistory import fetch_order_history
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -47,25 +46,9 @@ def create_updates(
     orders_csv = args.orders_csv
     refunds_csv = args.refunds_csv
 
-    start_date = None
-
-    if not items_csv or not orders_csv:
-        start_date = args.order_history_start_date
-        end_date = args.order_history_end_date
-        if not args.amazon_email or not args.amazon_password:
-            on_critical(
-                'Amazon email or password is empty. Please try again')
-            return UpdatesResult()
-
-        items_csv, orders_csv, refunds_csv = fetch_order_history(
-            args.report_download_location, start_date, end_date,
-            args.amazon_email, args.amazon_password,
-            args.session_path, args.headless,
-            progress_factory=indeterminate_progress_factory)
-
     if not items_csv or not orders_csv:  # Refunds are optional
         on_critical(
-            'Order history either not provided at or unable to fetch. '
+            'Order history either not provided or unable to fetch. '
             'Exiting.')
         return UpdatesResult()
 
@@ -130,12 +113,11 @@ def create_updates(
         pickle_progress.finish()
     else:
         # Get the date of the oldest Amazon order.
-        if not start_date:
-            start_date = min([o.order_date for o in orders])
-            if refunds:
-                start_date = min(
-                    start_date,
-                    min([o.order_date for o in refunds]))
+        start_date = min([o.order_date for o in orders])
+        if refunds:
+            start_date = min(
+                start_date,
+                min([o.order_date for o in refunds]))
 
         # Double the length of transaction history to help aid in
         # personalized category tagging overrides.
