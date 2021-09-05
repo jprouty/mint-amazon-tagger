@@ -65,6 +65,7 @@ def main():
     atexit.register(close_webdriver)
 
     def webdriver_factory():
+        nonlocal webdriver
         if webdriver:
             return webdriver
         webdriver = get_webdriver(args.headless, args.session_path)
