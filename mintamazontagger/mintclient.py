@@ -259,6 +259,12 @@ def _json_date_to_datetime(dateraw):
     return newdate
 
 
+# Never attempt to enter the password more than 2 times to prevent locking an
+# account out due to too many fail attempts. A valid MFA can require reentry
+# of the password.
+_MAX_PASSWORD_ATTEMPTS = 2
+
+
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     webdriver.get(MINT_HOME)
     webdriver.implicitly_wait(5)
@@ -279,6 +285,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     # elements are always present (but only a subset are visible at any
     # moment).
     login_start_time = datetime.now()
+    num_password_attempts = 0
     while not webdriver.current_url.startswith(MINT_OVERVIEW):
         since_start = datetime.now() - login_start_time
         if (args.mint_login_timeout and
@@ -313,13 +320,18 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             logger.info('Mint Login Flow: Entering email into "id" field')
             do_submit = True
         if is_visible(password_input):
+            num_password_attempts += 1
             password_input.send_keys(args.mint_password)
             logger.info('Mint Login Flow: Entering password')
             do_submit = True
         if is_visible(mfa_password_input):
+            num_password_attempts += 1
             mfa_password_input.send_keys(args.mint_password)
             logger.info('Mint Login Flow: Entering password in MFA input')
             do_submit = True
+        if num_password_attempts > _MAX_PASSWORD_ATTEMPTS:
+            logger.error('Too many password entries attempted; aborting.')
+            return False
         if do_submit:
             if is_visible(submit_button):
                 logger.info('Mint Login Flow: Submitting login credentials')

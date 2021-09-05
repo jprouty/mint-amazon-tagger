@@ -20,7 +20,6 @@ ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
     'ref_%3Dnav_youraccount_switchacct&pageType=&switchAccount=picker&'
     'yshURL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fb2b%2Freports')
 ORDER_HISTORY_REPORT_URL = 'https://www.amazon.com/gp/b2b/reports'
-ORDER_HISTORY_PROCESS_TIMEOUT_S = 60
 
 
 def fetch_order_history(args, webdriver_factory,
@@ -71,8 +70,8 @@ def fetch_order_history(args, webdriver_factory,
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
-            WebDriverWait(
-                webdriver, ORDER_HISTORY_PROCESS_TIMEOUT_S).until(wait_cond)
+            WebDriverWait(webdriver, args.order_history_timeout).until(
+                wait_cond)
             processing_progress.finish()
         except TimeoutException:
             processing_progress.finish()

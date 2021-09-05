@@ -33,6 +33,12 @@ def define_common_args(parser):
         default=datetime.date.today(),
         help=('The end date for fetching Amazon order history. Defaults to '
               'today. Format: YYYY-MM-DD'))
+    parser.add_argument(
+        '--order_history_timeout',
+        type=int,
+        default=60,
+        help=('The amount of time (in seconds) to wait for order retrieval '
+              'from Amazon before considering the process to have timed out.'))
 
     default_report_location = os.path.join(
         TAGGER_BASE_PATH, 'Amazon Order Reports')
