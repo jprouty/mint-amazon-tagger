@@ -12,7 +12,6 @@ from selenium.webdriver import ChromeOptions
 from seleniumrequests import Chrome
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def get_webdriver(headless=False, session_path=None):
@@ -36,6 +35,14 @@ def is_visible(element):
 def get_element_by_id(driver, id):
     try:
         return driver.find_element_by_id(id)
+    except NoSuchElementException:
+        pass
+    return None
+
+
+def get_element_by_name(driver, name):
+    try:
+        return driver.find_element_by_name(name)
     except NoSuchElementException:
         pass
     return None

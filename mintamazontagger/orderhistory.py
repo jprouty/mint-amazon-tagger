@@ -11,7 +11,6 @@ from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.webdriver import get_element_by_id, get_element_by_xpath
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
     'https://www.amazon.com/gp/navigation/redirector.html/ref=sign-in-redirect'

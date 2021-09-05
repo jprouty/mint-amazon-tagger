@@ -23,7 +23,6 @@ from mintamazontagger.mint import (
     get_trans_and_categories_from_pickle, dump_trans_and_categories)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 UpdatesResult = namedtuple(
     'UpdatesResult',

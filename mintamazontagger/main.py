@@ -6,6 +6,7 @@
 # transaction for maximal control over categorization.
 
 import argparse
+import atexit
 import datetime
 from functools import partial
 import logging
@@ -39,7 +40,6 @@ from mintamazontagger.orderhistory import fetch_order_history
 from mintamazontagger.webdriver import get_webdriver
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 NEVER_SAVE_MSG = 'Email & password are *never* saved.'
 
@@ -641,12 +641,14 @@ class TaggerWorker(QObject):
             if webdriver:
                 webdriver.close()
 
-        # atexit.register(close_webdriver)
+        atexit.register(close_webdriver)
 
         def webdriver_factory():
+            nonlocal webdriver
             if webdriver:
                 return webdriver
-            return get_webdriver(args.headless, args.session_path)
+            webdriver = get_webdriver(args.headless, args.session_path)
+            return webdriver
 
         self.mint_client = MintClient(
             args,
@@ -654,7 +656,7 @@ class TaggerWorker(QObject):
             mfa_input_callback=on_mint_mfa)
 
         if not fetch_order_history(args, webdriver_factory, progress_factory):
-            self.on_error('Failed to fetch Amazon order history.')
+            self.on_error.emit('Failed to fetch Amazon order history.')
 
         results = tagger.create_updates(
             args, self.mint_client,
@@ -676,11 +678,11 @@ class TaggerWorker(QObject):
             ignore_category=args.no_tag_categories)
 
         self.on_updates_sent.emit(num_updates)
-        self.mint_client.close()
 
 
 def main():
     root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
     root_logger.addHandler(logging.StreamHandler())
     # For helping remote debugging, also log to file.
     # Developers should be vigilant to NOT log any PII, ever (including being

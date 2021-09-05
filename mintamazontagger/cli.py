@@ -27,11 +27,11 @@ from mintamazontagger.orderhistory import fetch_order_history
 from mintamazontagger.webdriver import get_webdriver
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def main():
     root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
     root_logger.addHandler(logging.StreamHandler())
     # For helping remote debugging, also log to file.
     # Developers should be vigilant to NOT log any PII, ever (including being
@@ -67,7 +67,8 @@ def main():
     def webdriver_factory():
         if webdriver:
             return webdriver
-        return get_webdriver(args.headless, args.session_path)
+        webdriver = get_webdriver(args.headless, args.session_path)
+        return webdriver
 
     mint_client = MintClient(args, webdriver_factory)
 
