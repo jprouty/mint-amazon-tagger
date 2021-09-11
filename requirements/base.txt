@@ -1,4 +1,5 @@
 PyQt5
+filelock
 outdated
 progress
 range-key-dict
@@ -6,4 +7,3 @@ requests
 readchar
 selenium
 selenium-requests
-tldextract
