@@ -6,3 +6,4 @@ requests
 readchar
 selenium
 selenium-requests
+tldextract

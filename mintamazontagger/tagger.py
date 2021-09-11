@@ -97,11 +97,6 @@ def create_updates(
         personal_cat=0,
     )
 
-    if not args.pickled_epoch and (
-            not args.mint_email or not args.mint_password):
-        on_critical('Missing Mint email or password. Try again')
-        return UpdatesResult()
-
     if args.pickled_epoch:
         pickle_progress = indeterminate_progress_factory(
             'Un-pickling Mint transactions from epoch: {} '.format(
@@ -123,6 +118,8 @@ def create_updates(
         # TODO: Revise this logic/date range.
         today = datetime.date.today()
         start_date = today - (today - start_date) * 2
+
+        mint_client.login()
 
         cat_progress = indeterminate_progress_factory(
             'Getting Mint Categories')
