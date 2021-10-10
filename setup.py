@@ -94,7 +94,6 @@ setuptools.setup(
         'readchar',
         'selenium',
         'selenium-requests',
-        'oathtool'
     ],
     entry_points=dict(
         console_scripts=[
