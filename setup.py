@@ -85,7 +85,6 @@ setuptools.setup(
     # directly launch the gui or cli from python.
     install_requires=[
         'PyQt5',
-        'filelock',
         'mock',
         'outdated',
         'progress',
