@@ -24,7 +24,6 @@ from PyQt5.QtWidgets import (
     QFormLayout, QGroupBox, QHBoxLayout, QInputDialog,
     QLabel, QLineEdit, QMainWindow, QProgressBar,
     QPushButton, QShortcut, QTableView, QWidget, QVBoxLayout)
-import filelock
 from outdated import check_outdated
 
 from mintamazontagger import amazon
@@ -686,7 +685,7 @@ def main():
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(logging.StreamHandler())
     # Disable noisy log spam from filelock from within tldextract.
-    filelock.logger().setLevel(logging.WARN)
+    logging.getLogger("filelock").setLevel(logging.WARN)
     # For helping remote debugging, also log to file.
     # Developers should be vigilant to NOT log any PII, ever (including being
     # mindful of what exceptions might be thrown).
