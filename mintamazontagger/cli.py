@@ -12,7 +12,6 @@ import logging
 import os
 import time
 
-import filelock
 from outdated import check_outdated
 
 from mintamazontagger import amazon
@@ -35,7 +34,6 @@ def main():
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(logging.StreamHandler())
     # Disable noisy log spam from filelock from within tldextract.
-    # filelock.logger().setLevel(logging.WARN)
     logging.getLogger("filelock").setLevel(logging.WARN)
 
     # For helping remote debugging, also log to file.
