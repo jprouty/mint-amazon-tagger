@@ -86,6 +86,7 @@ setuptools.setup(
     install_requires=[
         'PyQt5',
         'mock',
+        'oathtool',
         'outdated',
         'progress',
         'range-key-dict',
