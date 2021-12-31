@@ -1,5 +1,4 @@
 from datetime import date, datetime
-import getpass
 import json
 import logging
 import random
@@ -43,10 +42,6 @@ class MintClient():
     def login(self):
         if self.logged_in:
             return True
-        if not self.args.mint_email and not self.args.mint_user_will_login:
-            self.args.mint_email = input('Mint email: ')
-        if not self.args.mint_password and not self.args.mint_user_will_login:
-            self.args.mint_password = getpass.getpass('Mint password: ')
         if (not self.args.mint_email or not self.args.mint_password
                 and not self.args.mint_user_will_login):
             logger.error('Missing Mint email or password.')
@@ -306,6 +301,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
 
         userid_input = get_element_by_id(webdriver, 'ius-userid')
         identifier_input = get_element_by_id(webdriver, 'ius-identifier')
+        ius_text_input = get_element_by_id(webdriver, 'ius-text-input')
         password_input = get_element_by_id(webdriver, 'ius-password')
         submit_button = get_element_by_id(webdriver, 'ius-sign-in-submit-btn')
         # Password might be asked later in the MFA flow; combine logic here.
@@ -319,20 +315,27 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         if is_visible(userid_input):
             userid_input.clear()
             userid_input.send_keys(args.mint_email)
-            logger.info('Mint Login Flow: Entering email into userid field')
+            logger.info('Mint Login Flow: Entering email into "userid" field')
             do_submit = True
         if is_visible(identifier_input):
             identifier_input.clear()
             identifier_input.send_keys(args.mint_email)
             logger.info('Mint Login Flow: Entering email into "id" field')
             do_submit = True
+        if is_visible(ius_text_input):
+            ius_text_input.clear()
+            ius_text_input.send_keys(args.mint_email)
+            logger.info('Mint Login Flow: Entering email into "text" field')
+            do_submit = True
         if is_visible(password_input):
             num_password_attempts += 1
+            password_input.clear()
             password_input.send_keys(args.mint_password)
             logger.info('Mint Login Flow: Entering password')
             do_submit = True
         if is_visible(mfa_password_input):
             num_password_attempts += 1
+            mfa_password_input.clear()
             mfa_password_input.send_keys(args.mint_password)
             logger.info('Mint Login Flow: Entering password in MFA input')
             do_submit = True
@@ -357,14 +360,32 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         if is_visible(known_accounts_selector):
             usernames = get_elements_by_class_name(
                 webdriver, 'ius-option-username')
+            found_username = False
             for username in usernames:
                 if username.text == args.mint_email:
+                    found_username = True
                     logger.info(
                         'Mint Login Flow: Selecting username from '
                         'multi-account selector.')
                     username.click()
-                    _login_flow_advance(webdriver)
-                    continue
+                    break
+            if found_username:
+                _login_flow_advance(webdriver)
+                continue
+
+            # The provided email is not in the known accounts list. Go through
+            # the 'Use a different user ID' flow:
+            use_different_account_button = get_element_by_id(
+                webdriver, 'ius-known-device-use-a-different-id')
+            if not is_visible(use_different_account_button):
+                logger.error('Cannot locate the add different account button.')
+                return False
+            logger.info(
+                'Mint Login Flow: Selecting "Different user" from '
+                'multi-account selector.')
+            use_different_account_button.click()
+            _login_flow_advance(webdriver)
+            continue
 
         # If shown, bypass the "Let's add your current mobile number" modal.
         skip_phone_update_button = get_element_by_id(

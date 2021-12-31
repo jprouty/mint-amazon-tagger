@@ -623,11 +623,9 @@ class TaggerWorker(QObject):
         def on_mint_mfa(prompt):
             logger.info('Asking for Mint MFA')
             self.on_mint_mfa.emit()
-            logger.info('Blocking')
             loop = QEventLoop()
             self.on_mint_mfa_done.connect(loop.quit)
             loop.exec_()
-            logger.info('got code!')
             logger.info(self.mfa_code)
             return self.mfa_code
 
@@ -646,7 +644,9 @@ class TaggerWorker(QObject):
         def webdriver_factory():
             nonlocal webdriver
             if webdriver:
+                logger.info('Using existing webdriver')
                 return webdriver
+            logger.info('Creating a new webdriver')
             webdriver = get_webdriver(args.headless, args.session_path)
             return webdriver
 
@@ -656,7 +656,9 @@ class TaggerWorker(QObject):
             mfa_input_callback=on_mint_mfa)
 
         if not fetch_order_history(args, webdriver_factory, progress_factory):
-            self.on_error.emit('Failed to fetch Amazon order history.')
+            self.on_error.emit(
+                'Failed to fetch Amazon order history. Check credentials')
+            return
 
         results = tagger.create_updates(
             args, self.mint_client,
@@ -676,7 +678,8 @@ class TaggerWorker(QObject):
                 len(updates),
                 self.on_progress.emit),
             ignore_category=args.no_tag_categories)
-
+        # Close out the mint client to allow for continued use of the tool.
+        self.mint_client.close()
         self.on_updates_sent.emit(num_updates)
 
 

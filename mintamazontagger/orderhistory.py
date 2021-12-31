@@ -1,4 +1,3 @@
-import getpass
 import logging
 import os
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -7,6 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 
+from mintamazontagger.args import has_order_history_csv_files
 from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.webdriver import get_element_by_id, get_element_by_xpath
 
@@ -23,11 +23,10 @@ ORDER_HISTORY_REPORT_URL = 'https://www.amazon.com/gp/b2b/reports'
 
 def fetch_order_history(args, webdriver_factory,
                         progress_factory=no_progress_factory):
-    email = get_email(args.amazon_email)
-    name = email.split('@')[0]
-
-    if args.items_csv and args.orders_csv:
+    if has_order_history_csv_files(args):
         return True
+
+    name = args.amazon_email.split('@')[0] if args.amazon_email else 'mint_tagger'
 
     start_date = args.order_history_start_date
     end_date = args.order_history_end_date
@@ -52,11 +51,18 @@ def fetch_order_history(args, webdriver_factory,
 
         # Report is not here. Go get it.
         if not webdriver:
+            if not args.amazon_email or not args.amazon_password:
+                logger.error('No credentials provided for Amazon.com')
+                return False
             login_progress = progress_factory(
                 'Signing into Amazon.com to request order reports.', 0)
             webdriver = webdriver_factory()
-            nav_to_amazon_and_login(webdriver, email, args.amazon_password)
+            login_success = nav_to_amazon_and_login(webdriver, args.amazon_email, args.amazon_password)
             login_progress.finish()
+            if not login_success:
+                logger.critical(
+                    'Failed to login to Amazon.com')
+                return False
 
         request_progress = progress_factory(
             'Requesting {} report '.format(report_shortname), 0)
@@ -64,8 +70,16 @@ def fetch_order_history(args, webdriver_factory,
                        start_date, end_date)
         request_progress.finish()
 
+    # Now wait on the reports to be done and then download them.
+    for report_shortname, report_type, report_name, report_path in zip(
+            report_shortnames, report_types, report_names, report_paths):
+        if os.path.exists(report_path):
+            # Report has already been fetched! Woot
+            continue
+
         processing_progress = progress_factory(
-            'Waiting for {} report to be ready '.format(report_shortname), 0)
+            'Waiting for {} report to be ready. NOTE: As of Dec 31 2021 report '
+            'generation is taking many hours.'.format(report_shortname), 0)
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
@@ -86,28 +100,6 @@ def fetch_order_history(args, webdriver_factory,
     args.orders_csv = open(report_paths[1], 'r', encoding='utf-8')
     args.refunds_csv = open(report_paths[2], 'r', encoding='utf-8')
     return True
-
-
-def get_email(email):
-    if not email:
-        email = input('Amazon email: ')
-
-    if not email:
-        logger.error('Empty Amazon email.')
-        exit(1)
-
-    return email
-
-
-def get_password(password):
-    if not password:
-        password = getpass.getpass('Amazon password: ')
-
-    if not password:
-        logger.error('Empty Amazon password.')
-        exit(1)
-
-    return password
 
 
 def nav_to_amazon_and_login(webdriver, email, password):

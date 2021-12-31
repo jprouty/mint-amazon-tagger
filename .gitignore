@@ -18,6 +18,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Visual studio project
+.vs
+
 # Distribution / packaging
 build
 .Python

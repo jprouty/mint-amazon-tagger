@@ -119,7 +119,13 @@ def create_updates(
         today = datetime.date.today()
         start_date = today - (today - start_date) * 2
 
-        mint_client.login()
+        login_progress = indeterminate_progress_factory(
+            'Logging in to mint.com')
+        if not mint_client.login():
+            login_progress.finish()
+            on_critical('Cannot log in to mint.com. Check credentials')
+            return UpdatesResult()
+        login_progress.finish()
 
         cat_progress = indeterminate_progress_factory(
             'Getting Mint Categories')

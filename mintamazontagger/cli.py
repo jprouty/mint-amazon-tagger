@@ -8,6 +8,7 @@
 import argparse
 import atexit
 from collections import defaultdict
+import getpass
 import logging
 import os
 import time
@@ -18,7 +19,8 @@ from mintamazontagger import amazon
 from mintamazontagger import mint
 from mintamazontagger import tagger
 from mintamazontagger import VERSION
-from mintamazontagger.args import define_cli_args, TAGGER_BASE_PATH
+from mintamazontagger.args import (
+    define_cli_args, has_order_history_csv_files, TAGGER_BASE_PATH)
 from mintamazontagger.my_progress import (
     counter_progress_cli, determinate_progress_cli, indeterminate_progress_cli)
 from mintamazontagger.currency import micro_usd_to_usd_string
@@ -76,10 +78,15 @@ def main():
 
     mint_client = MintClient(args, webdriver_factory)
 
-    if not fetch_order_history(
-            args, webdriver_factory, indeterminate_progress_cli):
-        logger.critical('Failed to fetch Amazon order history.')
-        exit(1)
+    # Attempt to fetch the order history if csv files are not already provided.
+    if not has_order_history_csv_files(args):
+        if not maybe_prompt_for_amazon_credentials(args):
+            logger.critical('Failed to get Amazon credentials.')
+            exit(1)
+        if not fetch_order_history(
+                args, webdriver_factory, indeterminate_progress_cli):
+            logger.critical('Failed to fetch Amazon order history.')
+            exit(1)
 
     if args.dry_run:
         logger.info('\nDry Run; no modifications being sent to Mint.\n')
@@ -88,6 +95,7 @@ def main():
         logger.critical(msg)
         exit(1)
 
+    maybe_prompt_for_mint_credentials(args)
     results = tagger.create_updates(
         args, mint_client,
         on_critical=on_critical,
@@ -137,6 +145,30 @@ def main():
             ignore_category=args.no_tag_categories)
 
         logger.info('Sent {} updates to Mint'.format(num_updates))
+
+
+def maybe_prompt_for_mint_credentials(args):
+    if (not args.mint_email and not args.mint_user_will_login and
+            not args.pickled_epoch):
+        args.mint_email = input('Mint email: ')
+    if (not args.mint_password and not args.mint_user_will_login and
+            not args.pickled_epoch):
+        args.mint_password = getpass.getpass('Mint password: ')
+
+
+def maybe_prompt_for_amazon_credentials(args):
+    if not args.amazon_email:
+        args.amazon_email = input('Amazon email: ')
+    if not args.amazon_email:
+        logger.error('Empty Amazon email.')
+        return False
+
+    if not args.amazon_password:
+        args.amazon_password = getpass.getpass('Amazon password: ')
+    if not args.amazon_password:
+        logger.error('Empty Amazon password.')
+        return False
+    return True
 
 
 def log_amazon_stats(items, orders, refunds):

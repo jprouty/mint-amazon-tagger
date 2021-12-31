@@ -9,6 +9,10 @@ def get_name_to_help_dict(parser):
     return dict([(a.dest, a.help) for a in parser._actions])
 
 
+def has_order_history_csv_files(args):
+    return args.items_csv and args.orders_csv
+
+
 def define_common_args(parser):
     """Parseargs shared between both CLI & GUI programs."""
     # Amazon creds:
@@ -49,14 +53,14 @@ def define_common_args(parser):
 
     # Amazon Input, as CSV file:
     parser.add_argument(
-        '--items_csv', type=argparse.FileType('r'),
+        '--items_csv', type=argparse.FileType('r', encoding='utf-8'),
         help=('The "Items" Order History Report from Amazon. If not present, '
               'will try to fetch order history for you. See --amazon_email.'))
     parser.add_argument(
-        '--orders_csv', type=argparse.FileType('r'),
+        '--orders_csv', type=argparse.FileType('r', encoding='utf-8'),
         help='The "Orders and Shipments" Order History Report from Amazon')
     parser.add_argument(
-        '--refunds_csv', type=argparse.FileType('r'),
+        '--refunds_csv', type=argparse.FileType('r', encoding='utf-8'),
         help='The "Refunds" Order History Report from Amazon. '
              'This is optional.')
 
