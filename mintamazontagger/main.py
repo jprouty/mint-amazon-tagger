@@ -130,6 +130,9 @@ class TaggerGui:
                 ['SMS', 'Email'],
                 lambda x: x.lower()))
         mint_layout.addRow(
+            'I will login myself',
+            self.create_checkbox('mint_user_will_login'))
+        mint_layout.addRow(
             'Sync first?',
             self.create_checkbox('mint_wait_for_sync'))
 
@@ -203,6 +206,10 @@ class TaggerGui:
             'Password:',
             self.create_line_edit(
                 'amazon_password', tool_tip=NEVER_SAVE_MSG, password=True))
+        amazon_fetch_layout.addRow(
+            'I will login myself',
+            self.create_checkbox(
+                'amazon_user_will_login'))
         amazon_fetch_layout.addRow(
             'Start date:',
             self.create_date_edit(

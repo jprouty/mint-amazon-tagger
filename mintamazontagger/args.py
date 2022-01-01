@@ -24,6 +24,11 @@ def define_common_args(parser):
         '--amazon_password', default=None,
         help=('Amazon password. If not provided, you will be '
               'prompted for it.'))
+    parser.add_argument(
+        '--amazon_user_will_login',
+        action='store_true',
+        default=False,
+        help='If set, let the user log in on their own.')
 
     parser.add_argument(
         '--order_history_start_date',

@@ -157,15 +157,15 @@ def maybe_prompt_for_mint_credentials(args):
 
 
 def maybe_prompt_for_amazon_credentials(args):
-    if not args.amazon_email:
+    if not args.amazon_email and not args.amazon_user_will_login:
         args.amazon_email = input('Amazon email: ')
-    if not args.amazon_email:
+    if not args.amazon_email and not args.amazon_user_will_login:
         logger.error('Empty Amazon email.')
         return False
 
-    if not args.amazon_password:
+    if not args.amazon_password and not args.amazon_user_will_login:
         args.amazon_password = getpass.getpass('Amazon password: ')
-    if not args.amazon_password:
+    if not args.amazon_password and not args.amazon_user_will_login:
         logger.error('Empty Amazon password.')
         return False
     return True
