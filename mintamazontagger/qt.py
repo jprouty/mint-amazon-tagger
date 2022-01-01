@@ -103,8 +103,8 @@ class MintUpdatesTableModel(QAbstractTableModel):
             return None
         if index.column() == 0:
             return (
-                Qt.ItemIsEnabled | Qt.ItemIsSelectable |
-                Qt.ItemIsUserCheckable)
+                Qt.ItemIsEnabled | Qt.ItemIsSelectable
+                | Qt.ItemIsUserCheckable)
         else:
             return Qt.ItemIsEnabled | Qt.ItemIsSelectable
 
