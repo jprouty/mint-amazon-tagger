@@ -371,8 +371,8 @@ def get_mint_updates(
         for nt in new_transactions:
             # Look if there's a personal category tagged.
             item_name = amazon.rm_leading_qty(nt.merchant.lower())
-            if (mint_historic_category_renames and
-                    item_name in mint_historic_category_renames):
+            if (mint_historic_category_renames
+                    and item_name in mint_historic_category_renames):
                 suggested_cat = mint_historic_category_renames[item_name]
                 if suggested_cat != nt.category:
                     stats['personal_cat'] += 1

@@ -244,13 +244,13 @@ class Order:
 
     def total_by_items(self):
         return (
-            Item.sum_totals(self.items) +
-            self.shipping_charge - self.total_promotions)
+            Item.sum_totals(self.items)
+            + self.shipping_charge - self.total_promotions)
 
     def total_by_subtotals(self):
         return (
-            self.subtotal + self.tax_charged +
-            self.shipping_charge - self.total_promotions)
+            self.subtotal + self.tax_charged
+            + self.shipping_charge - self.total_promotions)
 
     def transact_date(self):
         return self.shipment_date
@@ -393,9 +393,9 @@ class Order:
 
         # Itemize the shipping cost, if any.
         is_free_shipping = (
-            self.shipping_charge and
-            self.total_promotions and
-            micro_usd_nearly_equal(
+            self.shipping_charge
+            and self.total_promotions
+            and micro_usd_nearly_equal(
                 self.total_promotions, self.shipping_charge))
 
         if is_free_shipping and skip_free_shipping:
