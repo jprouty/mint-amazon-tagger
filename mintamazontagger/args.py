@@ -110,14 +110,13 @@ def define_common_args(parser):
               '--mint_email.'))
 
     # Mint API options:
-    default_session_path = os.path.join(
-        TAGGER_BASE_PATH, '.mintapi2020', 'session')
+    default_session_path = os.path.join(TAGGER_BASE_PATH, 'ChromeSession')
     parser.add_argument(
         '--session-path', nargs='?',
         default=default_session_path,
         help=('Directory to save browser session, including cookies. Use to '
-              'prevent repeated MFA prompts. Defaults to ~/.mintapi/session. '
-              'Set to None to use a temporary profile.'))
+              'prevent repeated MFA prompts. Defaults to a directory in your '
+              'home dir. Set to None to use a temporary profile.'))
     parser.add_argument(
         '--headless',
         action='store_true',
