@@ -26,7 +26,9 @@ def fetch_order_history(args, webdriver_factory,
     if has_order_history_csv_files(args):
         return True
 
-    name = args.amazon_email.split('@')[0] if args.amazon_email else 'mint_tagger'
+    name = (
+        args.amazon_email.split('@')[0]
+        if args.amazon_email else 'mint_tagger')
 
     start_date = args.order_history_start_date
     end_date = args.order_history_end_date
@@ -61,7 +63,8 @@ def fetch_order_history(args, webdriver_factory,
             if args.amazon_user_will_login:
                 login_success = nav_to_amazon_and_let_user_login(webdriver)
             else:
-                login_success = nav_to_amazon_and_login(webdriver, args.amazon_email, args.amazon_password)
+                login_success = nav_to_amazon_and_login(
+                    webdriver, args.amazon_email, args.amazon_password)
             login_progress.finish()
             if not login_success:
                 logger.critical(
@@ -82,8 +85,9 @@ def fetch_order_history(args, webdriver_factory,
             continue
 
         processing_progress = progress_factory(
-            'Waiting for {} report to be ready. NOTE: As of Dec 31 2021 report '
-            'generation is taking many hours.'.format(report_shortname), 0)
+            'Waiting for {} report to be ready. NOTE: As of Dec 31 2021 '
+            'report generation is taking many hours.'.format(
+                report_shortname), 0)
         try:
             wait_cond = EC.presence_of_element_located(
                 (By.XPATH, get_report_download_link_xpath(report_name)))
