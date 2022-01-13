@@ -598,6 +598,7 @@ class TaggerWorker(QObject):
     on_mint_mfa_done = pyqtSignal()
     on_progress = pyqtSignal(str, int, int)
     stopping = False
+    webdriver = None
 
     @pyqtSlot()
     def stop(self):
@@ -626,6 +627,19 @@ class TaggerWorker(QObject):
             self.on_error.emit(msg)
             logger.exception(msg)
 
+    def close_webdriver(self):
+        if self.webdriver:
+            self.webdriver.close()
+            self.webdriver = None
+
+    def get_webdriver(self, args):
+        if self.webdriver:
+            logger.info('Using existing webdriver')
+            return self.webdriver
+        logger.info('Creating a new webdriver')
+        self.webdriver = get_webdriver(args.headless, args.session_path)
+        return self.webdriver
+
     def do_create_updates(self, args, parent):
         def on_mint_mfa(prompt):
             logger.info('Asking for Mint MFA')
@@ -640,29 +654,16 @@ class TaggerWorker(QObject):
         def progress_factory(msg, max=0):
             return QtProgress(msg, max, self.on_progress.emit)
 
-        webdriver = None
+        atexit.register(self.close_webdriver)
 
-        def close_webdriver():
-            if webdriver:
-                webdriver.close()
-
-        atexit.register(close_webdriver)
-
-        def webdriver_factory():
-            nonlocal webdriver
-            if webdriver:
-                logger.info('Using existing webdriver')
-                return webdriver
-            logger.info('Creating a new webdriver')
-            webdriver = get_webdriver(args.headless, args.session_path)
-            return webdriver
-
+        bound_webdriver_factory = partial(self.get_webdriver, args)
         self.mint_client = MintClient(
             args,
-            webdriver_factory,
+            bound_webdriver_factory,
             mfa_input_callback=on_mint_mfa)
 
-        if not fetch_order_history(args, webdriver_factory, progress_factory):
+        if not fetch_order_history(
+                args, bound_webdriver_factory, progress_factory):
             self.on_error.emit(
                 'Failed to fetch Amazon order history. Check credentials')
             return
@@ -685,8 +686,7 @@ class TaggerWorker(QObject):
                 len(updates),
                 self.on_progress.emit),
             ignore_category=args.no_tag_categories)
-        # Close out the mint client to allow for continued use of the tool.
-        self.mint_client.close()
+        self.close_webdriver()
         self.on_updates_sent.emit(num_updates)
 
 
