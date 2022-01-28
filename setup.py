@@ -81,8 +81,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Topic :: Office/Business :: Financial",
     ],
-    # Note: this is a subset of the fbs requirements; only what's needed to
-    # directly launch the gui or cli from python.
     install_requires=[
         'PyQt5',
         'mock',
