@@ -43,6 +43,7 @@ wheels/
 .installed.cfg
 *.egg
 release_venv/
+pypi_test_venv/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
