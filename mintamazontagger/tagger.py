@@ -444,9 +444,9 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
         # TODO: consider orders even if it has a matched_transaction if this
         # transaction is closer.
         already_matched = any([o.matched for o in orders])
-        if (abs(num_days) <= max_days and
-                abs(num_days) < closest_match_num_days and
-                not already_matched):
+        if (abs(num_days) <= max_days
+                and abs(num_days) < closest_match_num_days
+                and not already_matched):
             closest_match = orders
             closest_match_num_days = abs(num_days)
 
