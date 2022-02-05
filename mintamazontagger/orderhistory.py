@@ -79,12 +79,12 @@ def fetch_order_history(args, webdriver_factory,
                        start_date, end_date)
         request_progress.finish()
 
-    # Now wait on the reports to be done and then download them.
-    for report_shortname, report_type, report_name, report_path in zip(
-            report_shortnames, report_types, report_names, report_paths):
-        if os.path.exists(report_path):
-            # Report has already been fetched! Woot
-            continue
+    # # Now wait on the reports to be done and then download them.
+    # for report_shortname, report_type, report_name, report_path in zip(
+    #         report_shortnames, report_types, report_names, report_paths):
+    #     if os.path.exists(report_path):
+    #         # Report has already been fetched! Woot
+    #         continue
 
         logger.info('Waiting for {} report to be ready'.format(report_type))
         processing_progress = progress_factory(
