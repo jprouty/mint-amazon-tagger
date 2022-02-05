@@ -53,8 +53,8 @@ def fetch_order_history(args, webdriver_factory,
 
         # Report is not here. Go get it.
         if not webdriver:
-            if ((not args.amazon_email or not args.amazon_password) and
-                    not args.amazon_user_will_login):
+            if ((not args.amazon_email or not args.amazon_password)
+                    and not args.amazon_user_will_login):
                 logger.error('No credentials provided for Amazon.com')
                 return False
             login_progress = progress_factory(
@@ -85,8 +85,7 @@ def fetch_order_history(args, webdriver_factory,
             continue
 
         processing_progress = progress_factory(
-            'Waiting for {} report to be ready. NOTE: As of Dec 31 2021 '
-            'report generation is taking many hours.'.format(
+            'Waiting for {} report to be ready.'.format(
                 report_shortname), 0)
         try:
             wait_cond = EC.presence_of_element_located(
