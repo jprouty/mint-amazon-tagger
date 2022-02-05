@@ -70,7 +70,9 @@ def fetch_order_history(args, webdriver_factory,
                 logger.critical(
                     'Failed to login to Amazon.com')
                 return False
+            logger.info('Login to Amazon.com successful')
 
+        logger.info('Requesting {} report'.format(report_type))
         request_progress = progress_factory(
             'Requesting {} report '.format(report_shortname), 0)
         request_report(webdriver, report_name, report_type,
@@ -84,6 +86,7 @@ def fetch_order_history(args, webdriver_factory,
             # Report has already been fetched! Woot
             continue
 
+        logger.info('Waiting for {} report to be ready'.format(report_type))
         processing_progress = progress_factory(
             'Waiting for {} report to be ready.'.format(
                 report_shortname), 0)
@@ -98,6 +101,7 @@ def fetch_order_history(args, webdriver_factory,
             logger.critical("Cannot find download link after a minute!")
             return False
 
+        logger.info('Downloading {} report'.format(report_type))
         download_progress = progress_factory(
             'Downloading {} report '.format(report_shortname), 0)
         download_report(webdriver, report_name, report_path)
