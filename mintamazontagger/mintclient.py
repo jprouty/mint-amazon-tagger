@@ -39,11 +39,15 @@ class MintClient():
         self.webdriver_factory = webdriver_factory
         self.mfa_input_callback = mfa_input_callback
 
+    def hasValidCredentialsForLogin(self):
+        if self.args.mint_user_will_login:
+            return True
+        return self.args.mint_email and self.args.mint_password
+
     def login(self):
         if self.logged_in:
             return True
-        if (not self.args.mint_email or not self.args.mint_password
-                and not self.args.mint_user_will_login):
+        if not self.hasValidCredentialsForLogin():
             logger.error('Missing Mint email or password.')
             return False
 
@@ -268,9 +272,11 @@ _MAX_PASSWORD_ATTEMPTS = 2
 
 
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
+    logger.info('Navigating to Mint homepage.')
     webdriver.get(MINT_HOME)
     webdriver.implicitly_wait(2)
 
+    logger.info('Clicking "Sign in" button.')
     sign_in_button = get_element_by_link_text(webdriver, 'Sign in')
     if not sign_in_button:
         logger.error('Cannot find "Sign in" button on Mint homepage.')
@@ -290,12 +296,13 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     num_password_attempts = 0
     while not webdriver.current_url.startswith(MINT_OVERVIEW):
         since_start = datetime.now() - login_start_time
-        if (args.mint_login_timeout and
-                since_start.total_seconds() > args.mint_login_timeout):
+        if (args.mint_login_timeout
+                and since_start.total_seconds() > args.mint_login_timeout):
             logger.error('Exceeded login timeout')
             return False
 
         if args.mint_user_will_login:
+            logger.info('Mint login to be performed by user.')
             _login_flow_advance(webdriver)
             continue
 
@@ -453,8 +460,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 mfa_select_account,
                 '//label/span[text()=\'{}\']/../'
                 'preceding-sibling::input'.format(args.mint_intuit_account))
-            if (is_visible(account_input) and
-                    is_visible(mfa_token_submit_button)):
+            if (is_visible(account_input)
+                    and is_visible(mfa_token_submit_button)):
                 account_input.click()
                 mfa_token_submit_button.submit()
                 logger.info('Mint Login Flow: MFA account selection')
@@ -462,21 +469,25 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     # Wait for the token to become available.
     while True:
         since_start = datetime.now() - login_start_time
-        if (args.mint_login_timeout and
-                since_start.total_seconds() > args.mint_login_timeout):
+        if (args.mint_login_timeout
+                and since_start.total_seconds() > args.mint_login_timeout):
             logger.error('Exceeded login timeout')
             return False
 
-        js_user = get_element_by_name(webdriver, 'javascript-user')
-        if js_user:
-            js_value = js_user.get_attribute('value')
-            json_value = json.loads(js_value)
-            if 'token' in json_value:
-                # Token is ready; break out.
-                break
+        try:
+            js_user = get_element_by_name(webdriver, 'javascript-user')
+            if js_user:
+                js_value = js_user.get_attribute('value')
+                json_value = json.loads(js_value)
+                if 'token' in json_value:
+                    # Token is ready; break out.
+                    break
+        except StaleElementReferenceException:
+            logger.warning('Stale reference while getting Mint JS user token')
 
         _login_flow_advance(webdriver)
 
+    logger.info('Mint login successful.')
     # If you made it here, you must be good to go!
     return True
 
@@ -487,6 +498,7 @@ def _login_flow_advance(webdriver):
 
 
 def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):
+    logger.info('Waiting for Mint to sync accounts before tagging')
     try:
         status_message = WebDriverWait(webdriver, 30).until(
             expected_conditions.visibility_of_element_located(
@@ -497,6 +509,7 @@ def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):
     except (TimeoutException, StaleElementReferenceException):
         logger.warning("Mint sync apparently incomplete after timeout. "
                        "Data retrieved may not be current.")
+    logger.info('Mint sync complete')
 
 
 def _get_random():

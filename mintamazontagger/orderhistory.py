@@ -28,7 +28,7 @@ def fetch_order_history(args, webdriver_factory,
 
     name = (
         args.amazon_email.split('@')[0]
-        if args.amazon_email else 'mint_tagger')
+        if args.amazon_email else 'mint_tagger_unknown_user')
 
     start_date = args.order_history_start_date
     end_date = args.order_history_end_date
@@ -114,7 +114,7 @@ def fetch_order_history(args, webdriver_factory,
 
 
 def nav_to_amazon_and_let_user_login(webdriver):
-    logger.info('Starting login flow for Amazon.com')
+    logger.info('User logging in to Amazon.com')
 
     webdriver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
     try:
@@ -127,7 +127,7 @@ def nav_to_amazon_and_let_user_login(webdriver):
 
 
 def nav_to_amazon_and_login(webdriver, email, password):
-    logger.info('Starting login flow for Amazon.com')
+    logger.info('Starting automated login flow for Amazon.com')
 
     webdriver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
     webdriver.implicitly_wait(2)
