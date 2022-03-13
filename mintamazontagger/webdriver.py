@@ -1,13 +1,15 @@
 import io
 import logging
 import os
+import psutil
 import re
 import requests
 import subprocess
 from sys import platform
 import zipfile
 
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import (
+    InvalidArgumentException, NoSuchElementException)
 from selenium.webdriver import ChromeOptions
 from seleniumrequests import Chrome
 
@@ -24,8 +26,30 @@ def get_webdriver(headless=False, session_path=None):
     if session_path is not None:
         chrome_options.add_argument("user-data-dir=" + session_path)
     home_dir = os.path.expanduser("~")
-    return Chrome(options=chrome_options,
-                  executable_path=get_stable_chrome_driver(home_dir))
+    try:
+        return Chrome(options=chrome_options,
+                      executable_path=get_stable_chrome_driver(home_dir))
+    except InvalidArgumentException as e:
+        if 'user data directory is already in use' not in e.msg:
+            logger.warning('reraising selenium exception')
+            raise e
+        logger.warn(
+            'Found existing webdriver from previous run, attempting to kill')
+        for proc in psutil.process_iter():
+            try:
+                if not proc.children():
+                    continue
+                if not any(
+                        [session_path in param for param in proc.cmdline()]):
+                    continue
+                logger.info(
+                    'Attempting to terminate process id {}'.format(proc.pid))
+                proc.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied,
+                    psutil.ZombieProcess):
+                pass
+        return Chrome(options=chrome_options,
+                      executable_path=get_stable_chrome_driver(home_dir))
 
 
 def is_visible(element):

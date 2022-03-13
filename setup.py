@@ -86,6 +86,7 @@ setuptools.setup(
         'mock',
         'oathtool',
         'outdated',
+        'psutil',
         'progress',
         'range-key-dict',
         'requests',

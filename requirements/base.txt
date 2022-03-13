@@ -1,6 +1,7 @@
 PyQt5
 outdated
 oathtool
+psutil
 progress
 range-key-dict
 requests
