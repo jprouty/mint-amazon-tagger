@@ -493,7 +493,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
 
 
 def _login_flow_advance(webdriver):
-    webdriver.implicitly_wait(1)
+    webdriver.implicitly_wait(5)
     time.sleep(1)
 
 

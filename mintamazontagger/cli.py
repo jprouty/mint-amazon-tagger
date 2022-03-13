@@ -47,10 +47,16 @@ def main():
         time.strftime("%Y-%m-%d_%H-%M-%S")))
     root_logger.addHandler(logging.FileHandler(log_filename))
 
-    is_outdated, latest_version = check_outdated('mint-amazon-tagger', VERSION)
-    if is_outdated:
-        print('Please update your version by running:\n'
-              'pip3 install mint-amazon-tagger --upgrade\n\n')
+    logger.info('Running version {}'.format(VERSION))
+    try:
+        is_outdated, latest_version = check_outdated(
+            'mint-amazon-tagger', VERSION)
+        if is_outdated:
+            logger.warning('Please update your version by running:\n'
+                           'pip3 install mint-amazon-tagger --upgrade\n\n')
+    except ValueError:
+        logger.error(
+            'Version {} is newer than PyPY version'.format(VERSION))
 
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
@@ -148,11 +154,11 @@ def main():
 
 
 def maybe_prompt_for_mint_credentials(args):
-    if (not args.mint_email and not args.mint_user_will_login and
-            not args.pickled_epoch):
+    if (not args.mint_email and not args.mint_user_will_login
+            and not args.pickled_epoch):
         args.mint_email = input('Mint email: ')
-    if (not args.mint_password and not args.mint_user_will_login and
-            not args.pickled_epoch):
+    if (not args.mint_password and not args.mint_user_will_login
+            and not args.pickled_epoch):
         args.mint_password = getpass.getpass('Mint password: ')
 
 

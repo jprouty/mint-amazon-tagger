@@ -66,13 +66,21 @@ class TaggerGui:
             s.activated.connect(app.exit)
             self.quit_shortcuts.append(s)
 
-        is_outdated, latest_version = check_outdated(
-            'mint-amazon-tagger', VERSION)
-        if is_outdated:
-            outdate_msg = QErrorMessage(self.window)
-            outdate_msg.showMessage(
-                'A new version is available. Please update for the best '
-                'experience. https://github.com/jprouty/mint-amazon-tagger')
+        logger.info('Running version {}'.format(VERSION))
+        try:
+            is_outdated, latest_version = check_outdated(
+                'mint-amazon-tagger', VERSION)
+            if is_outdated:
+                outdate_msg = QErrorMessage(self.window)
+                outdate_msg.showMessage(
+                    'A new version is available. Please update for the best '
+                    'experience. https://github.com/jprouty/mint-amazon-tagger')
+                logger.warning(
+                    'Running out of date software is bad. Latest is {}'.format(
+                        latest_version))
+        except ValueError:
+            logger.error(
+                'Version {} is newer than PyPY version'.format(VERSION))
 
         v_layout = QVBoxLayout()
         h_layout = QHBoxLayout()
@@ -454,6 +462,7 @@ class TaggerDialog(QDialog):
     def on_error(self, msg):
         logger.error(msg)
         self.label.setText('Error: {}'.format(msg))
+        self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.label.setStyleSheet(
             'QLabel { color: red; font-weight: bold; }')
         self.cancel_button.setText('Close')
@@ -713,5 +722,7 @@ def main():
     sys.exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
 
 
+if __name__ == '__main__':
+    main()
 if __name__ == '__main__':
     main()
