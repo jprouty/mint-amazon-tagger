@@ -15,12 +15,12 @@ echo "Install PyInstaller locally, with a locally built bootloader. This helps a
 $pyinstaller = Join-Path 'C:\' $(New-Guid) | %{ mkdir $_ }
 Push-Location $pyinstaller
 
-$PyInstallerArchiveUrl = "https://github.com/pyinstaller/pyinstaller/archive/refs/tags/v4.2.zip"
-$PyInstallerLocalZip = Join-Path $pyinstaller 'PyInstaller_v4.2.zip'
+$PyInstallerArchiveUrl = "https://github.com/pyinstaller/pyinstaller/archive/refs/tags/v5.0.zip"
+$PyInstallerLocalZip = Join-Path $pyinstaller 'PyInstaller_v5.0.zip'
 Invoke-WebRequest -OutFile $PyInstallerLocalZip $PyInstallerArchiveUrl
 $PyInstallerLocalZip | Expand-Archive -DestinationPath $pyinstaller -Force
 
-Push-Location pyinstaller-4.2
+Push-Location pyinstaller-5.0
 Push-Location bootloader
 python ./waf all
 Pop-Location
@@ -52,5 +52,6 @@ echo "Now verify the built version works"
 .\dist\MintAmazonTagger.exe | Out-Null
 
 deactivate
-Remove-Item .\release_venv\ -recurse
+Remove-Item -Recurse -Force .\release_venv\
+Remove-Item -Recurse -Force $pyinstaller
 Pop-Location
