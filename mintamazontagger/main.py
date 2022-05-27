@@ -385,7 +385,8 @@ class TaggerGui:
         def on_button():
             dlg = QFileDialog()
             selection = dlg.getOpenFileName(
-                self.window, popup_title, '', filter)
+                self.window, popup_title, self.args.report_download_location,
+                filter)
             if selection[0]:
                 prev_file = getattr(self.args, name)
                 if prev_file:

@@ -316,6 +316,11 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             webdriver, 'ius-sign-in-mfa-password-collection-current-password')
         mfa_submit_button = get_element_by_id(
             webdriver, 'ius-sign-in-mfa-password-collection-continue-btn')
+        # New MFA flow for password:
+        password_verification_input = get_element_by_id(
+            webdriver, 'iux-password-verification-password')
+        password_verification_submit_button = get_element_by_xpath(
+            webdriver, '//*[@id="ius-sign-in-mfa-parent"]/div/form/button/span[text()="Continue"]')
 
         # Attempt to enter an email and/or password if the fields are present.
         do_submit = False
@@ -340,6 +345,12 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             password_input.send_keys(args.mint_password)
             logger.info('Mint Login Flow: Entering password')
             do_submit = True
+        if is_visible(password_verification_input):
+            num_password_attempts += 1
+            password_verification_input.clear()
+            password_verification_input.send_keys(args.mint_password)
+            logger.info('Mint Login Flow: Entering password in verification')
+            do_submit = True
         if is_visible(mfa_password_input):
             num_password_attempts += 1
             mfa_password_input.clear()
@@ -356,6 +367,14 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             elif is_visible(mfa_submit_button):
                 logger.info('Mint Login Flow: Submitting credentials for MFA')
                 mfa_submit_button.submit()
+            elif is_visible(password_verification_submit_button):
+                logger.info(
+                    'Mint Login Flow: Submitting credentials for password '
+                    'verification')
+                password_verification_submit_button.submit()
+            else:
+                logger.error('Cannot find visible submit button!')
+
             _login_flow_advance(webdriver)
             continue
 
@@ -493,7 +512,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
 
 
 def _login_flow_advance(webdriver):
-    webdriver.implicitly_wait(5)
+    webdriver.implicitly_wait(2)
     time.sleep(1)
 
 
