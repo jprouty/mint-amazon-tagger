@@ -50,15 +50,12 @@ class TaggerGui:
         self.arg_name_to_help = arg_name_to_help
 
     def create_gui(self):
-        try:
-            from fbs_runtime.application_context.PyQt5 import (
-                ApplicationContext)
-            appctxt = ApplicationContext()
-            app = appctxt.app
-        except ImportError:
-            app = QApplication(sys.argv)
+        app = QApplication(sys.argv)
         app.setStyle('Fusion')
+        version_string = 'Mint Amazon Tagger v{}'.format(VERSION)
+        app.setApplicationName(version_string)
         self.window = QMainWindow()
+        self.window.setWindowTitle(version_string)
 
         self.quit_shortcuts = []
         for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
@@ -74,7 +71,8 @@ class TaggerGui:
                 outdate_msg = QErrorMessage(self.window)
                 outdate_msg.showMessage(
                     'A new version is available. Please update for the best '
-                    'experience. https://github.com/jprouty/mint-amazon-tagger')
+                    'experience. '
+                    'https://github.com/jprouty/mint-amazon-tagger')
                 logger.warning(
                     'Running out of date software is bad. Latest is {}'.format(
                         latest_version))
