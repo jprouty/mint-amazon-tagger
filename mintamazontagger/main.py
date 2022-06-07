@@ -11,12 +11,13 @@ import datetime
 from functools import partial
 import logging
 import os
+from signal import signal, SIGINT
 import sys
 import time
 
 from PyQt5.QtCore import (
-    Q_ARG, QDate, QEventLoop, Qt, QMetaObject, QObject, QThread, QUrl,
-    pyqtSlot, pyqtSignal)
+    Q_ARG, QDate, QEventLoop, Qt, QMetaObject, QObject, QTimer, QThread,
+    QUrl, pyqtSlot, pyqtSignal)
 from PyQt5.QtGui import QDesktopServices, QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView, QApplication, QCalendarWidget,
@@ -51,6 +52,11 @@ class TaggerGui:
 
     def create_gui(self):
         app = QApplication(sys.argv)
+
+        timer = QTimer()
+        timer.start(500)
+        timer.timeout.connect(lambda: None)
+
         app.setStyle('Fusion')
         version_string = 'Mint Amazon Tagger v{}'.format(VERSION)
         app.setApplicationName(version_string)
@@ -718,10 +724,14 @@ def main():
     define_gui_args(parser)
     args = parser.parse_args()
 
+    def sigint_handler(signal, frame):
+        logger.warning('Keyboard interrupt caught')
+        QApplication.quit()
+        sys.exit(0)
+
+    signal(SIGINT, sigint_handler)
     sys.exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
 
 
-if __name__ == '__main__':
-    main()
 if __name__ == '__main__':
     main()
