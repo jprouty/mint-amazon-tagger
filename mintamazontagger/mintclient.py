@@ -19,7 +19,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 logger = logging.getLogger(__name__)
 
 MINT_HOME = 'https://mint.intuit.com'
-MINT_OVERVIEW = '{}/overview.event'.format(MINT_HOME)
+MINT_OVERVIEW = '{}/overview'.format(MINT_HOME)
 MINT_GET_TRANS = '{}/getJsonData.xevent'.format(MINT_HOME)
 MINT_UPDATE_TRANS = '{}/updateTransaction.xevent'.format(MINT_HOME)
 JSON_HEADER = {'accept': 'application/json'}
