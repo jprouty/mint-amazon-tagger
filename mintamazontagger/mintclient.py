@@ -311,6 +311,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         ius_text_input = get_element_by_id(webdriver, 'ius-text-input')
         password_input = get_element_by_id(webdriver, 'ius-password')
         submit_button = get_element_by_id(webdriver, 'ius-sign-in-submit-btn')
+        first_submit_button = get_element_by_id(
+            webdriver, 'ius-identifier-first-submit-btn')
         # Password might be asked later in the MFA flow; combine logic here.
         mfa_password_input = get_element_by_id(
             webdriver, 'ius-sign-in-mfa-password-collection-current-password')
@@ -367,11 +369,14 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             elif is_visible(mfa_submit_button):
                 logger.info('Mint Login Flow: Submitting credentials for MFA')
                 mfa_submit_button.submit()
+            elif is_visible(first_submit_button):
+                logger.info('Mint Login Flow: Submitting credentials for MFA')
+                first_submit_button.click()
             elif is_visible(password_verification_submit_button):
                 logger.info(
                     'Mint Login Flow: Submitting credentials for password '
                     'verification')
-                password_verification_submit_button.submit()
+                password_verification_submit_button.click()
             else:
                 logger.error('Cannot find visible submit button!')
 
@@ -472,18 +477,27 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         # MFA account selector:
         mfa_select_account = get_element_by_id(
             webdriver, 'ius-mfa-select-account-section')
-        mfa_token_submit_button = get_element_by_id(
-            webdriver, 'ius-sign-in-mfa-select-account-continue-btn')
-        if args.mint_intuit_account and is_visible(mfa_select_account):
+        mfa_token_submit_button = get_element_by_xpath(
+            webdriver, '//button[text()=\'Continue\']')
+        if is_visible(mfa_select_account):
+            account = args.mint_intuit_account or args.mint_email
+            logger.info('MFA select intuit account')
+
+            # '//label/span/div/span[text()=\'{}\']/../../../'
+            # 'preceding-sibling::input'.format(account))
+
             account_input = get_element_by_xpath(
                 mfa_select_account,
-                '//label/span[text()=\'{}\']/../'
-                'preceding-sibling::input'.format(args.mint_intuit_account))
+                '//label/span/div/span[text()=\'{}\']'.format(account))
+            # //*[@id="ius-mfa-select-account-section"]/div/div/div/form/fieldset/div/div[1]/div/div/label/span/div/span[1]
+            # /html/body/section/section/div/div/div[2]/section[7]/div/section[8]/div/div/div/form/fieldset/div/div[1]/div/div/label/span/div/span[1]
             if (is_visible(account_input)
                     and is_visible(mfa_token_submit_button)):
                 account_input.click()
                 mfa_token_submit_button.submit()
                 logger.info('Mint Login Flow: MFA account selection')
+            else:
+                logger.error('Cannot find matching mint intuit account.')
 
     # Wait for the token to become available.
     while True:
@@ -513,7 +527,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
 
 def _login_flow_advance(webdriver):
     webdriver.implicitly_wait(2)
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):

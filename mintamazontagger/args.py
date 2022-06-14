@@ -45,7 +45,7 @@ def define_common_args(parser):
     parser.add_argument(
         '--order_history_timeout',
         type=int,
-        default=180,
+        default=10*60,
         help=('The amount of time (in seconds) to wait for order retrieval '
               'from Amazon before considering the process to have timed out.'))
 
