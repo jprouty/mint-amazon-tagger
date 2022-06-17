@@ -142,7 +142,7 @@ class MintClient():
                 # If the existing transaction is a:
                 #   - credit: positive amount is credit, negative debit
                 #   - debit: positive amount is debit, negative credit
-                txn_id = '{}:0'.format(orig_trans.id),
+                # txn_id = '{}:0'.format(orig_trans.id),
                 itemized_split = {
                     'task': 'split',
                     'data': '',  # Yup this is weird.
