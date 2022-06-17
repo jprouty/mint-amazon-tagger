@@ -11,6 +11,7 @@ from collections import defaultdict
 import getpass
 import logging
 import os
+from signal import signal, SIGINT
 import time
 
 from outdated import check_outdated
@@ -81,6 +82,14 @@ def main():
             return webdriver
         webdriver = get_webdriver(args.headless, args.session_path)
         return webdriver
+
+    def sigint_handler(signal, frame):
+        if webdriver:
+            webdriver.close()
+        logger.warning('Keyboard interrupt caught')
+        exit(0)
+
+    signal(SIGINT, sigint_handler)
 
     mint_client = MintClient(args, webdriver_factory)
 

@@ -112,7 +112,7 @@ def define_common_args(parser):
     # Mint API options:
     default_session_path = os.path.join(TAGGER_BASE_PATH, 'ChromeSession')
     parser.add_argument(
-        '--session-path', nargs='?',
+        '--session_path', nargs='?',
         default=default_session_path,
         help=('Directory to save browser session, including cookies. Use to '
               'prevent repeated MFA prompts. Defaults to a directory in your '
