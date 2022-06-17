@@ -1,13 +1,11 @@
 from datetime import date, datetime
-import json
 import logging
-import random
 import requests
 import time
 
 from mintamazontagger.currency import micro_usd_to_usd_float
 from mintamazontagger.webdriver import (
-    get_element_by_id, get_element_by_name, get_element_by_xpath,
+    get_element_by_id, get_element_by_xpath,
     get_element_by_link_text, get_elements_by_class_name, is_visible)
 
 from selenium.common.exceptions import (
@@ -18,11 +16,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
 
+MINT_API_VERSION = 'pfm/v1'
+
 MINT_HOME = 'https://mint.intuit.com'
 MINT_OVERVIEW = '{}/overview'.format(MINT_HOME)
-MINT_GET_TRANS = '{}/getJsonData.xevent'.format(MINT_HOME)
-MINT_UPDATE_TRANS = '{}/updateTransaction.xevent'.format(MINT_HOME)
-JSON_HEADER = {'accept': 'application/json'}
+MINT_TRANSACTIONS = '{}/{}/transactions'.format(MINT_HOME, MINT_API_VERSION)
+MINT_CATEGORIES = '{}/{}/categories'.format(MINT_HOME, MINT_API_VERSION)
 
 
 class MintClient():
@@ -30,7 +29,6 @@ class MintClient():
     webdriver_factory = None
     mfa_input_callback = None
     request_id = 0
-    token = None
     webdriver = None
     logged_in = False
 
@@ -43,6 +41,9 @@ class MintClient():
         if self.args.mint_user_will_login:
             return True
         return self.args.mint_email and self.args.mint_password
+
+    def get_api_header(self):
+        return _get_api_header(self.webdriver)
 
     def login(self):
         if self.logged_in:
@@ -61,90 +62,49 @@ class MintClient():
             _wait_for_sync(self.webdriver)
         return self.logged_in
 
-    def get_transactions(self, start_date=None):
+    def get_transactions(self, from_date=None, to_date=None):
         if not self.login():
             logger.error('Cannot login')
             return []
-        logger.info('Get all Mint transactions since {}.'.format(start_date))
-        transactions = []
-        offset = 0
-        # Mint transactions are pagenated.
-        while True:
-            params = {
-                'queryNew': '',
-                'offset': offset,
-                'comparableType': '8',
-                'rnd': _get_random(),
-                'task': 'transactions,txnfilters',
-                'filterType': 'cash',
-            }
+        logger.info('Get all Mint transactions since {} to {}.'.format(
+            from_date, to_date))
+        params = {
+            'limit': '10000',
+            'fromDate': from_date,
+            'toDate': to_date,
+        }
 
-            result = self.webdriver.request(
-                'get', MINT_GET_TRANS, headers=JSON_HEADER, params=params)
-            if result.status_code != requests.codes.ok:
-                logger.error(
-                    'Error getting transactions. status_code = {}'.format(
-                        result.status_code))
-                return result
-            content_type = result.headers.get('content-type', '')
-            if not content_type.startswith('application/json'):
-                logger.error(
-                    'Error getting transactions. content_type = {}'.format(
-                        content_type))
-                return result
+        response = self.webdriver.request(
+            'GET', MINT_TRANSACTIONS, headers=self.get_api_header(),
+            params=params)
+        if response.status_code != requests.codes.ok:
+            logger.error(
+                'Error getting transactions. status_code = {}'.format(
+                    response.status_code))
+            return []
+        content_type = response.headers.get('content-type', '')
+        if not content_type.startswith('application/json'):
+            logger.error(
+                'Error getting transactions. content_type = {}'.format(
+                    content_type))
+            return []
 
-            data = json.loads(result.text)
-            partial_transactions = data['set'][0].get('data', [])
-            if not partial_transactions:
-                return transactions
-            if start_date:
-                last_date = _json_date_to_date(
-                    partial_transactions[-1]['odate'])
-                if last_date < start_date:
-                    keep_txns = [
-                        t for t in partial_transactions
-                        if _json_date_to_date(t['odate']) >= start_date]
-                    transactions.extend(keep_txns)
-                    break
-            transactions.extend(partial_transactions)
-            offset += len(partial_transactions)
-        return transactions
+        return response.json()
 
     def get_categories(self):
         if not self.login():
             logger.error('Cannot login')
             return {}
         logger.info('Getting Mint categories.')
-        req_id = self.get_request_id_str()
-        data = {
-            'input': json.dumps([{
-                'args': {
-                    'excludedCategories': [],
-                    'sortByPrecedence': False,
-                    'categoryTypeFilter': 'FREE'
-                },
-                'id': req_id,
-                'service': 'MintCategoryService',
-                'task': 'getCategoryTreeDto2'
-            }])
-        }
 
-        get_categories_url = (
-            '{}/bundledServiceController.xevent?legacy=false&token={}'.format(
-                MINT_HOME, self.get_token()))
         response = self.webdriver.request(
-            'POST', get_categories_url, data=data, headers=JSON_HEADER).text
-        if req_id not in response:
-            logger.error(
-                'Could not parse category data: "{}"'.format(response))
-            return {}
-        response = json.loads(response)
-        response = response['response'][req_id]['response']
+            'GET', MINT_CATEGORIES, headers=self.get_api_header())
+        return response.json()
 
-        result = {}
-        for category in response['allCategories']:
-            result[category['name']] = category['id']
-        return result
+        # result = {}
+        # for category in response['allCategories']:
+        #     result[category['name']] = category['id']
+        # return result
 
     def send_updates(self, updates, progress, ignore_category=False):
         if not self.login():
@@ -156,11 +116,8 @@ class MintClient():
                 # Update the existing transaction.
                 trans = new_trans[0]
                 modify_trans = {
-                    'task': 'txnedit',
-                    'txnId': '{}:0'.format(trans.id),
                     'note': trans.note,
                     'merchant': trans.merchant,
-                    'token': self.get_token(),
                 }
                 if not ignore_category:
                     modify_trans = {
@@ -173,7 +130,10 @@ class MintClient():
                     'Sending a "modify" transaction request: {}'.format(
                         modify_trans))
                 response = self.webdriver.request(
-                    'POST', MINT_UPDATE_TRANS, data=modify_trans).text
+                    'PUT',
+                    '{}/{}'.format(MINT_TRANSACTIONS, trans.id),
+                    data=modify_trans,
+                    headers=self.get_api_header()).json()
                 progress.next()
                 logger.debug('Received response: {}'.format(response))
                 num_requests += 1
@@ -182,11 +142,10 @@ class MintClient():
                 # If the existing transaction is a:
                 #   - credit: positive amount is credit, negative debit
                 #   - debit: positive amount is debit, negative credit
+                txn_id = '{}:0'.format(orig_trans.id),
                 itemized_split = {
-                    'txnId': '{}:0'.format(orig_trans.id),
                     'task': 'split',
                     'data': '',  # Yup this is weird.
-                    'token': self.get_token(),
                 }
                 all_credit = all(not trans.is_debit for trans in new_trans)
 
@@ -216,7 +175,8 @@ class MintClient():
                     'Sending a "split" transaction request: {}'.format(
                         itemized_split))
                 response = self.webdriver.request(
-                    'POST', MINT_UPDATE_TRANS, data=itemized_split)
+                    'PUT', MINT_TRANSACTIONS, data=itemized_split,
+                    headers=self.get_api_header())
                 json_resp = response.json()
                 # The first id is always the original transaction (now
                 # parent transaction id).
@@ -224,14 +184,13 @@ class MintClient():
                 assert len(new_trans_ids) == len(new_trans)
                 for itemized_id, trans in zip(new_trans_ids, new_trans):
                     # Now send the note for each itemized transaction.
+                    # 'txnId': '{}:0'.format(itemized_id),
                     itemized_note = {
-                        'task': 'txnedit',
-                        'txnId': '{}:0'.format(itemized_id),
                         'note': trans.note,
-                        'token': self.get_token(),
                     }
                     note_response = self.webdriver.request(
-                        'POST', MINT_UPDATE_TRANS, data=itemized_note)
+                        'PUT', MINT_TRANSACTIONS, data=itemized_note,
+                        headers=self.get_api_header())
                     logger.debug(
                         'Received note response: {}'.format(
                             note_response.text))
@@ -242,18 +201,6 @@ class MintClient():
 
         progress.finish()
         return num_requests
-
-    def get_token(self):
-        if self.token:
-            return self.token
-        value_json = self.webdriver.find_element_by_name(
-            'javascript-user').get_attribute('value')
-        self.token = json.loads(value_json)['token']
-        return self.token
-
-    def get_request_id_str(self):
-        self.request_id += 1
-        return str(self.request_id)
 
 
 def _json_date_to_date(dateraw):
@@ -273,8 +220,8 @@ _MAX_PASSWORD_ATTEMPTS = 2
 
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Navigating to Mint homepage.')
-    webdriver.get(MINT_HOME)
     webdriver.implicitly_wait(2)
+    webdriver.get(MINT_HOME)
 
     logger.info('Clicking "Sign in" button.')
     sign_in_button = get_element_by_link_text(webdriver, 'Sign in')
@@ -282,7 +229,6 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         logger.error('Cannot find "Sign in" button on Mint homepage.')
         return False
     sign_in_button.click()
-    webdriver.implicitly_wait(2)
 
     # Mint login is a bit messy. Work through the flow, allowing for any order
     # of interstitials. Exit only when reaching the overview page (indicating
@@ -322,7 +268,9 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         password_verification_input = get_element_by_id(
             webdriver, 'iux-password-verification-password')
         password_verification_submit_button = get_element_by_xpath(
-            webdriver, '//*[@id="ius-sign-in-mfa-parent"]/div/form/button/span[text()="Continue"]')
+            webdriver,
+            ('//*[@id="ius-sign-in-mfa-parent"]/div/form/button/'
+             'span[text()="Continue"]'))
 
         # Attempt to enter an email and/or password if the fields are present.
         do_submit = False
@@ -499,34 +447,12 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             else:
                 logger.error('Cannot find matching mint intuit account.')
 
-    # Wait for the token to become available.
-    while True:
-        since_start = datetime.now() - login_start_time
-        if (args.mint_login_timeout
-                and since_start.total_seconds() > args.mint_login_timeout):
-            logger.error('Exceeded login timeout')
-            return False
-
-        try:
-            js_user = get_element_by_name(webdriver, 'javascript-user')
-            if js_user:
-                js_value = js_user.get_attribute('value')
-                json_value = json.loads(js_value)
-                if 'token' in json_value:
-                    # Token is ready; break out.
-                    break
-        except StaleElementReferenceException:
-            logger.warning('Stale reference while getting Mint JS user token')
-
-        _login_flow_advance(webdriver)
-
     logger.info('Mint login successful.')
     # If you made it here, you must be good to go!
     return True
 
 
 def _login_flow_advance(webdriver):
-    webdriver.implicitly_wait(2)
     time.sleep(0.5)
 
 
@@ -545,6 +471,13 @@ def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):
     logger.info('Mint sync complete')
 
 
-def _get_random():
-    return (str(int(time.mktime(datetime.now().timetuple()))) + str(
-        random.randrange(999)).zfill(3))
+def _get_api_header(webdriver):
+    key_var = "window.__shellInternal.appExperience.appApiKey"
+    api_key = webdriver.execute_script("return " + key_var)
+    auth = 'Intuit_APIKey intuit_apikey={}, intuit_apikey_version={}'.format(
+        api_key, '1.0')
+    header = {
+        'authorization': auth,
+        'accept': 'application/json',
+    }
+    return header
