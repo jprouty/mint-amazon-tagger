@@ -1,5 +1,7 @@
 # Mint Transactions Tagger for Amazon Purchases
 
+Mint recently revamped its login flow (to use the unified Intuit flow) and launched a new Mint REST API. This has broken the mint amazon tagger tool for the moment. I am actively working to resolve the issue as quickly as possible. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/100). Thank you for your patience.
+
 ## Overview ##
 
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
@@ -120,5 +122,5 @@ Not every bank treats Amazon purchases the same, or processes transactions as qu
 
 Some common options to try:
 
-* --mint_input_include_mmerchant and/or --mint_input_include_merchant. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
+* --mint_input_include_description. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
 * --max_days_between_payment_and_shipping. If your bank is slow at posting payments, adjusting this value up to 7 or more will increase your chance of matching. If you have a high volume of purchases, this can increase your chance of mis-tagging items.

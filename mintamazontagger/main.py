@@ -149,14 +149,11 @@ class TaggerGui:
             self.create_checkbox('mint_wait_for_sync'))
 
         mint_layout.addRow(
-            'Merchant Filter',
-            self.create_line_edit('mint_input_merchant_filter'))
+            'description Filter',
+            self.create_line_edit('mint_input_description_filter'))
         mint_layout.addRow(
-            'Include MMerchant',
-            self.create_checkbox('mint_input_include_mmerchant'))
-        mint_layout.addRow(
-            'Include Merchant',
-            self.create_checkbox('mint_input_include_merchant'))
+            'Include description',
+            self.create_checkbox('mint_input_include_description'))
         mint_layout.addRow(
             'Input Categories Filter',
             self.create_line_edit('mint_input_categories_filter'))

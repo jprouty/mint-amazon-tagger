@@ -2,7 +2,8 @@ from collections import Counter
 import unittest
 
 from mintamazontagger import tagger
-from mintamazontagger.mockdata import item, order, refund, transaction
+from mintamazontagger.mockdata import (
+    item, order, refund, transaction, MINT_CATEGORIES_TO_IDS)
 
 
 class Args:
@@ -14,9 +15,8 @@ def get_args(
         description_prefix_override='Amazon.com: ',
         description_return_prefix_override='Amazon.com: ',
         amazon_domains='amazon.com,amazon.co.uk',
-        mint_input_merchant_filter='amazon',
-        mint_input_include_mmerchant=False,
-        mint_input_include_merchant=False,
+        mint_input_description_filter='amazon',
+        mint_input_include_description=False,
         mint_input_categories_filter=None,
         verbose_itemize=False,
         no_itemize=False,
@@ -30,9 +30,8 @@ def get_args(
         description_prefix_override=description_prefix_override,
         description_return_prefix_override=description_return_prefix_override,
         amazon_domains=amazon_domains,
-        mint_input_merchant_filter=mint_input_merchant_filter,
-        mint_input_include_mmerchant=mint_input_include_mmerchant,
-        mint_input_include_merchant=mint_input_include_merchant,
+        mint_input_description_filter=mint_input_description_filter,
+        mint_input_include_description=mint_input_include_description,
         mint_input_categories_filter=mint_input_categories_filter,
         verbose_itemize=verbose_itemize,
         no_itemize=no_itemize,
@@ -51,7 +50,8 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [], [], [],
             [],
-            get_args(), Counter())
+            get_args(), Counter(),
+            MINT_CATEGORIES_TO_IDS)
         self.assertEqual(len(updates), 0)
 
     def test_get_mint_updates_simple_match(self):
@@ -63,16 +63,16 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(), stats)
+            get_args(), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 1)
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
-        self.assertEqual(new_trans[0].merchant, 'Amazon.com: 2x Duracell AAs')
+        self.assertEqual(new_trans[0].description, 'Amazon.com: 2x Duracell AAs')
         self.assertEqual(new_trans[0].category, 'Electronics & Software')
         self.assertEqual(new_trans[0].amount, 11950000)
-        self.assertTrue(new_trans[0].is_debit)
         self.assertFalse(new_trans[0].is_child)
 
         self.assertEqual(stats['new_tag'], 1)
@@ -83,22 +83,22 @@ class Tagger(unittest.TestCase):
             refund_amount='$10.95',
             refund_tax_amount='$1.00',
             refund_date='3/12/14')
-        t1 = transaction(amount='$11.95', is_debit=False, date='3/12/14')
+        t1 = transaction(amount='$11.95', date='3/12/14')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
             [], [], [r1],
             [t1],
-            get_args(), stats)
+            get_args(), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 1)
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
-        self.assertEqual(new_trans[0].merchant, 'Amazon.com: 2x Cool item')
+        self.assertEqual(new_trans[0].description, 'Amazon.com: 2x Cool item')
         self.assertEqual(new_trans[0].category, 'Returned Purchase')
         self.assertEqual(new_trans[0].amount, -11950000)
-        self.assertFalse(new_trans[0].is_debit)
         self.assertFalse(new_trans[0].is_child)
 
         self.assertEqual(stats['new_tag'], 1)
@@ -109,13 +109,14 @@ class Tagger(unittest.TestCase):
             refund_amount='$10.95',
             refund_tax_amount='$1.00',
             refund_date=None)
-        t1 = transaction(amount='$11.95', is_debit=False, date='3/12/14')
+        t1 = transaction(amount='$11.95', date='3/12/14')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
             [], [], [r1],
             [t1],
-            get_args(), stats)
+            get_args(), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 0)
         self.assertEqual(stats['new_tag'], 0)
@@ -123,14 +124,15 @@ class Tagger(unittest.TestCase):
     def test_get_mint_updates_skip_already_tagged(self):
         i1 = item()
         o1 = order()
-        t1 = transaction(merchant='SomeRandoCustomPrefix: already tagged')
+        t1 = transaction(description='SomeRandoCustomPrefix: already tagged')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
             get_args(description_prefix_override='SomeRandoCustomPrefix: '),
-            stats)
+            stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 0)
         self.assertEqual(stats['no_retag'], 1)
@@ -138,13 +140,14 @@ class Tagger(unittest.TestCase):
     def test_get_mint_updates_retag_arg(self):
         i1 = item()
         o1 = order()
-        t1 = transaction(merchant='Amazon.com: already tagged')
+        t1 = transaction(description='Amazon.com: already tagged')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(retag_changed=True), stats)
+            get_args(retag_changed=True), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 1)
         self.assertEqual(stats['retag'], 1)
@@ -152,13 +155,14 @@ class Tagger(unittest.TestCase):
     def test_get_mint_updates_multi_domains_no_retag(self):
         i1 = item()
         o1 = order()
-        t1 = transaction(merchant='Amazon.co.uk: already tagged')
+        t1 = transaction(description='Amazon.co.uk: already tagged')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(), stats)
+            get_args(), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 0)
 
@@ -166,7 +170,7 @@ class Tagger(unittest.TestCase):
         i1 = item()
         o1 = order()
         t1 = transaction(
-            merchant='Amazon.com: 2x Duracell AAs',
+            description='Amazon.com: 2x Duracell AAs',
             category='Electronics & Software',
             note=o1.get_note() + '\nItem(s):\n - 2x Duracell AAs')
 
@@ -174,7 +178,8 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(retag_changed=True), stats)
+            get_args(retag_changed=True), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 0)
         self.assertEqual(stats['already_up_to_date'], 1)
@@ -183,14 +188,15 @@ class Tagger(unittest.TestCase):
         i1 = item()
         o1 = order()
         t1 = transaction(
-            merchant='Amazon.com: 2x Duracell AAs',
+            description='Amazon.com: 2x Duracell AAs',
             note=o1.get_note() + '\nItem(s):\n - 2x Duracell AAs')
 
         stats = Counter()
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(no_tag_categories=True), stats)
+            get_args(no_tag_categories=True), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 0)
         self.assertEqual(stats['already_up_to_date'], 1)
@@ -204,20 +210,20 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(verbose_itemize=True), stats)
+            get_args(verbose_itemize=True), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 1)
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 3)
-        self.assertEqual(new_trans[0].merchant, 'Amazon.com: Promotion(s)')
+        self.assertEqual(new_trans[0].description, 'Amazon.com: Promotion(s)')
         self.assertEqual(new_trans[0].category, 'Shipping')
         self.assertEqual(new_trans[0].amount, -3990000)
-        self.assertFalse(new_trans[0].is_debit)
-        self.assertEqual(new_trans[1].merchant, 'Amazon.com: Shipping')
+        self.assertEqual(new_trans[1].description, 'Amazon.com: Shipping')
         self.assertEqual(new_trans[1].category, 'Shipping')
         self.assertEqual(new_trans[1].amount, 3990000)
-        self.assertEqual(new_trans[2].merchant, 'Amazon.com: 2x Duracell AAs')
+        self.assertEqual(new_trans[2].description, 'Amazon.com: 2x Duracell AAs')
         self.assertEqual(new_trans[2].category, 'Electronics & Software')
         self.assertEqual(new_trans[2].amount, 11950000)
 
@@ -232,13 +238,14 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [o1], [i1], [],
             [t1],
-            get_args(no_itemize=True), stats)
+            get_args(no_itemize=True), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 1)
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
-        self.assertEqual(new_trans[0].merchant, 'Amazon.com: 2x Duracell AAs')
+        self.assertEqual(new_trans[0].description, 'Amazon.com: 2x Duracell AAs')
         self.assertEqual(new_trans[0].category, 'Electronics & Software')
         self.assertEqual(new_trans[0].amount, 15940000)
 
@@ -265,13 +272,14 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [o1], [i1, i2], [],
             [t1],
-            get_args(no_itemize=True), stats)
+            get_args(no_itemize=True), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 1)
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
-        self.assertEqual(new_trans[0].merchant,
+        self.assertEqual(new_trans[0].description,
                          'Amazon.com: Really cool watch, Organic water')
         self.assertEqual(new_trans[0].category, 'Shopping')
         self.assertEqual(new_trans[0].amount, 17000000)
@@ -288,14 +296,16 @@ class Tagger(unittest.TestCase):
         updates, _ = tagger.get_mint_updates(
             [o1, o2], [i1, i2], [],
             [t1, t2],
-            get_args(), stats)
+            get_args(), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates), 2)
 
         updates2, _ = tagger.get_mint_updates(
             [o1, o2], [i1, i2], [],
             [t1, t2],
-            get_args(num_updates=1), stats)
+            get_args(num_updates=1), stats,
+            MINT_CATEGORIES_TO_IDS)
 
         self.assertEqual(len(updates2), 1)
 

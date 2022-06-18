@@ -63,15 +63,13 @@ class TransactionClass(unittest.TestCase):
     def test_constructor(self):
         trans = transaction()
         self.assertEqual(trans.amount, 11950000)
-        self.assertTrue(trans.is_debit)
         self.assertEqual(trans.date, date(2014, 2, 28))
         self.assertFalse(trans.matched)
         self.assertEqual(trans.orders, [])
         self.assertEqual(trans.children, [])
 
-        trans = transaction(amount='$423.12', is_debit=False)
+        trans = transaction(amount='$423.12')
         self.assertEqual(trans.amount, -423120000)
-        self.assertFalse(trans.is_debit)
 
     def test_split(self):
         trans = transaction()
@@ -79,7 +77,7 @@ class TransactionClass(unittest.TestCase):
         self.assertNotEqual(trans, strans)
         self.assertEqual(strans.amount, 1234)
         self.assertEqual(strans.category, 'Shopping')
-        self.assertEqual(strans.merchant, 'Some new item')
+        self.assertEqual(strans.description, 'Some new item')
         self.assertEqual(strans.note, 'Test note')
 
     def test_match(self):
@@ -117,16 +115,15 @@ class TransactionClass(unittest.TestCase):
 
     def test_get_compare_tuple(self):
         trans = transaction(
-            merchant='Simple Title',
+            description='Simple Title',
             amount='$1.00')
         self.assertEqual(
             trans.get_compare_tuple(),
             ('Simple Title', '$1.00', 'Great note here', 'Personal Care'))
 
         trans2 = transaction(
-            merchant='Simple Refund',
-            amount='$2.01',
-            is_debit=False)
+            description='Simple Refund',
+            amount='$2.01')
         self.assertEqual(
             trans2.get_compare_tuple(True),
             ('Simple Refund', '-$2.01', 'Great note here'))
@@ -156,8 +153,7 @@ class TransactionClass(unittest.TestCase):
             10340000)
 
         credit = transaction(
-            amount='$20.20',
-            is_debit=False)
+            amount='$20.20')
         self.assertEqual(
             Transaction.sum_amounts([trans1, credit, trans2]),
             -9860000)
@@ -183,7 +179,6 @@ class TransactionClass(unittest.TestCase):
             pid=1)
         child3_to_1 = transaction(
             amount='$8.00',
-            is_debit=False,
             pid=1)
         child1_to_99 = transaction(
             amount='$5.00',
@@ -212,10 +207,10 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(crazy_actual[3].children, [child1_to_99])
 
     def test_old_and_new_are_identical(self):
-        trans1 = transaction(amount='$5.00', merchant='ABC')
+        trans1 = transaction(amount='$5.00', description='ABC')
         trans2 = transaction(
             amount='$5.00',
-            merchant='ABC',
+            description='ABC',
             category='Shipping')
 
         self.assertTrue(Transaction.old_and_new_are_identical(
@@ -226,8 +221,8 @@ class TransactionClass(unittest.TestCase):
             trans1, [trans2], True))
 
         new_trans = [
-            transaction(amount='$2.50', merchant='ABC'),
-            transaction(amount='$2.50', merchant='ABC'),
+            transaction(amount='$2.50', description='ABC'),
+            transaction(amount='$2.50', description='ABC'),
         ]
         trans1.children = new_trans
         self.assertTrue(Transaction.old_and_new_are_identical(
@@ -237,33 +232,33 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(mint.itemize_new_trans([], 'Sweet: '), [])
 
         trans = [
-            transaction(amount='$5.00', merchant='ABC'),
-            transaction(amount='$15.00', merchant='CBA'),
+            transaction(amount='$5.00', description='ABC'),
+            transaction(amount='$15.00', description='CBA'),
         ]
         itemized_trans = mint.itemize_new_trans(trans, 'Sweet: ')
-        self.assertEqual(itemized_trans[0].merchant, 'Sweet: CBA')
+        self.assertEqual(itemized_trans[0].description, 'Sweet: CBA')
         self.assertEqual(itemized_trans[0].amount, 15000000)
-        self.assertEqual(itemized_trans[1].merchant, 'Sweet: ABC')
+        self.assertEqual(itemized_trans[1].description, 'Sweet: ABC')
         self.assertEqual(itemized_trans[1].amount, 5000000)
 
     def test_summarize_new_trans(self):
         original_trans = transaction(
             amount='$40.00',
-            merchant='Amazon',
+            description='Amazon',
             note='Test note')
 
         item1 = transaction(
             amount='$15.00',
-            merchant='Item 1')
+            description='Item 1')
         item2 = transaction(
             amount='$25.00',
-            merchant='Item 2')
+            description='Item 2')
         shipping = transaction(
             amount='$5.00',
-            merchant='Shipping')
+            description='Shipping')
         free_shipping = transaction(
             amount='$5.00',
-            merchant='Promotion(s)')
+            description='Promotion(s)')
 
         actual_summary = mint.summarize_new_trans(
             original_trans,
@@ -273,7 +268,7 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(actual_summary.amount, original_trans.amount)
         self.assertEqual(
             actual_summary.category, category.DEFAULT_MINT_CATEGORY)
-        self.assertEqual(actual_summary.merchant, 'Amazon.com: Item 1, Item 2')
+        self.assertEqual(actual_summary.description, 'Amazon.com: Item 1, Item 2')
         self.assertTrue('Item 1' in actual_summary.note)
         self.assertTrue('Item 2' in actual_summary.note)
         self.assertTrue('Shipping' in actual_summary.note)
@@ -282,19 +277,19 @@ class TransactionClass(unittest.TestCase):
     def test_summarize_new_trans_one_item_keeps_category(self):
         original_trans = transaction(
             amount='$40.00',
-            merchant='Amazon',
+            description='Amazon',
             note='Test note')
 
         item1 = transaction(
             amount='$15.00',
-            merchant='Giant paper shredder',
+            description='Giant paper shredder',
             category='Office Supplies')
         shipping = transaction(
             amount='$5.00',
-            merchant='Shipping')
+            description='Shipping')
         free_shipping = transaction(
             amount='$5.00',
-            merchant='Promotion(s)')
+            description='Promotion(s)')
 
         actual_summary = mint.summarize_new_trans(
             original_trans,
@@ -303,7 +298,7 @@ class TransactionClass(unittest.TestCase):
 
         self.assertEqual(actual_summary.amount, original_trans.amount)
         self.assertEqual(actual_summary.category, 'Office Supplies')
-        self.assertEqual(actual_summary.merchant,
+        self.assertEqual(actual_summary.description,
                          'Amazon.com: Giant paper shredder')
         self.assertTrue('Giant paper shredder' in actual_summary.note)
         self.assertTrue('Shipping' in actual_summary.note)

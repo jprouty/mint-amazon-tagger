@@ -40,33 +40,35 @@ def convertCamel_to_underscores(name):
     return all_cap_re.sub(r'\1_\2', s1).lower()
 
 
-def pythonify_mint_dict(raw_dict):
-    # Parse out the date fields into datetime.date objects.
-    raw_dict['date'] = parse_mint_date(raw_dict['date'])
-    raw_dict['odate'] = parse_mint_date(raw_dict['odate'])
-
-    # Parse the amount into micro usd.
-    amount = parse_usd_as_micro_usd(raw_dict['amount'])
-    # Adjust credit transactions such that:
-    # - debits are positive
-    # - credits are negative
-    if not raw_dict['isDebit']:
-        amount *= -1
-    raw_dict['amount'] = amount
-
+def convert_camel_dict(raw_dict):
     return dict([
         (convertCamel_to_underscores(k.replace(' ', '_')), v)
         for k, v in raw_dict.items()
     ])
 
 
+def pythonify_mint_transaction_dict(raw_dict):
+    # Parse out the date field into a datetime.date object.
+    raw_dict['date'] = parse_mint_date(raw_dict['date'])
+
+    # Parse the amount into micro usd.
+    raw_dict['amount'] = parse_usd_as_micro_usd(raw_dict['amount'])
+
+    # Parse a Category object.
+    raw_dict['category'] = Category(raw_dict['category'])
+
+    return convert_camel_dict(raw_dict)
+
+
+def pythonify_mint_category_dict(raw_dict):
+    return convert_camel_dict(raw_dict)
+
+
 def parse_mint_date(date_str):
-    current_year = datetime.isocalendar(date.today())[0]
     try:
-        new_date = datetime.strptime(date_str + str(current_year), '%b %d%Y')
+        return datetime.strptime(date_str, '%Y-%m-%d')
     except ValueError:
-        new_date = datetime.strptime(date_str, '%m/%d/%y')
-    return new_date.date()
+        logger.error('Cannot parse date: {}'.format(date_str))
 
 
 class Transaction(object):
@@ -78,9 +80,9 @@ class Transaction(object):
     children = []
 
     def __init__(self, raw_dict):
-        self.__dict__.update(pythonify_mint_dict(raw_dict))
+        self.__dict__.update(pythonify_mint_transaction_dict(raw_dict))
 
-    def split(self, amount, category, desc, note, is_debit=True):
+    def split(self, amount, category, desc, note):
         """Returns a new Transaction split from self."""
         item = deepcopy(self)
 
@@ -90,10 +92,9 @@ class Transaction(object):
         item.orders = []
         item.children = []
 
-        item.merchant = desc
-        item.category = category
         item.amount = amount
-        item.is_debit = is_debit
+        item.category = category
+        item.description = desc
         item.note = note
 
         return item
@@ -116,26 +117,25 @@ class Transaction(object):
         """Returns a 3-tuple used to determine if 2 transactions are equal."""
         # TODO: Add the 'note' field once itemized transactions include notes.
         # Use str to avoid float cmp.
-        base = (self.merchant, micro_usd_to_usd_string(self.amount), self.note)
+        base = (self.description, micro_usd_to_usd_string(self.amount), self.note)
         return base if ignore_category else base + (self.category,)
 
     def dry_run_str(self, ignore_category=False):
         return '{} \t {} \t {} \t {}'.format(
             self.date.strftime('%m/%d/%y'),
             micro_usd_to_usd_string(self.amount),
-            '--IGNORED--' if ignore_category
-            else '{}({})'.format(self.category, self.category_id),
-            self.merchant)
+            '--IGNORED--' if ignore_category else self.category,
+            self.description)
 
     def __repr__(self):
         has_note = 'with note' if self.note else ''
         return (
-            'Mint Trans({id}): {amount} {date} {merchant} {category} '
+            'Mint Trans({id}): {amount} {date} {description} {category} '
             '{has_note}'.format(
                 id=self.id,
                 amount=micro_usd_to_usd_string(self.amount),
                 date=self.date,
-                merchant=self.merchant,
+                description=self.description,
                 category=self.category,
                 has_note=has_note))
 
@@ -169,7 +169,6 @@ class Transaction(object):
             parent.bastardize()
             parent.amount = round_micro_usd_to_cent(
                 Transaction.sum_amounts(children))
-            parent.is_debit = parent.amount > 0
             parent.children = children
 
             result.append(parent)
@@ -187,18 +186,31 @@ class Transaction(object):
         return old_set == new_set
 
 
+class Category(object):
+    """A Mint category."""
+
+    def __init__(self, raw_dict):
+        self.__dict__.update(pythonify_mint_category_dict(raw_dict))
+
+    def update_category_id(self, mint_cat_name_to_id):
+        pass
+
+    def __repr__(self):
+        return '{}({})'.format(self.category, self.category_id)
+
+
 def itemize_new_trans(new_trans, prefix):
     # Add a prefix to all itemized transactions for easy keyword searching
     # within Mint. Use the same prefix, based on if the original transaction
     for nt in new_trans:
-        nt.merchant = prefix + nt.merchant
+        nt.description = prefix + nt.description
 
     # Turns out the first entry is typically displayed last in the Mint
     # UI. Reverse everything for ideal readability.
     return new_trans[::-1]
 
 
-NON_ITEM_MERCHANTS = set([
+NON_ITEM_DESCRIPTIONS = set([
     'Misc Charge (Gift wrap, etc)',
     'Promotion(s)',
     'Shipping',
@@ -216,20 +228,20 @@ def summarize_new_trans(t, new_trans, prefix):
     # the full information in the transaction notes. Category is untouched when
     # there's more than one item (this is why itemizing is better!).
     title = summarize_title(
-        [nt.merchant
+        [nt.description
          for nt in new_trans
-         if nt.merchant not in NON_ITEM_MERCHANTS],
+         if nt.description not in NON_ITEM_DESCRIPTIONS],
         prefix)
     notes = '{}\nItem(s):\n{}'.format(
         new_trans[0].note,
         '\n'.join(
-            [' - ' + nt.merchant
+            [' - ' + nt.description
              for nt in new_trans]))
 
     summary_trans = deepcopy(t)
-    summary_trans.merchant = title
+    summary_trans.description = title
     if len([nt for nt in new_trans
-            if nt.merchant not in NON_ITEM_MERCHANTS]) == 1:
+            if nt.description not in NON_ITEM_DESCRIPTIONS]) == 1:
         summary_trans.category = new_trans[0].category
         summary_trans.category_id = new_trans[0].category_id
     else:

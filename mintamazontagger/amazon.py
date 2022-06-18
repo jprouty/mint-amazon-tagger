@@ -228,7 +228,6 @@ class Order:
     items_matched = False
     trans_id = None
     items = []
-    is_debit = True
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
@@ -418,11 +417,10 @@ class Order:
             cat = ('Shipping' if is_free_shipping else
                    category.DEFAULT_MINT_CATEGORY)
             promo = t.split(
-                amount=-self.total_promotions,
+                amount=self.total_promotions,
                 category=cat,
                 desc='Promotion(s)',
-                note=self.get_note(),
-                is_debit=False)
+                note=self.get_note())
             new_transactions.append(promo)
 
         return new_transactions
@@ -458,6 +456,7 @@ class Order:
 class Item:
     matched = False
     order = None
+    is_refund = False
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
@@ -551,7 +550,7 @@ class Item:
 class Refund:
     matched = False
     trans_id = None
-    is_debit = False
+    is_refund = True
 
     def __init__(self, raw_dict):
         # Refunds are rad: AMZN doesn't total the tax + sub-total for you.
@@ -602,9 +601,8 @@ class Refund:
         result = t.split(
             desc=self.get_title(88),
             category=category.DEFAULT_MINT_RETURN_CATEGORY,
-            amount=-self.total_refund_amount,
-            note=self.get_note(),
-            is_debit=False)
+            amount=self.total_refund_amount,
+            note=self.get_note())
         return result
 
     @staticmethod

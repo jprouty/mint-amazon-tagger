@@ -456,24 +456,23 @@ class OrderClass(unittest.TestCase):
         mint_trans_ship = o.to_mint_transactions(
             orig_trans, skip_free_shipping=False)
         self.assertEqual(len(mint_trans_ship), 4)
-        self.assertEqual(mint_trans_ship[0].merchant, '3x Item 2')
+        self.assertEqual(mint_trans_ship[0].description, '3x Item 2')
         self.assertEqual(mint_trans_ship[0].amount, 14000000)
-        self.assertEqual(mint_trans_ship[1].merchant, 'Item 1')
+        self.assertEqual(mint_trans_ship[1].description, 'Item 1')
         self.assertEqual(mint_trans_ship[1].amount, 6000000)
-        self.assertEqual(mint_trans_ship[2].merchant, 'Shipping')
+        self.assertEqual(mint_trans_ship[2].description, 'Shipping')
         self.assertEqual(mint_trans_ship[2].category, 'Shipping')
         self.assertEqual(mint_trans_ship[2].amount, 3990000)
-        self.assertEqual(mint_trans_ship[3].merchant, 'Promotion(s)')
+        self.assertEqual(mint_trans_ship[3].description, 'Promotion(s)')
         self.assertEqual(mint_trans_ship[3].category, 'Shipping')
         self.assertEqual(mint_trans_ship[3].amount, -3990000)
-        self.assertFalse(mint_trans_ship[3].is_debit)
 
         mint_trans_noship = o.to_mint_transactions(
             orig_trans, skip_free_shipping=True)
         self.assertEqual(len(mint_trans_noship), 2)
-        self.assertEqual(mint_trans_noship[0].merchant, '3x Item 2')
+        self.assertEqual(mint_trans_noship[0].description, '3x Item 2')
         self.assertEqual(mint_trans_noship[0].amount, 14000000)
-        self.assertEqual(mint_trans_noship[1].merchant, 'Item 1')
+        self.assertEqual(mint_trans_noship[1].description, 'Item 1')
         self.assertEqual(mint_trans_noship[1].amount, 6000000)
 
     def test_to_mint_transactions_ship_promo_mismatch(self):
@@ -489,15 +488,14 @@ class OrderClass(unittest.TestCase):
         mint_trans_ship = o.to_mint_transactions(
             orig_trans, skip_free_shipping=True)
         self.assertEqual(len(mint_trans_ship), 3)
-        self.assertEqual(mint_trans_ship[0].merchant, '4x Item 1')
+        self.assertEqual(mint_trans_ship[0].description, '4x Item 1')
         self.assertEqual(mint_trans_ship[0].amount, 20000000)
-        self.assertEqual(mint_trans_ship[1].merchant, 'Shipping')
+        self.assertEqual(mint_trans_ship[1].description, 'Shipping')
         self.assertEqual(mint_trans_ship[1].category, 'Shipping')
         self.assertEqual(mint_trans_ship[1].amount, 3990000)
-        self.assertEqual(mint_trans_ship[2].merchant, 'Promotion(s)')
+        self.assertEqual(mint_trans_ship[2].description, 'Promotion(s)')
         self.assertEqual(mint_trans_ship[2].category, 'Shopping')
         self.assertEqual(mint_trans_ship[2].amount, -1000000)
-        self.assertFalse(mint_trans_ship[2].is_debit)
 
     def test_merge_one_order(self):
         o1 = order()
@@ -720,14 +718,13 @@ class RefundClass(unittest.TestCase):
 
     def test_to_mint_transaction(self):
         r = refund(title='Duracell Procell AA 24 Pack')
-        t = transaction(amount='$11.95', is_debit=False)
+        t = transaction(amount='$11.95')
 
         new_trans = r.to_mint_transaction(t)
 
         self.assertEqual(new_trans.id, t.id)
         self.assertEqual(new_trans.amount, t.amount)
-        self.assertEqual(new_trans.merchant, '2x Duracell Procell AA 24 Pack')
-        self.assertFalse(new_trans.is_debit)
+        self.assertEqual(new_trans.description, '2x Duracell Procell AA 24 Pack')
 
     def test_merge(self):
         r1 = refund()

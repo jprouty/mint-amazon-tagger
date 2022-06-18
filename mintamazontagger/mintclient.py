@@ -1,5 +1,6 @@
-from datetime import date, datetime
+from datetime import datetime
 import logging
+from pprint import pprint
 import requests
 import time
 
@@ -66,7 +67,7 @@ class MintClient():
         if not self.login():
             logger.error('Cannot login')
             return []
-        logger.info('Get all Mint transactions since {} to {}.'.format(
+        logger.info('Getting all Mint transactions since {} to {}.'.format(
             from_date, to_date))
         params = {
             'limit': '10000',
@@ -77,34 +78,29 @@ class MintClient():
         response = self.webdriver.request(
             'GET', MINT_TRANSACTIONS, headers=self.get_api_header(),
             params=params)
-        if response.status_code != requests.codes.ok:
-            logger.error(
-                'Error getting transactions. status_code = {}'.format(
-                    response.status_code))
+        if not _is_json_response_success('transactions', response):
             return []
-        content_type = response.headers.get('content-type', '')
-        if not content_type.startswith('application/json'):
-            logger.error(
-                'Error getting transactions. content_type = {}'.format(
-                    content_type))
+        result = response.json()
+        if not result['metaData']['totalSize']:
+            logger.warning('No transactions found')
             return []
-
-        return response.json()
+        return result['Transaction']
 
     def get_categories(self):
         if not self.login():
             logger.error('Cannot login')
-            return {}
+            return []
         logger.info('Getting Mint categories.')
 
         response = self.webdriver.request(
             'GET', MINT_CATEGORIES, headers=self.get_api_header())
-        return response.json()
-
-        # result = {}
-        # for category in response['allCategories']:
-        #     result[category['name']] = category['id']
-        # return result
+        if not _is_json_response_success('categories', response):
+            return []
+        result = response.json()
+        if not result['metaData']['totalSize']:
+            logger.error('No categories found')
+            return []
+        return result['Category']
 
     def send_updates(self, updates, progress, ignore_category=False):
         if not self.login():
@@ -116,14 +112,14 @@ class MintClient():
                 # Update the existing transaction.
                 trans = new_trans[0]
                 modify_trans = {
-                    'note': trans.note,
-                    'merchant': trans.merchant,
+                    'notes': trans.note,
+                    'description': trans.description,
+                    'type': trans.type,
                 }
                 if not ignore_category:
                     modify_trans = {
                         **modify_trans,
-                        'category': trans.category,
-                        'catId': trans.category_id,
+                        'category': { 'id': trans.category.id },
                     }
 
                 logger.debug(
@@ -139,61 +135,47 @@ class MintClient():
                 num_requests += 1
             else:
                 # Split the existing transaction into many.
-                # If the existing transaction is a:
-                #   - credit: positive amount is credit, negative debit
-                #   - debit: positive amount is debit, negative credit
-                # txn_id = '{}:0'.format(orig_trans.id),
-                itemized_split = {
-                    'task': 'split',
-                    'data': '',  # Yup this is weird.
+                split_children = []
+                for trans in new_trans:
+                    category_id = (orig_trans.category.id if ignore_category
+                        else trans.category.id)
+                    itemized_split = {
+                        'amount': '{}'.format(
+                            micro_usd_to_usd_float(trans.amount)),
+                        'category': { 'id': trans.category.id },
+                        'description': trans.description,
+                        'notes': trans.note,
+                        'type': trans.type,
+                    }
+                    split_children.append(itemized_split)
+
+                split_edit = {
+                    'amount': old_trans.amount,
+                    'type': old_trans.type,
+                    'splitData': { 'children': split_children},
                 }
-                all_credit = all(not trans.is_debit for trans in new_trans)
-
-                for (i, trans) in enumerate(new_trans):
-                    amount = trans.amount
-                    # If it's a split credit, everything should be positive
-                    if all_credit and amount < 0:
-                        amount = -amount
-                    amount = micro_usd_to_usd_float(amount)
-                    itemized_split['amount{}'.format(i)] = amount
-                    # Yup. Weird:
-                    itemized_split['percentAmount{}'.format(i)] = amount
-                    itemized_split['merchant{}'.format(i)] = trans.merchant
-                    # Yup weird. '0' means new?
-                    itemized_split['txnId{}'.format(i)] = 0
-                    if not ignore_category:
-                        itemized_split['category{}'.format(i)] = trans.category
-                        itemized_split['categoryId{}'.format(i)] = (
-                            trans.category_id)
-                    else:
-                        itemized_split['category{}'.format(i)] = (
-                            orig_trans.category)
-                        itemized_split['categoryId{}'.format(i)] = (
-                            orig_trans.category_id)
-
                 logger.debug(
                     'Sending a "split" transaction request: {}'.format(
                         itemized_split))
                 response = self.webdriver.request(
                     'PUT', MINT_TRANSACTIONS, data=itemized_split,
                     headers=self.get_api_header())
-                json_resp = response.json()
-                # The first id is always the original transaction (now
-                # parent transaction id).
-                new_trans_ids = json_resp['txnId'][1:]
-                assert len(new_trans_ids) == len(new_trans)
-                for itemized_id, trans in zip(new_trans_ids, new_trans):
-                    # Now send the note for each itemized transaction.
-                    # 'txnId': '{}:0'.format(itemized_id),
-                    itemized_note = {
-                        'note': trans.note,
-                    }
-                    note_response = self.webdriver.request(
-                        'PUT', MINT_TRANSACTIONS, data=itemized_note,
-                        headers=self.get_api_header())
-                    logger.debug(
-                        'Received note response: {}'.format(
-                            note_response.text))
+
+                    # If this is still needed (trying to avoid this by Sending
+                    # 'notes' above in splitData), then first a get will be
+                    # required to get the new split children IDs.
+                # for itemized_id, trans in zip(new_trans_ids, new_trans):
+                #     # Now send the note for each itemized transaction.
+                #     # 'txnId': '{}:0'.format(itemized_id),
+                #     itemized_note = {
+                #         'note': trans.note,
+                #     }
+                #     note_response = self.webdriver.request(
+                #         'PUT', MINT_TRANSACTIONS, data=itemized_note,
+                #         headers=self.get_api_header())
+                #     logger.debug(
+                #         'Received note response: {}'.format(
+                #             note_response.text))
 
                 progress.next()
                 logger.debug('Received response: {}'.format(response.text))
@@ -203,13 +185,19 @@ class MintClient():
         return num_requests
 
 
-def _json_date_to_date(dateraw):
-    cy = date.today().year
-    try:
-        newdate = datetime.strptime(dateraw + str(cy), '%b %d%Y')
-    except ValueError:
-        newdate = datetime.strptime(dateraw, '%m/%d/%y')
-    return newdate.date()
+def _is_json_response_success(request_string, response):
+    if response.status_code != requests.codes.ok:
+        logger.error(
+            'Error getting {}}. status_code = {}'.format(
+                request_string, response.status_code))
+        return False
+    content_type = response.headers.get('content-type', '')
+    if not content_type.startswith('application/json'):
+        logger.error(
+            'Error getting {}. content_type = {}'.format(
+                request_string, content_type))
+        return False
+    return True
 
 
 # Never attempt to enter the password more than 2 times to prevent locking an
@@ -230,17 +218,18 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         return False
     sign_in_button.click()
 
-    # Mint login is a bit messy. Work through the flow, allowing for any order
+    # Mint Logging in to mint.com is a bit messy. Work through the flow, allowing for any order
     # of interstitials. Exit only when reaching the overview page (indicating
-    # the user is logged in) or if the login timeout has been exceeded.
+    # the user is logged in) or if the Logging in to mint.com timeout has been exceeded.
     #
     # For each attempt section, note that the element must both be present AND
-    # visible. Mint renders but hides the complete login flow meaning that all
+    # visible. Mint renders but hides the complete "Logging in to mint.com" flow meaning that all
     # elements are always present (but only a subset are visible at any
     # moment).
     login_start_time = datetime.now()
     num_password_attempts = 0
     while not webdriver.current_url.startswith(MINT_OVERVIEW):
+        logger.info('Top of login loop. Current url: {}'.format(webdriver.current_url))
         since_start = datetime.now() - login_start_time
         if (args.mint_login_timeout
                 and since_start.total_seconds() > args.mint_login_timeout):
@@ -453,7 +442,9 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
 
 
 def _login_flow_advance(webdriver):
+    logger.info('Login advance sleep')
     time.sleep(0.5)
+    logger.info('Login advance woked')
 
 
 def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):

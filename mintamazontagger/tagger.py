@@ -101,7 +101,7 @@ def create_updates(
         pickle_progress = indeterminate_progress_factory(
             'Un-pickling Mint transactions from epoch: {} '.format(
                 args.pickled_epoch))
-        mint_trans, mint_category_name_to_id = (
+        mint_trans, mint_categories = (
             get_trans_and_categories_from_pickle(
                 args.pickled_epoch, args.mint_pickle_location))
         pickle_progress.finish()
@@ -121,6 +121,8 @@ def create_updates(
 
         login_progress = indeterminate_progress_factory(
             'Logging in to mint.com')
+        # DNS - TEMPORARY:
+        login_progress.finish()
         if not mint_client.login():
             login_progress.finish()
             on_critical('Cannot log in to mint.com. Check credentials')
@@ -129,14 +131,13 @@ def create_updates(
 
         cat_progress = indeterminate_progress_factory(
             'Getting Mint Categories')
-        mint_category_name_to_id = mint_client.get_categories()
+        mint_categories = mint_client.get_categories()
         cat_progress.finish()
 
-        trans_progress = indeterminate_progress_factory(
-            'Getting Mint Transactions')
-        mint_transactions_json = mint_client.get_transactions(
-            start_date)
-        trans_progress.finish()
+        # trans_progress = indeterminate_progress_factory(
+            # 'Getting Mint Transactions')
+        mint_transactions_json = mint_client.get_transactions(start_date)
+        # trans_progress.finish()
 
         parse_progress = determinate_progress_factory(
             'Parsing Mint Transactions', len(mint_transactions_json))
@@ -150,7 +151,7 @@ def create_updates(
                 'Backing up Mint to local pickl epoch: {} '.format(
                     pickle_epoch))
             dump_trans_and_categories(
-                mint_trans, mint_category_name_to_id, pickle_epoch,
+                mint_trans, mint_categories, pickle_epoch,
                 args.mint_pickle_location)
             pickle_progress.finish()
 
@@ -158,7 +159,7 @@ def create_updates(
         orders, items, refunds,
         mint_trans,
         args, stats,
-        mint_category_name_to_id,
+        mint_categories,
         progress_factory=determinate_progress_factory)
     return UpdatesResult(
         True, items, orders, refunds, updates, unmatched_orders, stats)
@@ -174,7 +175,7 @@ def get_mint_category_history_for_items(trans, args):
     # Don't worry about pending.
     trans = [t for t in trans if not t.is_pending]
     # Only do debits for now.
-    trans = [t for t in trans if t.is_debit]
+    trans = [t for t in trans if t.amount < 0]
 
     # Filter for transactions that have been tagged before.
     valid_prefixes = args.amazon_domains.lower().split(',')
@@ -182,22 +183,22 @@ def get_mint_category_history_for_items(trans, args):
     if args.description_prefix_override:
         valid_prefixes.append(args.description_prefix_override.lower())
     trans = [t for t in trans if
-             any(t.merchant.lower().startswith(pre)
+             any(t.description.lower().startswith(pre)
                  for pre in valid_prefixes)]
 
     # Filter out the default category: there is no signal here.
     trans = [t for t in trans
              if t.category != category.DEFAULT_MINT_CATEGORY]
 
-    # Filter out non-item merchants.
+    # Filter out non-item descriptions.
     trans = [t for t in trans
-             if t.merchant not in mint.NON_ITEM_MERCHANTS]
+             if t.description not in mint.NON_ITEM_descriptionS]
 
     item_to_cats = defaultdict(Counter)
     for t in trans:
         # Remove the prefix for the item:
         for pre in valid_prefixes:
-            item_name = t.merchant.lower()
+            item_name = t.description.lower()
             # Find & remove the prefix and remove any leading '3x '.
             if item_name.startswith(pre):
                 item_name = amazon.rm_leading_qty(item_name[len(pre):])
@@ -216,7 +217,7 @@ def get_mint_updates(
         orders, items, refunds,
         trans,
         args, stats,
-        mint_category_name_to_id=category.DEFAULT_MINT_CATEGORIES_TO_IDS,
+        mint_categories,
         progress_factory=no_progress_factory):
     mint_historic_category_renames = get_mint_category_history_for_items(
         trans, args)
@@ -249,15 +250,13 @@ def get_mint_updates(
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
     # Skip t if the original description doesn't contain 'amazon'
-    merch_whitelist = args.mint_input_merchant_filter.lower().split(',')
+    merch_whitelist = args.mint_input_description_filter.lower().split(',')
 
     def get_original_names(t):
-        """Returns a tuple of 'original' merchant strings to consider"""
-        result = (t.omerchant.lower(), )
-        if args.mint_input_include_mmerchant:
-            result = result + (t.mmerchant.lower(), )
-        if args.mint_input_include_merchant:
-            result = result + (t.merchant.lower(), )
+        """Returns a tuple of 'original' description strings to consider"""
+        result = (t.odescription.lower(), )
+        if args.mint_input_include_description:
+            result = result + (t.description.lower(), )
         return result
 
     trans = [t for t in trans if any(
@@ -319,7 +318,7 @@ def get_mint_updates(
     updates = []
     for t in matched_trans:
         updateCounter.next()
-        if t.is_debit:
+        if t.amount < 0:
             order = amazon.Order.merge(t.orders)
             merged_orders.extend(orders)
 
@@ -370,7 +369,7 @@ def get_mint_updates(
 
         for nt in new_transactions:
             # Look if there's a personal category tagged.
-            item_name = amazon.rm_leading_qty(nt.merchant.lower())
+            item_name = amazon.rm_leading_qty(nt.description.lower())
             if (mint_historic_category_renames
                     and item_name in mint_historic_category_renames):
                 suggested_cat = mint_historic_category_renames[item_name]
@@ -378,10 +377,10 @@ def get_mint_updates(
                     stats['personal_cat'] += 1
                     nt.category = mint_historic_category_renames[item_name]
 
-            nt.update_category_id(mint_category_name_to_id)
+            nt.update_category_id(mint_categories)
 
         summarize_single_item_order = (
-            t.is_debit and len(order.items) == 1 and not args.verbose_itemize)
+            t.amount < 0 and len(order.items) == 1 and not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
             new_transactions = mint.summarize_new_trans(
                 t, new_transactions, prefix)
@@ -395,7 +394,7 @@ def get_mint_updates(
 
         valid_prefixes = (
             args.amazon_domains.lower().split(',') + [prefix.lower()])
-        if any(t.merchant.lower().startswith(pre) for pre in valid_prefixes):
+        if any(t.description.lower().startswith(pre) for pre in valid_prefixes):
             if args.prompt_retag:
                 if args.num_updates > 0 and len(updates) >= args.num_updates:
                     break
@@ -495,7 +494,7 @@ def print_dry_run(orig_trans_to_tagged, ignore_category=False):
     for orig_trans, new_trans in orig_trans_to_tagged:
         oid = orig_trans.orders[0].order_id
         print('\nFor Amazon {}: {}\nInvoice URL: {}'.format(
-            'Order' if orig_trans.is_debit else 'Refund',
+            'Order' if orig_trans.amount < 0 else 'Refund',
             oid, amazon.get_invoice_url(oid)))
 
         if orig_trans.children:

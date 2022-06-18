@@ -24,22 +24,22 @@ class MintUpdatesTableModel(QAbstractTableModel):
 
             if orig_trans.children:
                 for trans in orig_trans.children:
-                    descriptions.append('CURRENTLY: ' + trans.merchant)
+                    descriptions.append('CURRENTLY: ' + trans.description)
                     categories.append(trans.category)
                     amounts.append(micro_usd_to_usd_string(trans.amount))
             else:
-                descriptions.append('CURRENTLY: ' + orig_trans.merchant)
+                descriptions.append('CURRENTLY: ' + orig_trans.description)
                 categories.append(orig_trans.category)
                 amounts.append(micro_usd_to_usd_string(orig_trans.amount))
 
             if len(new_trans) == 1:
                 trans = new_trans[0]
-                descriptions.append('PROPOSED: ' + trans.merchant)
+                descriptions.append('PROPOSED: ' + trans.description)
                 categories.append(trans.category)
                 amounts.append(micro_usd_to_usd_string(trans.amount))
             else:
                 for trans in reversed(new_trans):
-                    descriptions.append('PROPOSED: ' + trans.merchant)
+                    descriptions.append('PROPOSED: ' + trans.description)
                     categories.append(trans.category)
                     amounts.append(micro_usd_to_usd_string(trans.amount))
 
@@ -194,8 +194,8 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
         for uo in unmatched_orders:
             by_oid[uo.order_id].append(uo)
         for unmatched_by_oid in by_oid.values():
-            orders = [o for o in unmatched_by_oid if o.is_debit]
-            refunds = [o for o in unmatched_by_oid if not o.is_debit]
+            orders = [o for o in unmatched_by_oid if not o.is_refund]
+            refunds = [o for o in unmatched_by_oid if o.is_refund]
             if orders:
                 merged = amazon.Order.merge(orders)
                 self.my_data.append(self._create_row(merged))
@@ -205,9 +205,9 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
     def _create_row(self, amzn_obj):
         proposed_mint_desc = mint.summarize_title(
             [i.get_title() for i in amzn_obj.items]
-            if amzn_obj.is_debit else [amzn_obj.get_title()],
+            if not amzn_obj.is_refund else [amzn_obj.get_title()],
             '{}{}: '.format(
-                amzn_obj.website, '' if amzn_obj.is_debit else ' refund'))
+                amzn_obj.website, '' if not amzn_obj.is_refund else ' refund'))
         return [
             amzn_obj.transact_date().strftime('%m/%d/%y')
             if amzn_obj.transact_date()

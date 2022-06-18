@@ -132,8 +132,8 @@ def main():
         for uo in results.unmatched_orders:
             by_oid[uo.order_id].append(uo)
         for unmatched_by_oid in by_oid.values():
-            orders = [o for o in unmatched_by_oid if o.is_debit]
-            refunds = [o for o in unmatched_by_oid if not o.is_debit]
+            orders = [o for o in unmatched_by_oid if not o.is_refund]
+            refunds = [o for o in unmatched_by_oid if o.is_refund]
             if orders:
                 print_unmatched(amazon.Order.merge(orders))
             for r in amazon.Refund.merge(refunds):
@@ -265,9 +265,9 @@ def log_processing_stats(stats):
 def print_unmatched(amzn_obj):
     proposed_mint_desc = mint.summarize_title(
         [i.get_title() for i in amzn_obj.items]
-        if amzn_obj.is_debit else [amzn_obj.get_title()],
+        if not amzn_obj.is_refund else [amzn_obj.get_title()],
         '{}{}: '.format(
-            amzn_obj.website, '' if amzn_obj.is_debit else ' refund'))
+            amzn_obj.website, '' if not amzn_obj.is_refund else ' refund'))
     logger.warning('{}'.format(proposed_mint_desc))
     logger.warning('\t{}\t{}\t{}'.format(
         amzn_obj.transact_date()
