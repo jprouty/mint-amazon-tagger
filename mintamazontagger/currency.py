@@ -1,3 +1,5 @@
+# TODO(jprouty): Add typing.
+
 # 50 Micro dollars we'll consider equal (this allows for some
 # division/multiplication rounding wiggle room).
 MICRO_USD_EPS = 50
@@ -15,26 +17,37 @@ def round_usd(curr):
 
 
 def round_micro_usd_to_cent(micro_usd):
-    return int(round_usd(micro_usd_to_usd_float(micro_usd)) * 1000000)
+    return int(round_usd(micro_usd_to_float_usd(micro_usd)) * 1000000)
 
 
-def micro_usd_to_usd_float(micro_usd):
+def micro_usd_to_float_usd(micro_usd):
     return round_usd(micro_usd / 1000000.0)
+
+
+def float_usd_to_micro_usd(float_usd):
+    return int(float_usd * 1000000)
 
 
 def micro_usd_to_usd_string(micro_usd):
     return '{}${:.2f}'.format(
         '' if micro_usd >= -5000 else '-',
-        micro_usd_to_usd_float(abs(micro_usd)))
+        micro_usd_to_float_usd(abs(micro_usd)))
 
 
 def parse_usd_as_micro_usd(amount):
-    return int(round_usd(parse_usd_as_float(amount)) * 1000000)
+    return float_usd_to_micro_usd(parse_usd_as_float(amount))
+
+
+def parse_float_usd_as_micro_usd(amount):
+    return float_usd_to_micro_usd(round_usd(amount))
 
 
 def parse_usd_as_float(amount):
     if not amount:
         return 0.0
+    # New Mint API uses floats directly,
+    if type(amount) == float:
+        return amount
     # Remove any formatting/grouping commas.
     amount = amount.replace(',', '')
     negate = False

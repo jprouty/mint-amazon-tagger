@@ -30,11 +30,11 @@ class CurrencyMethods(unittest.TestCase):
         self.assertEqual(currency.round_micro_usd_to_cent(-550), 0)
         self.assertEqual(currency.round_micro_usd_to_cent(550), 0)
 
-    def test_micro_usd_to_usd_float(self):
-        self.assertEqual(currency.micro_usd_to_usd_float(5050500), 5.05)
-        self.assertEqual(currency.micro_usd_to_usd_float(150500), 0.15)
-        self.assertEqual(currency.micro_usd_to_usd_float(-500), 0)
-        self.assertEqual(currency.micro_usd_to_usd_float(500), 0)
+    def test_micro_usd_to_float_usd(self):
+        self.assertEqual(currency.micro_usd_to_float_usd(5050500), 5.05)
+        self.assertEqual(currency.micro_usd_to_float_usd(150500), 0.15)
+        self.assertEqual(currency.micro_usd_to_float_usd(-500), 0)
+        self.assertEqual(currency.micro_usd_to_float_usd(500), 0)
 
     def test_micro_usd_to_usd_string(self):
         self.assertEqual(currency.micro_usd_to_usd_string(1230040), '$1.23')

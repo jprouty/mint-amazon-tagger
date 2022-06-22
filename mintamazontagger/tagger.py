@@ -134,10 +134,10 @@ def create_updates(
         mint_categories = mint_client.get_categories()
         cat_progress.finish()
 
-        # trans_progress = indeterminate_progress_factory(
-            # 'Getting Mint Transactions')
+        trans_progress = indeterminate_progress_factory(
+            'Getting Mint Transactions')
         mint_transactions_json = mint_client.get_transactions(start_date)
-        # trans_progress.finish()
+        trans_progress.finish()
 
         parse_progress = determinate_progress_factory(
             'Parsing Mint Transactions', len(mint_transactions_json))
@@ -148,7 +148,7 @@ def create_updates(
         if args.save_pickle_backup:
             pickle_epoch = int(time.time())
             pickle_progress = indeterminate_progress_factory(
-                'Backing up Mint to local pickl epoch: {} '.format(
+                'Backing up Mint to local pickle epoch: {} '.format(
                     pickle_epoch))
             dump_trans_and_categories(
                 mint_trans, mint_categories, pickle_epoch,
@@ -188,7 +188,7 @@ def get_mint_category_history_for_items(trans, args):
 
     # Filter out the default category: there is no signal here.
     trans = [t for t in trans
-             if t.category != category.DEFAULT_MINT_CATEGORY]
+             if t.category.name != category.DEFAULT_MINT_CATEGORY]
 
     # Filter out non-item descriptions.
     trans = [t for t in trans
@@ -204,7 +204,7 @@ def get_mint_category_history_for_items(trans, args):
                 item_name = amazon.rm_leading_qty(item_name[len(pre):])
                 break
 
-        item_to_cats[item_name][t.category] += 1
+        item_to_cats[item_name][t.category.name] += 1
 
     item_to_most_common = {}
     for item_name, counter in item_to_cats.items():
@@ -253,10 +253,15 @@ def get_mint_updates(
     merch_whitelist = args.mint_input_description_filter.lower().split(',')
 
     def get_original_names(t):
-        """Returns a tuple of 'original' description strings to consider"""
-        result = (t.odescription.lower(), )
-        if args.mint_input_include_description:
+        """Returns a tuple of description strings to consider"""
+        # Always consider the original description from the financial
+        # institution. Conditionally consider the current/user description or the
+        # Mint inferred description.
+        result = (t.fi_data.description.lower(), )
+        if args.mint_input_include_user_description:
             result = result + (t.description.lower(), )
+        if args.mint_input_include_inferred_description:
+            result = result + (t.fi_data.inferred_description.lower(), )
         return result
 
     trans = [t for t in trans if any(
@@ -270,7 +275,7 @@ def get_mint_updates(
     if args.mint_input_categories_filter:
         cat_whitelist = set(
             args.mint_input_categories_filter.lower().split(','))
-        trans = [t for t in trans if t.category.lower() in cat_whitelist]
+        trans = [t for t in trans if t.category.name.lower() in cat_whitelist]
 
     # Match orders.
     orderMatchProgress = progress_factory(
@@ -336,9 +341,9 @@ def get_mint_updates(
             if order.attribute_itemized_diff_to_per_item_tax():
                 stats['adjust_itemized_tax'] += 1
 
-            assert micro_usd_nearly_equal(t.amount, order.total_charged)
-            assert micro_usd_nearly_equal(t.amount, order.total_by_subtotals())
-            assert micro_usd_nearly_equal(t.amount, order.total_by_items())
+            assert micro_usd_nearly_equal(t.amount, order.transact_amount())
+            assert micro_usd_nearly_equal(t.amount, -order.total_by_subtotals())
+            assert micro_usd_nearly_equal(t.amount, -order.total_by_items())
 
             new_transactions = order.to_mint_transactions(
                 t,
@@ -360,7 +365,7 @@ def get_mint_updates(
                 # Attempt to find the category from the original purchase.
                 unspsc = order_item_to_unspsc.get((r.title, r.order_id), None)
                 if unspsc:
-                    new_tran.category = category.get_mint_category_from_unspsc(
+                    new_tran.category.name = category.get_mint_category_from_unspsc(
                         unspsc)
 
         assert micro_usd_nearly_equal(
@@ -373,9 +378,9 @@ def get_mint_updates(
             if (mint_historic_category_renames
                     and item_name in mint_historic_category_renames):
                 suggested_cat = mint_historic_category_renames[item_name]
-                if suggested_cat != nt.category:
+                if suggested_cat != nt.category.name:
                     stats['personal_cat'] += 1
-                    nt.category = mint_historic_category_renames[item_name]
+                    nt.category.name = mint_historic_category_renames[item_name]
 
             nt.update_category_id(mint_categories)
 
@@ -439,7 +444,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
         an_order = next((o for o in orders if o.transact_date()), None)
         if not an_order:
             continue
-        num_days = (t.odate - an_order.transact_date()).days
+        num_days = (t.date - an_order.transact_date()).days
         # TODO: consider orders even if it has a matched_transaction if this
         # transaction is closer.
         already_matched = any([o.matched for o in orders])

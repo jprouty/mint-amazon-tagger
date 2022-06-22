@@ -213,7 +213,7 @@ class OrderClass(unittest.TestCase):
         self.assertEqual(order().transact_date(), date(2014, 2, 28))
 
     def test_transact_amount(self):
-        self.assertEqual(order().transact_amount(), 11950000)
+        self.assertEqual(order().transact_amount(), -11950000)
 
     def test_match(self):
         o = order()
@@ -247,14 +247,14 @@ class OrderClass(unittest.TestCase):
         self.assertTrue(i2.matched)
         self.assertEqual(i2.order, o)
 
-    def test_get_note(self):
+    def test_get_notes(self):
         self.assertTrue(
-            'Amazon order id: 123-3211232-7655671' in order().get_note())
+            'Amazon order id: 123-3211232-7655671' in order().get_notes())
         self.assertTrue(
-            'Buyer: Some Great Buyer (yup@aol.com)' in order().get_note())
-        self.assertTrue('Order date: 2014-02-26' in order().get_note())
-        self.assertTrue('Ship date: 2014-02-28' in order().get_note())
-        self.assertTrue('Tracking: AMZN(ABC123)' in order().get_note())
+            'Buyer: Some Great Buyer (yup@aol.com)' in order().get_notes())
+        self.assertTrue('Order date: 2014-02-26' in order().get_notes())
+        self.assertTrue('Ship date: 2014-02-28' in order().get_notes())
+        self.assertTrue('Tracking: AMZN(ABC123)' in order().get_notes())
 
     def test_attribute_subtotal_diff_to_misc_charge_no_diff(self):
         o = order(total_charged='$10.00', subtotal='$10.00')
@@ -443,7 +443,7 @@ class OrderClass(unittest.TestCase):
         self.assertEqual(i2.item_subtotal_tax, 1500000)
 
     def test_to_mint_transactions_free_shipping(self):
-        orig_trans = transaction(amount='$20.00')
+        orig_trans = transaction(amount=-20.00)
 
         o = order(
             total_charged='$20.00',
@@ -457,26 +457,26 @@ class OrderClass(unittest.TestCase):
             orig_trans, skip_free_shipping=False)
         self.assertEqual(len(mint_trans_ship), 4)
         self.assertEqual(mint_trans_ship[0].description, '3x Item 2')
-        self.assertEqual(mint_trans_ship[0].amount, 14000000)
+        self.assertEqual(mint_trans_ship[0].amount, -14000000)
         self.assertEqual(mint_trans_ship[1].description, 'Item 1')
-        self.assertEqual(mint_trans_ship[1].amount, 6000000)
+        self.assertEqual(mint_trans_ship[1].amount, -6000000)
         self.assertEqual(mint_trans_ship[2].description, 'Shipping')
-        self.assertEqual(mint_trans_ship[2].category, 'Shipping')
-        self.assertEqual(mint_trans_ship[2].amount, 3990000)
+        self.assertEqual(mint_trans_ship[2].category.name, 'Shipping')
+        self.assertEqual(mint_trans_ship[2].amount, -3990000)
         self.assertEqual(mint_trans_ship[3].description, 'Promotion(s)')
-        self.assertEqual(mint_trans_ship[3].category, 'Shipping')
-        self.assertEqual(mint_trans_ship[3].amount, -3990000)
+        self.assertEqual(mint_trans_ship[3].category.name, 'Shipping')
+        self.assertEqual(mint_trans_ship[3].amount, 3990000)
 
         mint_trans_noship = o.to_mint_transactions(
             orig_trans, skip_free_shipping=True)
         self.assertEqual(len(mint_trans_noship), 2)
         self.assertEqual(mint_trans_noship[0].description, '3x Item 2')
-        self.assertEqual(mint_trans_noship[0].amount, 14000000)
+        self.assertEqual(mint_trans_noship[0].amount, -14000000)
         self.assertEqual(mint_trans_noship[1].description, 'Item 1')
-        self.assertEqual(mint_trans_noship[1].amount, 6000000)
+        self.assertEqual(mint_trans_noship[1].amount, -6000000)
 
     def test_to_mint_transactions_ship_promo_mismatch(self):
-        orig_trans = transaction(amount='$20.00')
+        orig_trans = transaction(amount=-20.00)
 
         o = order(
             total_charged='$20.00',
@@ -489,13 +489,13 @@ class OrderClass(unittest.TestCase):
             orig_trans, skip_free_shipping=True)
         self.assertEqual(len(mint_trans_ship), 3)
         self.assertEqual(mint_trans_ship[0].description, '4x Item 1')
-        self.assertEqual(mint_trans_ship[0].amount, 20000000)
+        self.assertEqual(mint_trans_ship[0].amount, -20000000)
         self.assertEqual(mint_trans_ship[1].description, 'Shipping')
-        self.assertEqual(mint_trans_ship[1].category, 'Shipping')
-        self.assertEqual(mint_trans_ship[1].amount, 3990000)
+        self.assertEqual(mint_trans_ship[1].category.name, 'Shipping')
+        self.assertEqual(mint_trans_ship[1].amount, -3990000)
         self.assertEqual(mint_trans_ship[2].description, 'Promotion(s)')
-        self.assertEqual(mint_trans_ship[2].category, 'Shopping')
-        self.assertEqual(mint_trans_ship[2].amount, -1000000)
+        self.assertEqual(mint_trans_ship[2].category.name, 'Shopping')
+        self.assertEqual(mint_trans_ship[2].amount, 1000000)
 
     def test_merge_one_order(self):
         o1 = order()
@@ -689,7 +689,7 @@ class RefundClass(unittest.TestCase):
         self.assertEqual(refund().transact_date(), date(2014, 3, 16))
 
     def test_transact_amount(self):
-        self.assertEqual(refund().transact_amount(), -11950000)
+        self.assertEqual(refund().transact_amount(), 11950000)
 
     def test_match(self):
         r = refund()
@@ -706,24 +706,24 @@ class RefundClass(unittest.TestCase):
         self.assertEqual(
             refund(title='Great item').get_title(), '2x Great item')
 
-    def test_get_note(self):
+    def test_get_notes(self):
         r = refund()
 
         self.assertTrue(
-            'Amazon refund for order id: 123-3211232-7655671' in r.get_note())
-        self.assertTrue('Buyer: Some Great Buyer' in r.get_note())
-        self.assertTrue('Order date: 2014-02-26' in r.get_note())
-        self.assertTrue('Refund date: 2014-03-16' in r.get_note())
-        self.assertTrue('Refund reason: Customer Return' in r.get_note())
+            'Amazon refund for order id: 123-3211232-7655671' in r.get_notes())
+        self.assertTrue('Buyer: Some Great Buyer' in r.get_notes())
+        self.assertTrue('Order date: 2014-02-26' in r.get_notes())
+        self.assertTrue('Refund date: 2014-03-16' in r.get_notes())
+        self.assertTrue('Refund reason: Customer Return' in r.get_notes())
 
     def test_to_mint_transaction(self):
         r = refund(title='Duracell Procell AA 24 Pack')
-        t = transaction(amount='$11.95')
+        t = transaction(amount=-11.95)
 
         new_trans = r.to_mint_transaction(t)
 
         self.assertEqual(new_trans.id, t.id)
-        self.assertEqual(new_trans.amount, t.amount)
+        self.assertEqual(new_trans.amount, -t.amount)
         self.assertEqual(new_trans.description, '2x Duracell Procell AA 24 Pack')
 
     def test_merge(self):

@@ -255,7 +255,7 @@ class Order:
         return self.shipment_date
 
     def transact_amount(self):
-        return self.total_charged
+        return -self.total_charged
 
     def match(self, trans):
         self.matched = True
@@ -270,7 +270,7 @@ class Order:
             i.matched = True
             i.order = self
 
-    def get_note(self):
+    def get_notes(self):
         return (
             'Amazon order id: {}\n'
             'Buyer: {} ({})\n'
@@ -384,10 +384,10 @@ class Order:
         for i in items:
             new_cat = category.get_mint_category_from_unspsc(i.unspsc_code)
             item = t.split(
-                amount=i.item_total,
-                category=new_cat,
-                desc=i.get_title(88),
-                note=self.get_note())
+                amount=-i.item_total,
+                category_name=new_cat,
+                description=i.get_title(88),
+                notes=self.get_notes())
             new_transactions.append(item)
 
         # Itemize the shipping cost, if any.
@@ -402,10 +402,10 @@ class Order:
 
         if self.shipping_charge:
             ship = t.split(
-                amount=self.shipping_charge,
-                category='Shipping',
-                desc='Shipping',
-                note=self.get_note())
+                amount=-self.shipping_charge,
+                category_name='Shipping',
+                description='Shipping',
+                notes=self.get_notes())
             new_transactions.append(ship)
 
         # All promotion(s) as one line-item.
@@ -418,9 +418,9 @@ class Order:
                    category.DEFAULT_MINT_CATEGORY)
             promo = t.split(
                 amount=self.total_promotions,
-                category=cat,
-                desc='Promotion(s)',
-                note=self.get_note())
+                category_name=cat,
+                description='Promotion(s)',
+                notes=self.get_notes())
             new_transactions.append(promo)
 
         return new_transactions
@@ -576,12 +576,12 @@ class Refund:
         return self.refund_date
 
     def transact_amount(self):
-        return -self.total_refund_amount
+        return self.total_refund_amount
 
     def get_title(self, target_length=100):
         return get_title(self, target_length)
 
-    def get_note(self):
+    def get_notes(self):
         return (
             'Amazon refund for order id: {}\n'
             'Buyer: {}\n'
@@ -599,10 +599,10 @@ class Refund:
     def to_mint_transaction(self, t):
         # Refunds have a positive amount.
         result = t.split(
-            desc=self.get_title(88),
-            category=category.DEFAULT_MINT_RETURN_CATEGORY,
+            description=self.get_title(88),
+            category_name=category.DEFAULT_MINT_RETURN_CATEGORY,
             amount=self.total_refund_amount,
-            note=self.get_note())
+            notes=self.get_notes())
         return result
 
     @staticmethod

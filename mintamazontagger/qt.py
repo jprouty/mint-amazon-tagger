@@ -19,28 +19,28 @@ class MintUpdatesTableModel(QAbstractTableModel):
             orig_trans, new_trans = update
 
             descriptions = []
-            categories = []
+            category_names = []
             amounts = []
 
             if orig_trans.children:
                 for trans in orig_trans.children:
                     descriptions.append('CURRENTLY: ' + trans.description)
-                    categories.append(trans.category)
+                    category_names.append(trans.category.name)
                     amounts.append(micro_usd_to_usd_string(trans.amount))
             else:
                 descriptions.append('CURRENTLY: ' + orig_trans.description)
-                categories.append(orig_trans.category)
+                category_names.append(orig_trans.category.name)
                 amounts.append(micro_usd_to_usd_string(orig_trans.amount))
 
             if len(new_trans) == 1:
                 trans = new_trans[0]
                 descriptions.append('PROPOSED: ' + trans.description)
-                categories.append(trans.category)
+                category_names.append(trans.category.name)
                 amounts.append(micro_usd_to_usd_string(trans.amount))
             else:
                 for trans in reversed(new_trans):
                     descriptions.append('PROPOSED: ' + trans.description)
-                    categories.append(trans.category)
+                    category_names.append(trans.category.name)
                     amounts.append(micro_usd_to_usd_string(trans.amount))
 
             self.my_data.append([
@@ -48,7 +48,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
                 True,
                 orig_trans.date.strftime('%Y/%m/%d'),
                 '\n'.join(descriptions),
-                '\n'.join(categories),
+                '\n'.join(category_names),
                 '\n'.join(amounts),
                 orig_trans.orders[0].order_id,
             ])

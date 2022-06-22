@@ -152,8 +152,11 @@ class TaggerGui:
             'description Filter',
             self.create_line_edit('mint_input_description_filter'))
         mint_layout.addRow(
-            'Include description',
-            self.create_checkbox('mint_input_include_description'))
+            'Include user description',
+            self.create_checkbox('mint_input_include_user_description'))
+        mint_layout.addRow(
+            'Include inferred description',
+            self.create_checkbox('mint_input_include_inferred_description'))
         mint_layout.addRow(
             'Input Categories Filter',
             self.create_line_edit('mint_input_categories_filter'))

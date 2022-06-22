@@ -4,7 +4,7 @@ import unittest
 from mintamazontagger import category
 from mintamazontagger import mint
 from mintamazontagger.mint import Transaction
-from mintamazontagger.mockdata import transaction
+from mintamazontagger.mockdata import transaction, MINT_CATEGORIES
 
 
 class HelpMethods(unittest.TestCase):
@@ -37,38 +37,27 @@ class HelpMethods(unittest.TestCase):
             'cap_case?')
 
     def test_parse_mint_date(self):
-        current_year = datetime.isocalendar(date.today())[0]
         self.assertEqual(
-            mint.parse_mint_date('Jan 10'),
-            date(current_year, 1, 10))
+            mint.parse_mint_date('2020-01-10'),
+            date(2020, 1, 10))
         self.assertEqual(
-            mint.parse_mint_date('Nov 30'),
-            date(current_year, 11, 30))
+            mint.parse_mint_date('2022-11-30'),
+            date(2022, 11, 30))
         self.assertEqual(
-            mint.parse_mint_date('Oct 08'),
-            date(current_year, 10, 8))
-
-        self.assertEqual(
-            mint.parse_mint_date('10/8/10'),
-            date(2010, 10, 8))
-        self.assertEqual(
-            mint.parse_mint_date('1/23/10'),
-            date(2010, 1, 23))
-        self.assertEqual(
-            mint.parse_mint_date('6/1/01'),
-            date(2001, 6, 1))
+            mint.parse_mint_date('2019-10-08'),
+            date(2019, 10, 8))
 
 
 class TransactionClass(unittest.TestCase):
     def test_constructor(self):
         trans = transaction()
-        self.assertEqual(trans.amount, 11950000)
+        self.assertEqual(trans.amount, -11950000)
         self.assertEqual(trans.date, date(2014, 2, 28))
         self.assertFalse(trans.matched)
         self.assertEqual(trans.orders, [])
         self.assertEqual(trans.children, [])
 
-        trans = transaction(amount='$423.12')
+        trans = transaction(amount=-423.12)
         self.assertEqual(trans.amount, -423120000)
 
     def test_split(self):
@@ -76,9 +65,9 @@ class TransactionClass(unittest.TestCase):
         strans = trans.split(1234, 'Shopping', 'Some new item', 'Test note')
         self.assertNotEqual(trans, strans)
         self.assertEqual(strans.amount, 1234)
-        self.assertEqual(strans.category, 'Shopping')
+        self.assertEqual(strans.category.name, 'Shopping')
         self.assertEqual(strans.description, 'Some new item')
-        self.assertEqual(strans.note, 'Test note')
+        self.assertEqual(strans.notes, 'Test note')
 
     def test_match(self):
         trans = transaction()
@@ -89,50 +78,46 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(trans.orders, orders)
 
     def test_bastardize(self):
-        child = transaction(pid=123)
-        self.assertTrue(child.is_child)
-        self.assertEqual(child.pid, 123)
-
+        child = transaction(parent_id=123)
+        self.assertEqual(child.parent_id, 123)
         child.bastardize()
-
-        self.assertFalse(child.is_child)
-        self.assertFalse(hasattr(child, 'pid'))
+        self.assertEqual(child.parent_id, None)
 
     def test_update_category_id(self):
         trans = transaction()
         # Give it a mismatch initially:
-        trans.category_id = 99
-        trans.update_category_id(category.DEFAULT_MINT_CATEGORIES_TO_IDS)
-        self.assertEqual(trans.category_id, 4)
+        trans.category.id = 99
+        trans.update_category_id(MINT_CATEGORIES)
+        self.assertEqual(trans.category.id, '18888881_4')
 
-        trans.category = 'SOME INVALID CAT'
+        trans.category.name = 'SOME INVALID CAT'
         with self.assertRaises(AssertionError):
-            trans.update_category_id(category.DEFAULT_MINT_CATEGORIES_TO_IDS)
+            trans.update_category_id(MINT_CATEGORIES)
 
-        trans.category = 'Shopping'
-        trans.update_category_id(category.DEFAULT_MINT_CATEGORIES_TO_IDS)
-        self.assertEqual(trans.category_id, 2)
+        trans.category.name = 'Shopping'
+        trans.update_category_id(MINT_CATEGORIES)
+        self.assertEqual(trans.category.id, '18888881_2')
 
     def test_get_compare_tuple(self):
         trans = transaction(
             description='Simple Title',
-            amount='$1.00')
+            amount=-1.00)
         self.assertEqual(
             trans.get_compare_tuple(),
-            ('Simple Title', '$1.00', 'Great note here', 'Personal Care'))
+            ('Simple Title', '-$1.00', 'Great note here', 'Personal Care'))
 
         trans2 = transaction(
             description='Simple Refund',
-            amount='$2.01')
+            amount=2.01)
         self.assertEqual(
             trans2.get_compare_tuple(True),
-            ('Simple Refund', '-$2.01', 'Great note here'))
+            ('Simple Refund', '$2.01', 'Great note here'))
 
     def test_dry_run_str(self):
         trans = transaction()
 
-        self.assertTrue('2/28/14' in trans.dry_run_str())
-        self.assertTrue('$11.95' in trans.dry_run_str())
+        self.assertTrue('2014-02-28' in trans.dry_run_str())
+        self.assertTrue('-$11.95' in trans.dry_run_str())
         self.assertTrue('Personal Care' in trans.dry_run_str())
         self.assertTrue('Amazon' in trans.dry_run_str())
 
@@ -143,57 +128,57 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(Transaction.sum_amounts([]), 0)
 
         trans1 = transaction(
-            amount='$2.34')
-        self.assertEqual(Transaction.sum_amounts([trans1]), 2340000)
+            amount=-2.34)
+        self.assertEqual(Transaction.sum_amounts([trans1]), -2340000)
 
         trans2 = transaction(
-            amount='$8.00')
+            amount=-8.00)
         self.assertEqual(
             Transaction.sum_amounts([trans1, trans2]),
-            10340000)
+            -10340000)
 
         credit = transaction(
-            amount='$20.20')
+            amount=20.20)
         self.assertEqual(
             Transaction.sum_amounts([trans1, credit, trans2]),
-            -9860000)
+            9860000)
 
     def test_unsplit(self):
         self.assertEqual(Transaction.unsplit([]), [])
 
         not_child1 = transaction(
-            amount='$1.00')
+            amount=-1.00)
         self.assertEqual(Transaction.unsplit([not_child1]), [not_child1])
 
         not_child2 = transaction(
-            amount='$2.00')
+            amount=-2.00)
         self.assertEqual(
             Transaction.unsplit([not_child1, not_child2]),
             [not_child1, not_child2])
 
         child1_to_1 = transaction(
-            amount='$3.00',
-            pid=1)
+            amount=-3.00,
+            parent_id=1)
         child2_to_1 = transaction(
-            amount='$4.00',
-            pid=1)
+            amount=-4.00,
+            parent_id=1)
         child3_to_1 = transaction(
-            amount='$8.00',
-            pid=1)
+            amount=8.00,
+            parent_id=1)
         child1_to_99 = transaction(
-            amount='$5.00',
-            pid=99)
+            amount=-5.00,
+            parent_id=99)
 
         one_child_actual = Transaction.unsplit([child1_to_1])
         self.assertEqual(one_child_actual[0].amount, child1_to_1.amount)
-        self.assertFalse(one_child_actual[0].is_child)
+        self.assertEqual(one_child_actual[0].parent_id, None)
         self.assertEqual(one_child_actual[0].id, 1)
         self.assertEqual(one_child_actual[0].children, [child1_to_1])
 
         three_children = [child1_to_1, child2_to_1, child3_to_1]
         three_child_actual = Transaction.unsplit(three_children)
-        self.assertEqual(three_child_actual[0].amount, -1000000)
-        self.assertFalse(three_child_actual[0].is_child)
+        self.assertEqual(three_child_actual[0].amount, 1000000)
+        self.assertEqual(three_child_actual[0].parent_id, None)
         self.assertEqual(three_child_actual[0].id, 1)
         self.assertEqual(three_child_actual[0].children, three_children)
 
@@ -207,9 +192,9 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(crazy_actual[3].children, [child1_to_99])
 
     def test_old_and_new_are_identical(self):
-        trans1 = transaction(amount='$5.00', description='ABC')
+        trans1 = transaction(amount=-5.00, description='ABC')
         trans2 = transaction(
-            amount='$5.00',
+            amount=-5.00,
             description='ABC',
             category='Shipping')
 
@@ -221,8 +206,8 @@ class TransactionClass(unittest.TestCase):
             trans1, [trans2], True))
 
         new_trans = [
-            transaction(amount='$2.50', description='ABC'),
-            transaction(amount='$2.50', description='ABC'),
+            transaction(amount=-2.50, description='ABC'),
+            transaction(amount=-2.50, description='ABC'),
         ]
         trans1.children = new_trans
         self.assertTrue(Transaction.old_and_new_are_identical(
@@ -232,32 +217,32 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(mint.itemize_new_trans([], 'Sweet: '), [])
 
         trans = [
-            transaction(amount='$5.00', description='ABC'),
-            transaction(amount='$15.00', description='CBA'),
+            transaction(amount=-5.00, description='ABC'),
+            transaction(amount=-15.00, description='CBA'),
         ]
         itemized_trans = mint.itemize_new_trans(trans, 'Sweet: ')
         self.assertEqual(itemized_trans[0].description, 'Sweet: CBA')
-        self.assertEqual(itemized_trans[0].amount, 15000000)
+        self.assertEqual(itemized_trans[0].amount, -15000000)
         self.assertEqual(itemized_trans[1].description, 'Sweet: ABC')
-        self.assertEqual(itemized_trans[1].amount, 5000000)
+        self.assertEqual(itemized_trans[1].amount, -5000000)
 
     def test_summarize_new_trans(self):
         original_trans = transaction(
-            amount='$40.00',
+            amount=-40.00,
             description='Amazon',
-            note='Test note')
+            notes='Test note')
 
         item1 = transaction(
-            amount='$15.00',
+            amount=-15.00,
             description='Item 1')
         item2 = transaction(
-            amount='$25.00',
+            amount=-25.00,
             description='Item 2')
         shipping = transaction(
-            amount='$5.00',
+            amount=-5.00,
             description='Shipping')
         free_shipping = transaction(
-            amount='$5.00',
+            amount=-5.00,
             description='Promotion(s)')
 
         actual_summary = mint.summarize_new_trans(
@@ -267,28 +252,28 @@ class TransactionClass(unittest.TestCase):
 
         self.assertEqual(actual_summary.amount, original_trans.amount)
         self.assertEqual(
-            actual_summary.category, category.DEFAULT_MINT_CATEGORY)
+            actual_summary.category.name, category.DEFAULT_MINT_CATEGORY)
         self.assertEqual(actual_summary.description, 'Amazon.com: Item 1, Item 2')
-        self.assertTrue('Item 1' in actual_summary.note)
-        self.assertTrue('Item 2' in actual_summary.note)
-        self.assertTrue('Shipping' in actual_summary.note)
-        self.assertTrue('Promotion(s)' in actual_summary.note)
+        self.assertTrue('Item 1' in actual_summary.notes)
+        self.assertTrue('Item 2' in actual_summary.notes)
+        self.assertTrue('Shipping' in actual_summary.notes)
+        self.assertTrue('Promotion(s)' in actual_summary.notes)
 
     def test_summarize_new_trans_one_item_keeps_category(self):
         original_trans = transaction(
-            amount='$40.00',
+            amount=-40.00,
             description='Amazon',
-            note='Test note')
+            notes='Test note')
 
         item1 = transaction(
-            amount='$15.00',
+            amount=-15.00,
             description='Giant paper shredder',
             category='Office Supplies')
         shipping = transaction(
-            amount='$5.00',
+            amount=-5.00,
             description='Shipping')
         free_shipping = transaction(
-            amount='$5.00',
+            amount=-5.00,
             description='Promotion(s)')
 
         actual_summary = mint.summarize_new_trans(
@@ -297,12 +282,12 @@ class TransactionClass(unittest.TestCase):
             'Amazon.com: ')[0]
 
         self.assertEqual(actual_summary.amount, original_trans.amount)
-        self.assertEqual(actual_summary.category, 'Office Supplies')
+        self.assertEqual(actual_summary.category.name, 'Office Supplies')
         self.assertEqual(actual_summary.description,
                          'Amazon.com: Giant paper shredder')
-        self.assertTrue('Giant paper shredder' in actual_summary.note)
-        self.assertTrue('Shipping' in actual_summary.note)
-        self.assertTrue('Promotion(s)' in actual_summary.note)
+        self.assertTrue('Giant paper shredder' in actual_summary.notes)
+        self.assertTrue('Shipping' in actual_summary.notes)
+        self.assertTrue('Promotion(s)' in actual_summary.notes)
 
 
 if __name__ == '__main__':

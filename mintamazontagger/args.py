@@ -201,9 +201,23 @@ def define_common_args(parser):
         help=('Only consider Mint transactions that have one of these strings '
               'in the description field. Case-insensitive comma-separated.'))
     parser.add_argument(
-        '--mint_input_include_description', action='store_true',
-        help=('Consider using the description field when determining if '
-              'a transaction is an Amazon purchase.'))
+        '--mint_input_include_user_description', action='store_true',
+        help=('Consider using the current description from Mint when '
+              'determining if a transaction is an Amazon purchase. This will '
+              'include any user edits or previous runs of MintAmazonTagger. '
+              'This is similar to --mint_input_include_inferred_description.'))
+    # TODO(jprouty): Revisit if this is still accurate in the FIData message.
+    parser.add_argument(
+        '--mint_input_include_inferred_description', action='store_true',
+        help=('Consider using the inferred description from Mint\'s '
+              '"FinancialInstitutionData" when determining if '
+              'a transaction is an Amazon purchase. This may be necessary '
+              'when a bank renames transactions to "Debit card payment". '
+              'Mint sometimes auto-recovers these into "Amazon", and flipping '
+              'this flag will help match these. To know if you should use it, '
+              'find a transaction in the Mint tool, and click on the details. '
+              'Look for "Appears on your BANK ACCOUNT NAME statement as NOT '
+              'USEFUL NAME on DATE".'))
     parser.add_argument(
         '--mint_input_categories_filter', type=str,
         help=('Only consider Mint transactions that match one of '

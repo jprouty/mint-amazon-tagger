@@ -6,9 +6,9 @@ import re
 import os
 
 from mintamazontagger import category
-from mintamazontagger.currency import micro_usd_to_usd_string
-from mintamazontagger.currency import parse_usd_as_micro_usd
-from mintamazontagger.currency import round_micro_usd_to_cent
+from mintamazontagger.currency import (
+    micro_usd_to_usd_string, parse_float_usd_as_micro_usd,
+    round_micro_usd_to_cent)
 from mintamazontagger.my_progress import NoProgress
 
 
@@ -47,15 +47,21 @@ def convert_camel_dict(raw_dict):
     ])
 
 
-def pythonify_mint_transaction_dict(raw_dict):
+def pythonify_mint_transaction_dict(raw_dict, is_fi_data=False):
     # Parse out the date field into a datetime.date object.
     raw_dict['date'] = parse_mint_date(raw_dict['date'])
 
-    # Parse the amount into micro usd.
-    raw_dict['amount'] = parse_usd_as_micro_usd(raw_dict['amount'])
+    # Parse the float value into micro usd.
+    raw_dict['amount'] = parse_float_usd_as_micro_usd(raw_dict['amount'])
 
-    # Parse a Category object.
-    raw_dict['category'] = Category(raw_dict['category'])
+    if is_fi_data:
+        raw_dict['inferredCategory'] = Category(raw_dict['inferredCategory'])
+    else:
+        raw_dict['category'] = Category(raw_dict['category'])
+        raw_dict['fiData'] = FinancialInstitutionData(raw_dict['fiData'])
+        # Ensure the notes field is always present (None if not present).
+        raw_dict['notes'] = raw_dict.get('notes')
+        raw_dict['parentId'] = raw_dict.get('parentId')
 
     return convert_camel_dict(raw_dict)
 
@@ -65,10 +71,22 @@ def pythonify_mint_category_dict(raw_dict):
 
 
 def parse_mint_date(date_str):
-    try:
-        return datetime.strptime(date_str, '%Y-%m-%d')
-    except ValueError:
-        logger.error('Cannot parse date: {}'.format(date_str))
+    return datetime.strptime(date_str, '%Y-%m-%d').date()
+
+
+class Category(object):
+    """A Mint category."""
+
+    def __init__(self, raw_dict):
+        self.__dict__.update(pythonify_mint_category_dict(raw_dict))
+
+    def update_category_id(self, mint_categories):
+        # Assert the category name is valid then update the id.
+        assert self.name in mint_categories
+        self.id = mint_categories[self.name]['id']
+
+    def __repr__(self):
+        return '{}({})'.format(self.name, self.id)
 
 
 class Transaction(object):
@@ -82,7 +100,7 @@ class Transaction(object):
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_mint_transaction_dict(raw_dict))
 
-    def split(self, amount, category, desc, note):
+    def split(self, amount, category_name, description, notes):
         """Returns a new Transaction split from self."""
         item = deepcopy(self)
 
@@ -93,9 +111,9 @@ class Transaction(object):
         item.children = []
 
         item.amount = amount
-        item.category = category
-        item.description = desc
-        item.note = note
+        item.category = Category({'name': category_name, 'id': None})
+        item.description = description
+        item.notes = notes
 
         return item
 
@@ -105,39 +123,39 @@ class Transaction(object):
 
     def bastardize(self):
         """Severes the child from the parent, making this a parent itself."""
-        self.is_child = False
-        del self.__dict__['pid']
+        self.parent_id = None
 
-    def update_category_id(self, mint_cat_name_to_id):
-        # Assert the category name is valid then update the categoryId.
-        assert self.category in mint_cat_name_to_id
-        self.category_id = mint_cat_name_to_id[self.category]
+    def update_category_id(self, mint_categories):
+        self.category.update_category_id(mint_categories)
 
     def get_compare_tuple(self, ignore_category=False):
         """Returns a 3-tuple used to determine if 2 transactions are equal."""
         # TODO: Add the 'note' field once itemized transactions include notes.
         # Use str to avoid float cmp.
-        base = (self.description, micro_usd_to_usd_string(self.amount), self.note)
-        return base if ignore_category else base + (self.category,)
+        base = (
+            self.description,
+            micro_usd_to_usd_string(self.amount),
+            self.notes)
+        return base if ignore_category else base + (self.category.name,)
 
     def dry_run_str(self, ignore_category=False):
         return '{} \t {} \t {} \t {}'.format(
-            self.date.strftime('%m/%d/%y'),
+            self.date.strftime('%Y-%m-%d'),
             micro_usd_to_usd_string(self.amount),
             '--IGNORED--' if ignore_category else self.category,
             self.description)
 
     def __repr__(self):
-        has_note = 'with note' if self.note else ''
+        notes = 'with notes' if self.notes else ''
         return (
             'Mint Trans({id}): {amount} {date} {description} {category} '
-            '{has_note}'.format(
+            '{notes}'.format(
                 id=self.id,
                 amount=micro_usd_to_usd_string(self.amount),
                 date=self.date,
                 description=self.description,
                 category=self.category,
-                has_note=has_note))
+                notes=notes))
 
     @classmethod
     def parse_from_json(cls, json_dicts, progress=NoProgress()):
@@ -157,15 +175,15 @@ class Transaction(object):
         parent_id_to_trans = defaultdict(list)
         result = []
         for t in trans:
-            if t.is_child:
-                parent_id_to_trans[t.pid].append(t)
+            if t.parent_id:
+                parent_id_to_trans[t.parent_id].append(t)
             else:
                 result.append(t)
 
-        for pid, children in parent_id_to_trans.items():
+        for parent_id, children in parent_id_to_trans.items():
             parent = deepcopy(children[0])
 
-            parent.id = pid
+            parent.id = parent_id
             parent.bastardize()
             parent.amount = round_micro_usd_to_cent(
                 Transaction.sum_amounts(children))
@@ -186,17 +204,20 @@ class Transaction(object):
         return old_set == new_set
 
 
-class Category(object):
-    """A Mint category."""
+class FinancialInstitutionData(object):
+    """Additional transaction details from the financial institution."""
 
     def __init__(self, raw_dict):
-        self.__dict__.update(pythonify_mint_category_dict(raw_dict))
-
-    def update_category_id(self, mint_cat_name_to_id):
-        pass
+        self.__dict__.update(pythonify_mint_transaction_dict(raw_dict, True))
 
     def __repr__(self):
-        return '{}({})'.format(self.category, self.category_id)
+        return (
+            'Mint FI Trans({id}): {amount} {date} {description} {category}'.format(
+                id=self.id,
+                amount=micro_usd_to_usd_string(self.amount),
+                date=self.date,
+                description=self.description,
+                category=self.inferred_category))
 
 
 def itemize_new_trans(new_trans, prefix):
@@ -233,7 +254,7 @@ def summarize_new_trans(t, new_trans, prefix):
          if nt.description not in NON_ITEM_DESCRIPTIONS],
         prefix)
     notes = '{}\nItem(s):\n{}'.format(
-        new_trans[0].note,
+        new_trans[0].notes,
         '\n'.join(
             [' - ' + nt.description
              for nt in new_trans]))
@@ -243,10 +264,9 @@ def summarize_new_trans(t, new_trans, prefix):
     if len([nt for nt in new_trans
             if nt.description not in NON_ITEM_DESCRIPTIONS]) == 1:
         summary_trans.category = new_trans[0].category
-        summary_trans.category_id = new_trans[0].category_id
     else:
-        summary_trans.category = category.DEFAULT_MINT_CATEGORY
-    summary_trans.note = notes
+        summary_trans.category.name = category.DEFAULT_MINT_CATEGORY
+    summary_trans.notes = notes
     return [summary_trans]
 
 

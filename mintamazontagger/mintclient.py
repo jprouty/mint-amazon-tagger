@@ -1,10 +1,9 @@
 from datetime import datetime
 import logging
-from pprint import pprint
 import requests
 import time
 
-from mintamazontagger.currency import micro_usd_to_usd_float
+from mintamazontagger.currency import micro_usd_to_float_usd
 from mintamazontagger.webdriver import (
     get_element_by_id, get_element_by_xpath,
     get_element_by_link_text, get_elements_by_class_name, is_visible)
@@ -80,11 +79,11 @@ class MintClient():
             params=params)
         if not _is_json_response_success('transactions', response):
             return []
-        result = response.json()
-        if not result['metaData']['totalSize']:
+        response_json = response.json()
+        if not response_json['metaData']['totalSize']:
             logger.warning('No transactions found')
             return []
-        return result['Transaction']
+        return response_json['Transaction']
 
     def get_categories(self):
         if not self.login():
@@ -96,11 +95,14 @@ class MintClient():
             'GET', MINT_CATEGORIES, headers=self.get_api_header())
         if not _is_json_response_success('categories', response):
             return []
-        result = response.json()
-        if not result['metaData']['totalSize']:
+        response_json = response.json()
+        if not response_json['metaData']['totalSize']:
             logger.error('No categories found')
             return []
-        return result['Category']
+        result = {}
+        for cat in response_json['Category']:
+            result[cat['name']] = cat
+        return result
 
     def send_updates(self, updates, progress, ignore_category=False):
         if not self.login():
@@ -112,7 +114,7 @@ class MintClient():
                 # Update the existing transaction.
                 trans = new_trans[0]
                 modify_trans = {
-                    'notes': trans.note,
+                    'notes': trans.notes,
                     'description': trans.description,
                     'type': trans.type,
                 }
@@ -141,10 +143,10 @@ class MintClient():
                         else trans.category.id)
                     itemized_split = {
                         'amount': '{}'.format(
-                            micro_usd_to_usd_float(trans.amount)),
-                        'category': { 'id': trans.category.id },
+                            micro_usd_to_float_usd(trans.amount)),
+                        'category': { 'id': category_id },
                         'description': trans.description,
-                        'notes': trans.note,
+                        'notes': trans.notes,
                         'type': trans.type,
                     }
                     split_children.append(itemized_split)
@@ -168,7 +170,7 @@ class MintClient():
                 #     # Now send the note for each itemized transaction.
                 #     # 'txnId': '{}:0'.format(itemized_id),
                 #     itemized_note = {
-                #         'note': trans.note,
+                #         'notes': trans.notes,
                 #     }
                 #     note_response = self.webdriver.request(
                 #         'PUT', MINT_TRANSACTIONS, data=itemized_note,
@@ -208,7 +210,7 @@ _MAX_PASSWORD_ATTEMPTS = 2
 
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Navigating to Mint homepage.')
-    webdriver.implicitly_wait(2)
+    webdriver.implicitly_wait(0)
     webdriver.get(MINT_HOME)
 
     logger.info('Clicking "Sign in" button.')
@@ -229,7 +231,6 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     login_start_time = datetime.now()
     num_password_attempts = 0
     while not webdriver.current_url.startswith(MINT_OVERVIEW):
-        logger.info('Top of login loop. Current url: {}'.format(webdriver.current_url))
         since_start = datetime.now() - login_start_time
         if (args.mint_login_timeout
                 and since_start.total_seconds() > args.mint_login_timeout):

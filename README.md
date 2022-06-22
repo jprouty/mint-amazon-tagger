@@ -122,5 +122,6 @@ Not every bank treats Amazon purchases the same, or processes transactions as qu
 
 Some common options to try:
 
-* --mint_input_include_description. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
+* --mint_input_include_inferred_description. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
+* --mint_input_include_user_description. Similar to above; considers the current description as shown in the Mint tool (including any user edits).
 * --max_days_between_payment_and_shipping. If your bank is slow at posting payments, adjusting this value up to 7 or more will increase your chance of matching. If you have a high volume of purchases, this can increase your chance of mis-tagging items.
