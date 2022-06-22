@@ -196,6 +196,7 @@ _MAX_PASSWORD_ATTEMPTS = 2
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Navigating to Mint homepage.')
     webdriver.implicitly_wait(0)
+    time.sleep(1)
     webdriver.get(MINT_HOME)
 
     logger.info('Clicking "Sign in" button.')
