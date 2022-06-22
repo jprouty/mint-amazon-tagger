@@ -727,10 +727,10 @@ def main():
     def sigint_handler(signal, frame):
         logger.warning('Keyboard interrupt caught')
         QApplication.quit()
-        exit(0)
+        sys.exit(0)
 
     signal(SIGINT, sigint_handler)
-    exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
+    sys.exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
 
 
 if __name__ == '__main__':
