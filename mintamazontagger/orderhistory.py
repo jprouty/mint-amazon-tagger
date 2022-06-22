@@ -79,13 +79,6 @@ def fetch_order_history(args, webdriver_factory,
                        start_date, end_date)
         request_progress.finish()
 
-    # # Now wait on the reports to be done and then download them.
-    # for report_shortname, report_type, report_name, report_path in zip(
-    #         report_shortnames, report_types, report_names, report_paths):
-    #     if os.path.exists(report_path):
-    #         # Report has already been fetched! Woot
-    #         continue
-
         logger.info('Waiting for {} report to be ready'.format(report_type))
         processing_progress = progress_factory(
             'Waiting for {} report to be ready.'.format(
@@ -198,21 +191,14 @@ def request_report(webdriver, report_name, report_type, start_date, end_date):
         pass
 
     Select(webdriver.find_element_by_id(
-        'report-type')).select_by_value(report_type)
+        'report-type-native')).select_by_value(report_type)
 
-    Select(webdriver.find_element_by_id(
-        'report-month-start')).select_by_value(str(start_date.month))
-    Select(webdriver.find_element_by_id(
-        'report-day-start')).select_by_value(str(start_date.day))
-    Select(webdriver.find_element_by_id(
-        'report-year-start')).select_by_value(str(start_date.year))
-
-    Select(webdriver.find_element_by_id(
-        'report-month-end')).select_by_value(str(end_date.month))
-    Select(webdriver.find_element_by_id(
-        'report-day-end')).select_by_value(str(end_date.day))
-    Select(webdriver.find_element_by_id(
-        'report-year-end')).select_by_value(str(end_date.year))
+    webdriver.find_element_by_xpath(
+        '//*[@id="startDateCalendar"]/div[2]/div/div/div/input'
+        ).send_keys(start_date.strftime('%m/%d/%Y'))
+    webdriver.find_element_by_xpath(
+        '//*[@id="endDateCalendar"]/div[2]/div/div/div/input'
+    ).send_keys(end_date.strftime('%m/%d/%Y'))
 
     webdriver.find_element_by_id('report-name').send_keys(report_name)
 

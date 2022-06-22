@@ -224,6 +224,7 @@ ORDER_MERGE_FIELDS = {
 
 
 class Order:
+    is_refund = False
     matched = False
     items_matched = False
     trans_id = None
@@ -456,7 +457,6 @@ class Order:
 class Item:
     matched = False
     order = None
-    is_refund = False
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))

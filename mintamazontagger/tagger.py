@@ -192,7 +192,7 @@ def get_mint_category_history_for_items(trans, args):
 
     # Filter out non-item descriptions.
     trans = [t for t in trans
-             if t.description not in mint.NON_ITEM_descriptionS]
+             if t.description not in mint.NON_ITEM_DESCRIPTIONS]
 
     item_to_cats = defaultdict(Counter)
     for t in trans:
