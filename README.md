@@ -1,7 +1,5 @@
 # Mint Transactions Tagger for Amazon Purchases
 
-Mint recently revamped its login flow (to use the unified Intuit flow) and launched a new Mint REST API. This has broken the mint amazon tagger tool for the moment. I am actively working to resolve the issue as quickly as possible. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/100). Thank you for your patience.
-
 ## Overview ##
 
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
