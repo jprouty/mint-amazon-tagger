@@ -429,7 +429,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
 
 
 def _login_flow_advance(webdriver):
-    time.sleep(0.5)
+    time.sleep(2.22)
 
 
 def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):

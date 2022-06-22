@@ -32,11 +32,16 @@ def fetch_order_history(args, webdriver_factory,
 
     start_date = args.order_history_start_date
     end_date = args.order_history_end_date
-    report_shortnames = ['Items', 'Orders', 'Refunds']
+    # Refund reports have been broken for some time (as per jprouty). For the
+    # time being, do not attempt to fetch the refunds. Power users can attempts
+    # to fetch their own Refund reports and use the tool via CSV file.
+    # report_shortnames = ['Items', 'Orders', 'Refunds']
+    # report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
+    report_shortnames = ['Items', 'Orders']
+    report_types = ['ITEMS', 'SHIPMENTS']
     report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(
                     name, t, start_date, end_date)
                     for t in report_shortnames]
-    report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
     report_paths = [os.path.join(args.report_download_location, name + '.csv')
                     for name in report_names]
 
@@ -102,7 +107,7 @@ def fetch_order_history(args, webdriver_factory,
 
     args.items_csv = open(report_paths[0], 'r', encoding='utf-8')
     args.orders_csv = open(report_paths[1], 'r', encoding='utf-8')
-    args.refunds_csv = open(report_paths[2], 'r', encoding='utf-8')
+    # args.refunds_csv = open(report_paths[2], 'r', encoding='utf-8')
     return True
 
 
