@@ -43,6 +43,7 @@ wheels/
 .installed.cfg
 *.egg
 release_venv/
+dev_venv/
 pypi_test_venv/
 
 # PyInstaller

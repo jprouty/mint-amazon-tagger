@@ -6,10 +6,11 @@ import re
 import requests
 import subprocess
 from sys import platform
+from time import sleep
 import zipfile
 
 from selenium.common.exceptions import (
-    InvalidArgumentException, NoSuchElementException)
+    InvalidArgumentException, NoSuchElementException, WebDriverException)
 from selenium.webdriver import ChromeOptions
 from seleniumrequests import Chrome
 
@@ -17,6 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 def get_webdriver(headless=False, session_path=None):
+    # A workaround to https://github.com/jprouty/mint-amazon-tagger/issues/107.
+    # Before returning a webdriver, first ensure that it can navigate
+    # successfully to a page.
+    webdriver = _get_webdriver_helper(headless, session_path)
+    webdriver_is_ready = False
+    while not webdriver_is_ready:
+        try:
+            webdriver.get('https://blankwhitescreen.com/')
+            webdriver_is_ready = True
+        except WebDriverException as e:
+            logger.info('Waiting for WebDriver to be ready.')
+            sleep(1)
+    return webdriver
+
+
+def _get_webdriver_helper(headless=False, session_path=None):
     chrome_options = ChromeOptions()
     if headless:
         chrome_options.add_argument('headless')
