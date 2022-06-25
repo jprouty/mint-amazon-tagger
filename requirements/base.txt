@@ -6,7 +6,5 @@ progress
 range-key-dict
 requests
 readchar
-# Selenium 4.3.0 removes Opera. This breaks selenium-requests, which needs a fix to resolve
-# https://github.com/cryzed/Selenium-Requests/issues/51
-selenium==4.2.0
+selenium
 selenium-requests

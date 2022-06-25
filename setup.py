@@ -91,7 +91,7 @@ setuptools.setup(
         'range-key-dict',
         'requests',
         'readchar',
-        'selenium<=4.2.0',
+        'selenium',
         'selenium-requests',
     ],
     entry_points=dict(
