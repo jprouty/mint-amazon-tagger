@@ -387,8 +387,8 @@ def get_mint_updates(
             nt.update_category_id(mint_categories)
 
         summarize_single_item_order = (
-            t.amount < 0 and len(order.items) == 1 and
-            not args.verbose_itemize)
+            t.amount < 0 and len(order.items) == 1
+            and not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
             new_transactions = mint.summarize_new_trans(
                 t, new_transactions, prefix)
@@ -399,7 +399,7 @@ def get_mint_updates(
                 t, new_transactions, ignore_category=args.no_tag_categories):
             stats['already_up_to_date'] += 1
             continue
-
+            # Temp
         valid_prefixes = (
             args.amazon_domains.lower().split(',') + [prefix.lower()])
         has_prefix = any(t.description.lower().startswith(pre)

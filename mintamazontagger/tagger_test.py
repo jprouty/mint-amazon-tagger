@@ -73,7 +73,8 @@ class Tagger(unittest.TestCase):
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
-        self.assertEqual(new_trans[0].description, 'Amazon.com: 2x Duracell AAs')
+        self.assertEqual(new_trans[0].description,
+                         'Amazon.com: 2x Duracell AAs')
         self.assertEqual(new_trans[0].category.name, 'Electronics & Software')
         self.assertEqual(new_trans[0].amount, -11950000)
         self.assertEqual(new_trans[0].parent_id, None)
@@ -226,7 +227,8 @@ class Tagger(unittest.TestCase):
         self.assertEqual(new_trans[1].description, 'Amazon.com: Shipping')
         self.assertEqual(new_trans[1].category.name, 'Shipping')
         self.assertEqual(new_trans[1].amount, -3990000)
-        self.assertEqual(new_trans[2].description, 'Amazon.com: 2x Duracell AAs')
+        self.assertEqual(new_trans[2].description,
+                         'Amazon.com: 2x Duracell AAs')
         self.assertEqual(new_trans[2].category.name, 'Electronics & Software')
         self.assertEqual(new_trans[2].amount, -11950000)
 
@@ -248,7 +250,8 @@ class Tagger(unittest.TestCase):
         orig_t, new_trans = updates[0]
         self.assertTrue(orig_t is t1)
         self.assertEqual(len(new_trans), 1)
-        self.assertEqual(new_trans[0].description, 'Amazon.com: 2x Duracell AAs')
+        self.assertEqual(new_trans[0].description,
+                         'Amazon.com: 2x Duracell AAs')
         self.assertEqual(new_trans[0].category.name, 'Electronics & Software')
         self.assertEqual(new_trans[0].amount, -15940000)
 
