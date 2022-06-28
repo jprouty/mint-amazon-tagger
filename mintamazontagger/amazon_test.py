@@ -724,7 +724,8 @@ class RefundClass(unittest.TestCase):
 
         self.assertEqual(new_trans.id, t.id)
         self.assertEqual(new_trans.amount, -t.amount)
-        self.assertEqual(new_trans.description, '2x Duracell Procell AA 24 Pack')
+        self.assertEqual(new_trans.description,
+                         '2x Duracell Procell AA 24 Pack')
 
     def test_merge(self):
         r1 = refund()

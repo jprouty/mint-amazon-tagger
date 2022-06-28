@@ -12,6 +12,7 @@ import zipfile
 from selenium.common.exceptions import (
     InvalidArgumentException, NoSuchElementException, WebDriverException)
 from selenium.webdriver import ChromeOptions
+from selenium.webdriver.common.by import By
 from seleniumrequests import Chrome
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ def get_webdriver(headless=False, session_path=None):
         try:
             webdriver.get('https://blankwhitescreen.com/')
             webdriver_is_ready = True
-        except WebDriverException as e:
+        except WebDriverException:
             logger.info('Waiting for WebDriver to be ready.')
             sleep(1)
     return webdriver
@@ -75,7 +76,7 @@ def is_visible(element):
 
 def get_element_by_id(driver, id):
     try:
-        return driver.find_element_by_id(id)
+        return driver.find_element(By.ID, id)
     except NoSuchElementException:
         pass
     return None
@@ -83,7 +84,7 @@ def get_element_by_id(driver, id):
 
 def get_element_by_name(driver, name):
     try:
-        return driver.find_element_by_name(name)
+        return driver.find_element(By.NAME, name)
     except NoSuchElementException:
         pass
     return None
@@ -91,7 +92,7 @@ def get_element_by_name(driver, name):
 
 def get_element_by_xpath(driver, xpath):
     try:
-        return driver.find_element_by_xpath(xpath)
+        return driver.find_element(By.XPATH, xpath)
     except NoSuchElementException:
         pass
     return None
@@ -99,7 +100,7 @@ def get_element_by_xpath(driver, xpath):
 
 def get_element_by_link_text(driver, link_text):
     try:
-        return driver.find_element_by_link_text(link_text)
+        return driver.find_element(By.LINK_TEXT, link_text)
     except NoSuchElementException:
         pass
     return None
@@ -107,7 +108,7 @@ def get_element_by_link_text(driver, link_text):
 
 def get_elements_by_class_name(driver, class_name):
     try:
-        return driver.find_elements_by_class_name(class_name)
+        return driver.find_elements(By.CLASS_NAME, class_name)
     except NoSuchElementException:
         pass
     return None

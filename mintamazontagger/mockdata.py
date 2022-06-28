@@ -280,9 +280,10 @@ MINT_CATEGORIES = {
                     'isUnbudgetable': False,
                     'isUntrendable': False,
                     'metaData': {'lastUpdatedDate': '2020-11-18T07:31:47Z',
-                                 'link': [{'href': '/v1/categories/18888881_708',
-                                           'otherAttributes': {},
-                                           'rel': 'self'}]},
+                                 'link': [{
+                                     'href': '/v1/categories/18888881_708',
+                                      'otherAttributes': {},
+                                      'rel': 'self'}]},
                     'name': 'Alcohol & Bars',
                     'parentId': '18888881_7',
                     'type': 'Category'},

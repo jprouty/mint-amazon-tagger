@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import date
 import unittest
 
 from mintamazontagger import category
@@ -253,7 +253,8 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(actual_summary.amount, original_trans.amount)
         self.assertEqual(
             actual_summary.category.name, category.DEFAULT_MINT_CATEGORY)
-        self.assertEqual(actual_summary.description, 'Amazon.com: Item 1, Item 2')
+        self.assertEqual(actual_summary.description,
+                         'Amazon.com: Item 1, Item 2')
         self.assertTrue('Item 1' in actual_summary.notes)
         self.assertTrue('Item 2' in actual_summary.notes)
         self.assertTrue('Shipping' in actual_summary.notes)
