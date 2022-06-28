@@ -212,7 +212,8 @@ class FinancialInstitutionData(object):
 
     def __repr__(self):
         return (
-            'Mint FI Trans({id}): {amount} {date} {description} {category}'.format(
+            'Mint FI Trans({id}): '
+            '{amount} {date} {description} {category}'.format(
                 id=self.id,
                 amount=micro_usd_to_usd_string(self.amount),
                 date=self.date,

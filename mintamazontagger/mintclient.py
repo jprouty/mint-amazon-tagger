@@ -122,7 +122,7 @@ class MintClient():
                 if not ignore_category:
                     modify_trans = {
                         **modify_trans,
-                        'category': { 'id': trans.category.id },
+                        'category': {'id': trans.category.id},
                     }
 
                 logger.debug(
@@ -141,12 +141,12 @@ class MintClient():
                 split_children = []
                 for trans in new_trans:
                     category = (orig_trans.category if ignore_category
-                        else trans.category)
+                                else trans.category)
                     itemized_split = {
                         'amount': '{}'.format(
                             micro_usd_to_float_usd(trans.amount)),
                         'description': trans.description,
-                        'category': { 'id': category.id, 'name': category.name },
+                        'category': {'id': category.id, 'name': category.name},
                         'notes': trans.notes,
                     }
                     split_children.append(itemized_split)
@@ -154,7 +154,7 @@ class MintClient():
                 split_edit = {
                     'type': orig_trans.type,
                     'amount': micro_usd_to_float_usd(orig_trans.amount),
-                    'splitData': { 'children': split_children},
+                    'splitData': {'children': split_children},
                 }
                 logger.debug(
                     'Sending a "split" transaction request: {}'.format(
@@ -175,7 +175,7 @@ class MintClient():
 def _is_json_response_success(request_string, response):
     if response.status_code != requests.codes.ok:
         logger.error(
-            'Error getting {}}. status_code = {}'.format(
+            'Error getting {}. status_code = {}'.format(
                 request_string, response.status_code))
         return False
     content_type = response.headers.get('content-type', '')
@@ -205,14 +205,15 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         return False
     sign_in_button.click()
 
-    # Mint Logging in to mint.com is a bit messy. Work through the flow, allowing for any order
-    # of interstitials. Exit only when reaching the overview page (indicating
-    # the user is logged in) or if the Logging in to mint.com timeout has been exceeded.
+    # Mint Logging in to mint.com is a bit messy. Work through the flow,
+    # allowing for any order of interstitials. Exit only when reaching the
+    # overview page (indicating the user is logged in) or if the Logging in to
+    # mint.com timeout has been exceeded.
     #
     # For each attempt section, note that the element must both be present AND
-    # visible. Mint renders but hides the complete "Logging in to mint.com" flow meaning that all
-    # elements are always present (but only a subset are visible at any
-    # moment).
+    # visible. Mint renders but hides the complete "Logging in to mint.com"
+    # flow meaning that all elements are always present (but only a subset are
+    # visible at any moment).
     login_start_time = datetime.now()
     num_password_attempts = 0
     while not webdriver.current_url.startswith(MINT_OVERVIEW):
@@ -232,12 +233,14 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             identifier_input = get_element_by_id(webdriver, 'ius-identifier')
             ius_text_input = get_element_by_id(webdriver, 'ius-text-input')
             password_input = get_element_by_id(webdriver, 'ius-password')
-            submit_button = get_element_by_id(webdriver, 'ius-sign-in-submit-btn')
+            submit_button = get_element_by_id(
+                webdriver, 'ius-sign-in-submit-btn')
             first_submit_button = get_element_by_id(
                 webdriver, 'ius-identifier-first-submit-btn')
-            # Password might be asked later in the MFA flow; combine logic here.
+            # Password might be asked later in the MFA flow.
             mfa_password_input = get_element_by_id(
-                webdriver, 'ius-sign-in-mfa-password-collection-current-password')
+                webdriver,
+                'ius-sign-in-mfa-password-collection-current-password')
             mfa_submit_button = get_element_by_id(
                 webdriver, 'ius-sign-in-mfa-password-collection-continue-btn')
             # New MFA flow for password:
@@ -248,12 +251,14 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 ('//*[@id="ius-sign-in-mfa-parent"]/div/form/button/'
                  'span[text()="Continue"]'))
 
-            # Attempt to enter an email and/or password if the fields are present.
+            # Attempt to enter an email and/or password if the fields are
+            # present.
             do_submit = False
             if is_visible(userid_input):
                 userid_input.clear()
                 userid_input.send_keys(args.mint_email)
-                logger.info('Mint Login Flow: Entering email into "userid" field')
+                logger.info(
+                    'Mint Login Flow: Entering email into "userid" field')
                 do_submit = True
             if is_visible(identifier_input):
                 identifier_input.clear()
@@ -263,7 +268,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             if is_visible(ius_text_input):
                 ius_text_input.clear()
                 ius_text_input.send_keys(args.mint_email)
-                logger.info('Mint Login Flow: Entering email into "text" field')
+                logger.info(
+                    'Mint Login Flow: Entering email into "text" field')
                 do_submit = True
             if is_visible(password_input):
                 num_password_attempts += 1
@@ -275,7 +281,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 num_password_attempts += 1
                 password_verification_input.clear()
                 password_verification_input.send_keys(args.mint_password)
-                logger.info('Mint Login Flow: Entering password in verification')
+                logger.info(
+                    'Mint Login Flow: Entering password in verification')
                 do_submit = True
             if is_visible(mfa_password_input):
                 num_password_attempts += 1
@@ -288,13 +295,16 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 return False
             if do_submit:
                 if is_visible(submit_button):
-                    logger.info('Mint Login Flow: Submitting login credentials')
+                    logger.info(
+                        'Mint Login Flow: Submitting login credentials')
                     submit_button.submit()
                 elif is_visible(mfa_submit_button):
-                    logger.info('Mint Login Flow: Submitting credentials for MFA')
+                    logger.info(
+                        'Mint Login Flow: Submitting credentials for MFA')
                     mfa_submit_button.submit()
                 elif is_visible(first_submit_button):
-                    logger.info('Mint Login Flow: Submitting credentials for MFA')
+                    logger.info(
+                        'Mint Login Flow: Submitting credentials for MFA')
                     first_submit_button.click()
                 elif is_visible(password_verification_submit_button):
                     logger.info(
@@ -307,9 +317,9 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 _login_flow_advance(webdriver)
                 continue
 
-            # Attempt to find the email on the account list page. This is often the
-            # case when reusing a webdriver that has session state from a previous
-            # run of the tool.
+            # Attempt to find the email on the account list page. This is often
+            # the case when reusing a webdriver that has session state from a
+            # previous run of the tool.
             known_accounts_selector = get_element_by_id(
                 webdriver, 'ius-known-accounts-container')
             if is_visible(known_accounts_selector):
@@ -328,12 +338,13 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     _login_flow_advance(webdriver)
                     continue
 
-                # The provided email is not in the known accounts list. Go through
-                # the 'Use a different user ID' flow:
+                # The provided email is not in the known accounts list. Go
+                # through the 'Use a different user ID' flow:
                 use_different_account_button = get_element_by_id(
                     webdriver, 'ius-known-device-use-a-different-id')
                 if not is_visible(use_different_account_button):
-                    logger.error('Cannot locate the add different account button.')
+                    logger.error(
+                        'Cannot locate the add different account button.')
                     return False
                 logger.info(
                     'Mint Login Flow: Selecting "Different user" from '
@@ -342,16 +353,19 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 _login_flow_advance(webdriver)
                 continue
 
-            # If shown, bypass the "Let's add your current mobile number" modal.
+            # If shown, bypass the "Let's add your current mobile number"
+            # modal.
             skip_phone_update_button = get_element_by_id(
                 webdriver, 'ius-verified-user-update-btn-skip')
             if is_visible(skip_phone_update_button):
                 logger.info(
-                    'Mint Login Flow: Skipping update user phone number modal.')
+                    'Mint Login Flow: '
+                    'Skipping update user phone number modal.')
                 skip_phone_update_button.click()
 
             # MFA method selector:
-            mfa_options_form = get_element_by_id(webdriver, 'ius-mfa-options-form')
+            mfa_options_form = get_element_by_id(
+                webdriver, 'ius-mfa-options-form')
             if is_visible(mfa_options_form):
                 # Attempt to use the user preferred method, falling back to the
                 # first method.
@@ -360,8 +374,9 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                         args.mint_mfa_preferred_method))
                 if is_visible(mfa_method_option):
                     mfa_method_option.click()
-                    logger.info('Mint Login Flow: Selecting {} MFA method'.format(
-                        args.mint_mfa_preferred_method))
+                    logger.info('Mint Login Flow: '
+                                'Selecting {} MFA method'.format(
+                                    args.mint_mfa_preferred_method))
                 else:
                     mfa_method_cards = get_elements_by_class_name(
                         webdriver, 'ius-mfa-card-challenge')
@@ -374,7 +389,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     mfa_method_submit.click()
 
             # MFA OTP Code:
-            mfa_code_input = get_element_by_id(webdriver, 'ius-mfa-confirm-code')
+            mfa_code_input = get_element_by_id(
+                webdriver, 'ius-mfa-confirm-code')
             mfa_submit_button = get_element_by_id(
                 webdriver, 'ius-mfa-otp-submit-btn')
             if is_visible(mfa_code_input) and is_visible(mfa_submit_button):
@@ -386,14 +402,17 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 mfa_submit_button.submit()
 
             # MFA soft token:
-            mfa_token_input = get_element_by_id(webdriver, 'ius-mfa-soft-token')
+            mfa_token_input = get_element_by_id(
+                webdriver, 'ius-mfa-soft-token')
             mfa_token_submit_button = get_element_by_id(
                 webdriver, 'ius-mfa-soft-token-submit-btn')
-            if is_visible(mfa_token_input) and is_visible(mfa_token_submit_button):
+            if is_visible(mfa_token_input) and is_visible(
+                    mfa_token_submit_button):
                 import oathtool
                 logger.info('Mint Login Flow: Generating soft token')
                 mfa_code = oathtool.generate_otp(args.mfa_soft_token)
-                logger.info('Mint Login Flow: Entering soft token into MFA input')
+                logger.info(
+                    'Mint Login Flow: Entering soft token into MFA input')
                 mfa_token_input.send_keys(mfa_code)
                 logger.info('Mint Login Flow: Submitting soft token MFA')
                 mfa_token_submit_button.submit()
@@ -421,7 +440,6 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             logger.warning("Page contents changed - trying again.")
         except ElementNotInteractableException:
             logger.warning("Page contents not interactable - trying again.")
-
 
     logger.info('Mint login successful.')
     # If you made it here, you must be good to go!

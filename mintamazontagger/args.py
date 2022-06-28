@@ -45,7 +45,7 @@ def define_common_args(parser):
     parser.add_argument(
         '--order_history_timeout',
         type=int,
-        default=10*60,
+        default=10 * 60,
         help=('The amount of time (in seconds) to wait for order retrieval '
               'from Amazon before considering the process to have timed out.'))
 
@@ -89,7 +89,7 @@ def define_common_args(parser):
         help='The MFA soft-token to pass to oathtool.')
     parser.add_argument(
         '--mint_login_timeout',
-        default=60*5,
+        default=60 * 5,
         help='The number of seconds to wait attempting to log into Mint.')
     parser.add_argument(
         '--mint_wait_for_sync',

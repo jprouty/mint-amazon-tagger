@@ -255,8 +255,8 @@ def get_mint_updates(
     def get_original_names(t):
         """Returns a tuple of description strings to consider"""
         # Always consider the original description from the financial
-        # institution. Conditionally consider the current/user description or the
-        # Mint inferred description.
+        # institution. Conditionally consider the current/user description or
+        # the Mint inferred description.
         result = (t.fi_data.description.lower(), )
         if args.mint_input_include_user_description:
             result = result + (t.description.lower(), )
@@ -265,8 +265,8 @@ def get_mint_updates(
         return result
 
     trans = [t for t in trans if any(
-                 any(merch_str in n for n in get_original_names(t))
-                 for merch_str in merch_whitelist)]
+        any(merch_str in n for n in get_original_names(t))
+        for merch_str in merch_whitelist)]
     stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
@@ -342,7 +342,8 @@ def get_mint_updates(
                 stats['adjust_itemized_tax'] += 1
 
             assert micro_usd_nearly_equal(t.amount, order.transact_amount())
-            assert micro_usd_nearly_equal(t.amount, -order.total_by_subtotals())
+            assert micro_usd_nearly_equal(
+                t.amount, -order.total_by_subtotals())
             assert micro_usd_nearly_equal(t.amount, -order.total_by_items())
 
             new_transactions = order.to_mint_transactions(
@@ -365,8 +366,8 @@ def get_mint_updates(
                 # Attempt to find the category from the original purchase.
                 unspsc = order_item_to_unspsc.get((r.title, r.order_id), None)
                 if unspsc:
-                    new_tran.category.name = category.get_mint_category_from_unspsc(
-                        unspsc)
+                    new_tran.category.name = (
+                        category.get_mint_category_from_unspsc(unspsc))
 
         assert micro_usd_nearly_equal(
             t.amount,
@@ -380,12 +381,14 @@ def get_mint_updates(
                 suggested_cat = mint_historic_category_renames[item_name]
                 if suggested_cat != nt.category.name:
                     stats['personal_cat'] += 1
-                    nt.category.name = mint_historic_category_renames[item_name]
+                    nt.category.name = (
+                        mint_historic_category_renames[item_name])
 
             nt.update_category_id(mint_categories)
 
         summarize_single_item_order = (
-            t.amount < 0 and len(order.items) == 1 and not args.verbose_itemize)
+            t.amount < 0 and len(order.items) == 1 and
+            not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
             new_transactions = mint.summarize_new_trans(
                 t, new_transactions, prefix)
@@ -399,7 +402,9 @@ def get_mint_updates(
 
         valid_prefixes = (
             args.amazon_domains.lower().split(',') + [prefix.lower()])
-        if any(t.description.lower().startswith(pre) for pre in valid_prefixes):
+        has_prefix = any(t.description.lower().startswith(pre)
+                         for pre in valid_prefixes)
+        if has_prefix:
             if args.prompt_retag:
                 if args.num_updates > 0 and len(updates) >= args.num_updates:
                     break
