@@ -19,22 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 def get_webdriver(headless=False, session_path=None):
-    # A workaround to https://github.com/jprouty/mint-amazon-tagger/issues/107.
-    # Before returning a webdriver, first ensure that it can navigate
-    # successfully to a page.
-    webdriver = _get_webdriver_helper(headless, session_path)
-    webdriver_is_ready = False
-    while not webdriver_is_ready:
-        try:
-            webdriver.get('https://blankwhitescreen.com/')
-            webdriver_is_ready = True
-        except WebDriverException:
-            logger.info('Waiting for WebDriver to be ready.')
-            sleep(1)
-    return webdriver
-
-
-def _get_webdriver_helper(headless=False, session_path=None):
     chrome_options = ChromeOptions()
     if headless:
         chrome_options.add_argument('headless')
@@ -209,3 +193,16 @@ def get_stable_chrome_driver(download_directory=os.getcwd()):
     zip_file.extractall(path=download_directory)
     os.chmod(local_executable_path, 0o755)
     return local_executable_path
+
+
+def get_url_safely(webdriver, url, wait_between_attempts_s=2):
+    # A workaround to https://github.com/jprouty/mint-amazon-tagger/issues/107.
+    # Ensure that the requested url completes loading before interacting with
+    # the page.
+    while True:
+        try:
+            webdriver.get(url)
+            return
+        except WebDriverException:
+            logger.info('Waiting for WebDriver to be ready.')
+            sleep(wait_between_attempts_s)

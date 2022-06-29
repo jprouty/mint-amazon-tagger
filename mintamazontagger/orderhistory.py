@@ -9,7 +9,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from mintamazontagger.args import has_order_history_csv_files
 from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.webdriver import (
-    get_element_by_id, get_element_by_name, get_element_by_xpath)
+    get_element_by_id, get_element_by_name, get_element_by_xpath,
+    get_url_safely)
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +129,8 @@ def nav_to_amazon_and_let_user_login(webdriver):
 def nav_to_amazon_and_login(webdriver, email, password):
     logger.info('Starting automated login flow for Amazon.com')
 
-    webdriver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
-    webdriver.implicitly_wait(2)
+    get_url_safely(webdriver, ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
+    webdriver.implicitly_wait(1)
 
     # Go straight to the account switcher, and look for the given email.
     # If present, click on it! Otherwise, click on "Add account".
@@ -138,7 +139,6 @@ def nav_to_amazon_and_login(webdriver, email, password):
         "//div[contains(text(), '{}')]".format(email))
     if desired_account_element:
         desired_account_element.click()
-        webdriver.implicitly_wait(3)
 
         # It's possible this account has already authed recently. If so, the
         # next block will be skipped and the login is complete!

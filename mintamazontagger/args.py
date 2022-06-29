@@ -242,6 +242,15 @@ def define_common_args(parser):
         '--mint_pickle_location', type=str,
         default=default_pickle_path,
         help='Where to store the fetched Mint pickles (for backup).')
+    parser.add_argument(
+        '--mint_save_json', action='store_true',
+        default=False,
+        help=('Save to disk the raw json responses from Mint. This is useful '
+              'for development and debugging issues with Mint.'))
+    parser.add_argument(
+        '--mint_json_location', type=str,
+        default=default_pickle_path,
+        help='Where to store the fetched Mint json responses.')
 
 
 def define_gui_args(parser):

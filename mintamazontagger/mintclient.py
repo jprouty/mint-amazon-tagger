@@ -1,12 +1,15 @@
 from datetime import datetime
 import logging
+import os
+from pprint import pprint
 import requests
 import time
 
 from mintamazontagger.currency import micro_usd_to_float_usd
 from mintamazontagger.webdriver import (
     get_element_by_id, get_element_by_xpath,
-    get_element_by_link_text, get_elements_by_class_name, is_visible)
+    get_element_by_link_text, get_elements_by_class_name, get_url_safely,
+    is_visible)
 
 from selenium.common.exceptions import (
     ElementNotInteractableException, StaleElementReferenceException,
@@ -70,7 +73,7 @@ class MintClient():
         logger.info('Getting all Mint transactions since {} to {}.'.format(
             from_date, to_date))
         params = {
-            'limit': '10000',
+            'limit': '100000',
             'fromDate': from_date,
             'toDate': to_date,
         }
@@ -84,7 +87,25 @@ class MintClient():
         if not response_json['metaData']['totalSize']:
             logger.warning('No transactions found')
             return []
-        return response_json['Transaction']
+        if (response_json['metaData']['totalSize']
+                > response_json['metaData']['pageSize']):
+            # TODO(jprouty): Add pagination support.
+            # Look at: response_json['metaData']['link'][1]['href']
+            logger.error('More transactions are available than max page size '
+                         '- try reducing the date range.')
+        if self.args.mint_save_json:
+            json_path = os.path.join(
+                self.args.mint_json_location,
+                'Mint {} Transactions.json'.format(int(time.time())))
+            logger.info('Saving Mint Transactions to json file: {}'.format(
+                json_path))
+            with open(json_path, "w") as json_out:
+                pprint(response_json, json_out)
+        # Remove all transactions that do not have a fiData message. These are
+        # user entered expesnes and do not have a fiData entry.
+        result = [trans for trans in response_json['Transaction']
+                  if 'fiData' in trans]
+        return result
 
     def get_categories(self):
         if not self.login():
@@ -100,6 +121,14 @@ class MintClient():
         if not response_json['metaData']['totalSize']:
             logger.error('No categories found')
             return []
+        if self.args.mint_save_json:
+            json_path = os.path.join(
+                self.args.mint_json_location,
+                'Mint {} Categories.json'.format(int(time.time())))
+            logger.info('Saving Mint Categories to json file: {}'.format(
+                json_path))
+            with open(json_path, "w") as json_out:
+                pprint(response_json, json_out)
         result = {}
         for cat in response_json['Category']:
             result[cat['name']] = cat
@@ -195,8 +224,8 @@ _MAX_PASSWORD_ATTEMPTS = 2
 
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Navigating to Mint homepage.')
+    get_url_safely(webdriver, MINT_HOME)
     webdriver.implicitly_wait(0)
-    webdriver.get(MINT_HOME)
 
     logger.info('Clicking "Sign in" button.')
     sign_in_button = get_element_by_link_text(webdriver, 'Sign in')
@@ -362,6 +391,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     'Mint Login Flow: '
                     'Skipping update user phone number modal.')
                 skip_phone_update_button.click()
+                _login_flow_advance(webdriver)
+                continue
 
             # MFA method selector:
             mfa_options_form = get_element_by_id(
@@ -387,6 +418,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 if is_visible(mfa_method_submit):
                     logger.info('Mint Login Flow: Submitting MFA method')
                     mfa_method_submit.click()
+                    _login_flow_advance(webdriver)
+                    continue
 
             # MFA OTP Code:
             mfa_code_input = get_element_by_id(
@@ -400,6 +433,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 mfa_code_input.send_keys(mfa_code)
                 logger.info('Mint Login Flow: Submitting MFA OTP')
                 mfa_submit_button.submit()
+                _login_flow_advance(webdriver)
+                continue
 
             # MFA soft token:
             mfa_token_input = get_element_by_id(
@@ -416,6 +451,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 mfa_token_input.send_keys(mfa_code)
                 logger.info('Mint Login Flow: Submitting soft token MFA')
                 mfa_token_submit_button.submit()
+                _login_flow_advance(webdriver)
+                continue
 
             # MFA account selector:
             mfa_select_account = get_element_by_id(
@@ -431,9 +468,11 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     '//label/span/div/span[text()=\'{}\']'.format(account))
                 if (is_visible(account_input)
                         and is_visible(mfa_token_submit_button)):
+                    logger.info('Mint Login Flow: MFA account selection')
                     account_input.click()
                     mfa_token_submit_button.submit()
-                    logger.info('Mint Login Flow: MFA account selection')
+                    _login_flow_advance(webdriver)
+                    continue
                 else:
                     logger.error('Cannot find matching mint intuit account.')
         except StaleElementReferenceException:
