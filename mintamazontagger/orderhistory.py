@@ -8,7 +8,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from mintamazontagger.args import has_order_history_csv_files
 from mintamazontagger.my_progress import no_progress_factory
-from mintamazontagger.webdriver import get_element_by_id, get_element_by_xpath
+from mintamazontagger.webdriver import (
+    get_element_by_id, get_element_by_name, get_element_by_xpath)
 
 logger = logging.getLogger(__name__)
 
@@ -142,30 +143,19 @@ def nav_to_amazon_and_login(webdriver, email, password):
         # It's possible this account has already authed recently. If so, the
         # next block will be skipped and the login is complete!
         if not get_element_by_id(webdriver, 'report-confirm'):
-            webdriver.find_element_by_id('ap_password').clear()
-            webdriver.find_element_by_id('ap_password').send_keys(password)
-            webdriver.find_element_by_name('rememberMe').click()
-            webdriver.find_element_by_id('signInSubmit').submit()
+            fill_and_submit_password(webdriver, password)
     else:
         # Cannot find the desired account in the switch. Log in via Add Account
-        webdriver.find_element_by_xpath(
-            '//div[text()="Add account"]').click()
-        webdriver.implicitly_wait(3)
-
-        webdriver.find_element_by_id('ap_email').send_keys(email)
+        get_element_by_xpath(webdriver, '//div[text()="Add account"]').click()
+        get_element_by_id(webdriver, 'ap_email').send_keys(email)
 
         # Login flow sometimes asks just for the email, then a
         # continue button, then password.
-        if get_element_by_id(webdriver, 'continue'):
-            webdriver.find_element_by_id('continue').click()
-            webdriver.implicitly_wait(3)
+        continue_button = get_element_by_id(webdriver, 'continue')
+        if continue_button:
+            continue_button.click()
 
-        webdriver.find_element_by_id('ap_password').clear()
-        webdriver.find_element_by_id('ap_password').send_keys(password)
-        webdriver.find_element_by_name('rememberMe').click()
-        webdriver.find_element_by_id('signInSubmit').submit()
-
-    webdriver.implicitly_wait(3)
+        fill_and_submit_password(webdriver, password)
 
     if not get_element_by_id(webdriver, 'report-confirm'):
         logger.warning('Having trouble logging into Amazon. Please see the '
@@ -186,29 +176,29 @@ def nav_to_amazon_and_login(webdriver, email, password):
 
 
 def request_report(webdriver, report_name, report_type, start_date, end_date):
-    try:
-        # Do not request the report again if it's already available for
-        # download.
-        webdriver.find_element_by_xpath(
-            get_report_download_link_xpath(report_name))
+    # Do not request the report again if it's already available for
+    # download.
+    if get_element_by_xpath(
+            webdriver, get_report_download_link_xpath(report_name)):
         return
-    except NoSuchElementException:
-        pass
 
-    Select(webdriver.find_element_by_id(
-        'report-type-native')).select_by_value(report_type)
+    Select(get_element_by_id(webdriver, 'report-type-native')
+           ).select_by_value(report_type)
 
-    webdriver.find_element_by_xpath(
+    get_element_by_xpath(
+        webdriver,
         '//*[@id="startDateCalendar"]/div[2]/div/div/div/input'
-        ).send_keys(start_date.strftime('%m/%d/%Y'))
-    webdriver.find_element_by_xpath(
+    ).send_keys(start_date.strftime('%m/%d/%Y'))
+    get_element_by_xpath(
+        webdriver,
         '//*[@id="endDateCalendar"]/div[2]/div/div/div/input'
     ).send_keys(end_date.strftime('%m/%d/%Y'))
 
-    webdriver.find_element_by_id('report-name').send_keys(report_name)
+    get_element_by_id(
+        webdriver, 'report-name').send_keys(report_name)
 
     # Submit will not work as the input type is an image (nice Amazon)
-    webdriver.find_element_by_id('report-confirm').click()
+    get_element_by_id(webdriver, 'report-confirm').click()
 
 
 def get_report_download_link_xpath(report_name):
@@ -220,7 +210,8 @@ def download_report(webdriver, report_name, report_path):
     # 1. Find the report download link
     report_url = None
     try:
-        download_link = webdriver.find_element_by_xpath(
+        download_link = get_element_by_xpath(
+            webdriver,
             get_report_download_link_xpath(report_name))
         report_url = download_link.get_attribute('href')
     except NoSuchElementException:
@@ -232,3 +223,11 @@ def download_report(webdriver, report_name, report_path):
     response.raise_for_status()
     with open(report_path, 'w', encoding='utf-8') as fh:
         fh.write(response.text)
+
+
+def fill_and_submit_password(webdriver, password):
+    ap_password = get_element_by_id(webdriver, 'ap_password')
+    ap_password.clear()
+    ap_password.send_keys(password)
+    get_element_by_name(webdriver, 'rememberMe').click()
+    get_element_by_id(webdriver, 'signInSubmit').submit()
