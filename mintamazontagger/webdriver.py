@@ -6,11 +6,10 @@ import re
 import requests
 import subprocess
 from sys import platform
-from time import sleep
 import zipfile
 
 from selenium.common.exceptions import (
-    InvalidArgumentException, NoSuchElementException, WebDriverException)
+    InvalidArgumentException, NoSuchElementException)
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.common.by import By
 from seleniumrequests import Chrome
@@ -118,7 +117,7 @@ def get_chrome_driver_url(version, arch):
         version=version, arch=CHROME_ZIP_TYPES.get(arch))
 
 
-def get_chrome_driver_major_version_from_executable(local_executable_path):
+def get_chrome_driver_version_from_executable(local_executable_path):
     # Note; --version works on windows as well.
     # check_output fails if running from a thread without a console on win10.
     # To protect against this use explicit pipes for STDIN/STDERR.
@@ -131,7 +130,7 @@ def get_chrome_driver_major_version_from_executable(local_executable_path):
         version_match = version_pattern.search(version.decode())
         if not version_match:
             return None
-        return version_match.groupdict()['major']
+        return version_match.groupdict()['version']
 
 
 def get_latest_chrome_driver_version():
@@ -152,24 +151,19 @@ def get_stable_chrome_driver(download_directory=os.getcwd()):
         chromedriver_name += '.exe'
 
     local_executable_path = os.path.join(download_directory, chromedriver_name)
-
     latest_chrome_driver_version = get_latest_chrome_driver_version()
-    version_match = version_pattern.match(latest_chrome_driver_version)
-    latest_major_version = None
-    if not version_match:
-        logger.error("Cannot parse latest chrome driver string: {}".format(
-            latest_chrome_driver_version))
-    else:
-        latest_major_version = version_match.groupdict()['major']
     if os.path.exists(local_executable_path):
-        major_version = get_chrome_driver_major_version_from_executable(
+        local_version = get_chrome_driver_version_from_executable(
             local_executable_path)
-        if major_version == latest_major_version or not latest_major_version:
-            # Use the existing chrome driver, as it's already the latest
-            # version or the latest version cannot be determined at the moment.
+        if not latest_chrome_driver_version:
+            # Use the existing chrome driver - the latest version cannot be
+            # determined at the moment.
+            return local_executable_path
+        if local_version == latest_chrome_driver_version:
+            # Use the existing chrome driver - already the latest version.
             return local_executable_path
         logger.info('Removing old version {} of Chromedriver'.format(
-            major_version))
+            local_version))
         os.remove(local_executable_path)
 
     if not latest_chrome_driver_version:
