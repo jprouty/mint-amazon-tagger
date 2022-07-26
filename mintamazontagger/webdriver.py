@@ -193,16 +193,3 @@ def get_stable_chrome_driver(download_directory=os.getcwd()):
     zip_file.extractall(path=download_directory)
     os.chmod(local_executable_path, 0o755)
     return local_executable_path
-
-
-def get_url_safely(webdriver, url, wait_between_attempts_s=2):
-    # A workaround to https://github.com/jprouty/mint-amazon-tagger/issues/107.
-    # Ensure that the requested url completes loading before interacting with
-    # the page.
-    while True:
-        try:
-            webdriver.get(url)
-            return
-        except WebDriverException:
-            logger.info('Waiting for WebDriver to be ready.')
-            sleep(wait_between_attempts_s)

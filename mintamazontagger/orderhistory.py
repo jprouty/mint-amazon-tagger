@@ -9,8 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from mintamazontagger.args import has_order_history_csv_files
 from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.webdriver import (
-    get_element_by_id, get_element_by_name, get_element_by_xpath,
-    get_url_safely)
+    get_element_by_id, get_element_by_name, get_element_by_xpath)
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +128,7 @@ def nav_to_amazon_and_let_user_login(webdriver):
 def nav_to_amazon_and_login(webdriver, email, password):
     logger.info('Starting automated login flow for Amazon.com')
 
-    get_url_safely(webdriver, ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
+    webdriver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
     webdriver.implicitly_wait(1)
 
     # Go straight to the account switcher, and look for the given email.
