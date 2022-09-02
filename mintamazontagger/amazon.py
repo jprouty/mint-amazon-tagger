@@ -1,7 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
 import csv
-from datetime import datetime
+from datetime import datetime, date
 import os
 from pprint import pformat
 import re
@@ -10,6 +10,7 @@ import time
 
 from mintamazontagger.algorithm_u import algorithm_u
 from mintamazontagger import category
+from mintamazontagger.currency import float_usd_to_micro_usd
 from mintamazontagger.currency import micro_usd_nearly_equal
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.currency import parse_usd_as_micro_usd
@@ -116,6 +117,9 @@ def pythonify_amazon_dict(raw_dict):
 
     if 'Quantity' in keys:
         raw_dict['Quantity'] = int(raw_dict['Quantity'])
+
+    if 'Shipping Charge' in keys:
+        raw_dict['Original Shipping Charge'] = raw_dict['Shipping Charge']
 
     return dict([
         (k.lower().replace(' ', '_').replace('/', '_'), v)
@@ -232,6 +236,9 @@ class Order:
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
+        if self.has_hidden_shipping_fee():
+            self.shipping_charge += self.hidden_shipping_fee()
+            self.total_charged += self.hidden_shipping_fee()
 
     @classmethod
     def parse_from_csv(cls, csv_file, progress_factory=no_progress_factory):
@@ -241,6 +248,24 @@ class Order:
     @staticmethod
     def sum_subtotals(orders):
         return sum([o.subtotal for o in orders])
+
+    def has_hidden_shipping_fee(self):
+        # Colorado - https://tax.colorado.gov/retail-delivery-fee
+        # "Effective July 1, 2022, Colorado imposes a retail delivery fee on all
+        # deliveries by motor vehicle to a location in Colorado with at least
+        # one item of tangible personal property subject to state sales or use
+        # tax."
+        # Rate July 2022 to June 2023: $0.27
+        # This is not the case as of 8/31/2022 for Amazon Order Reports.
+        # "Retailers that make retail deliveries must show the total of the fees
+        # on the receipt or invoice as one item called “retail delivery fees”."
+        return self.shipping_address_state == 'CO' and self.tax_charged > 0 and self.shipping_date >= date(2022, 07, 1)
+
+    def hidden_shipping_fee(self):
+        return float_usd_to_micro_usd(0.27)
+
+    def hidden_shipping_fee_note(self):
+        return 'CO Retail Delivery Fee'
 
     def total_by_items(self):
         return (
@@ -391,19 +416,27 @@ class Order:
                 notes=self.get_notes())
             new_transactions.append(item)
 
+        if self.has_hidden_shipping_fee():
+            ship_fee = t.split(
+                amount=-self.hidden_shipping_fee(),
+                category_name='Shipping',
+                description=self.hidden_shipping_fee_note(),
+                notes=self.get_notes())
+            new_transactions.append(ship_fee)
+
         # Itemize the shipping cost, if any.
         is_free_shipping = (
-            self.shipping_charge
+            self.original_shipping_charge
             and self.total_promotions
             and micro_usd_nearly_equal(
-                self.total_promotions, self.shipping_charge))
+                self.total_promotions, self.original_shipping_charge))
 
         if is_free_shipping and skip_free_shipping:
             return new_transactions
 
-        if self.shipping_charge:
+        if self.original_shipping_charge:
             ship = t.split(
-                amount=-self.shipping_charge,
+                amount=-self.original_shipping_charge,
                 category_name='Shipping',
                 description='Shipping',
                 notes=self.get_notes())
