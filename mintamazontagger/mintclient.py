@@ -8,7 +8,7 @@ import time
 from mintamazontagger.currency import micro_usd_to_float_usd
 from mintamazontagger.webdriver import (
     get_element_by_id, get_element_by_xpath,
-    get_element_by_link_text, get_elements_by_class_name, get_url_safely,
+    get_element_by_link_text, get_elements_by_class_name,
     is_visible)
 
 from selenium.common.exceptions import (
@@ -224,7 +224,7 @@ _MAX_PASSWORD_ATTEMPTS = 2
 
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Navigating to Mint homepage.')
-    get_url_safely(webdriver, MINT_HOME)
+    webdriver.get(MINT_HOME)
     webdriver.implicitly_wait(0)
 
     logger.info('Clicking "Sign in" button.')
