@@ -259,7 +259,7 @@ class Order:
         # This is not the case as of 8/31/2022 for Amazon Order Reports.
         # "Retailers that make retail deliveries must show the total of the fees
         # on the receipt or invoice as one item called “retail delivery fees”."
-        return self.shipping_address_state == 'CO' and self.tax_charged > 0 and self.shipping_date >= date(2022, 07, 1)
+        return self.shipping_address_state == 'CO' and self.tax_charged > 0 and self.shipment_date >= date(2022, 7, 1)
 
     def hidden_shipping_fee(self):
         return float_usd_to_micro_usd(0.27)

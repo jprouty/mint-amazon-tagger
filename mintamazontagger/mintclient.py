@@ -272,13 +272,16 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 'ius-sign-in-mfa-password-collection-current-password')
             mfa_submit_button = get_element_by_id(
                 webdriver, 'ius-sign-in-mfa-password-collection-continue-btn')
-            # New MFA flow for password:
+            # New MFA flow for password - uses mfa_continue_button to continue.
             password_verification_input = get_element_by_id(
                 webdriver, 'iux-password-verification-password')
-            password_verification_submit_button = get_element_by_xpath(
+            mfa_continue_button = get_element_by_xpath(
                 webdriver,
                 ('//*[@id="ius-sign-in-mfa-parent"]/div/form/button/'
                  'span[text()="Continue"]'))
+            # New flow for password as if 9/29/2022 - uses mfa_continue_button to continue.
+            confirmation_password_input = get_element_by_id(
+                webdriver, 'iux-password-confirmation-password')
 
             # Attempt to enter an email and/or password if the fields are
             # present.
@@ -319,6 +322,13 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 mfa_password_input.send_keys(args.mint_password)
                 logger.info('Mint Login Flow: Entering password in MFA input')
                 do_submit = True
+            if is_visible(confirmation_password_input):
+                num_password_attempts += 1
+                confirmation_password_input.clear()
+                confirmation_password_input.send_keys(args.mint_password)
+                logger.info('Mint Login Flow: Entering password in '
+                            'confirmation password input')
+                do_submit = True
             if num_password_attempts > _MAX_PASSWORD_ATTEMPTS:
                 logger.error('Too many password entries attempted; aborting.')
                 return False
@@ -335,11 +345,11 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     logger.info(
                         'Mint Login Flow: Submitting credentials for MFA')
                     first_submit_button.click()
-                elif is_visible(password_verification_submit_button):
+                elif is_visible(mfa_continue_button):
                     logger.info(
                         'Mint Login Flow: Submitting credentials for password '
                         'verification')
-                    password_verification_submit_button.click()
+                    mfa_continue_button.click()
                 else:
                     logger.error('Cannot find visible submit button!')
 
@@ -421,18 +431,16 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     _login_flow_advance(webdriver)
                     continue
 
-            # MFA OTP Code:
+            # MFA OTP Code - uses mfa_continue_button to continue.
             mfa_code_input = get_element_by_id(
                 webdriver, 'ius-mfa-confirm-code')
-            mfa_submit_button = get_element_by_id(
-                webdriver, 'ius-mfa-otp-submit-btn')
-            if is_visible(mfa_code_input) and is_visible(mfa_submit_button):
+            if is_visible(mfa_code_input) and is_visible(mfa_continue_button):
                 mfa_code = (mfa_input_callback or input)(
                     'Please enter your 6-digit MFA code: ')
                 logger.info('Mint Login Flow: Entering MFA OTP code')
                 mfa_code_input.send_keys(mfa_code)
                 logger.info('Mint Login Flow: Submitting MFA OTP')
-                mfa_submit_button.submit()
+                mfa_continue_button.click()
                 _login_flow_advance(webdriver)
                 continue
 
