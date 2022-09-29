@@ -62,8 +62,7 @@ class MintClient():
         self.webdriver = self.webdriver_factory()
         self.logged_in = _nav_to_mint_and_login(
             self.webdriver, self.args, self.mfa_input_callback)
-        if self.args.mint_wait_for_sync:
-            _wait_for_sync(self.webdriver)
+        _wait_for_overview_loaded(self.webdriver, self.args.mint_wait_for_sync)
         return self.logged_in
 
     def get_transactions(self, from_date=None, to_date=None):
@@ -488,6 +487,9 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         except ElementNotInteractableException:
             logger.warning("Page contents not interactable - trying again.")
 
+    # Wait until the "Accounts" section is visible on the page. Sometimes the login flow can advance too quickly, prior to when selenium requests can begin working.
+    '//span[text()="Accounts"]'
+
     logger.info('Mint login successful.')
     # If you made it here, you must be good to go!
     return True
@@ -497,19 +499,25 @@ def _login_flow_advance(webdriver):
     time.sleep(2.22)
 
 
-def _wait_for_sync(webdriver, wait_for_sync_timeout=5 * 60):
-    logger.info('Waiting for Mint to sync accounts before tagging')
+def _wait_for_overview_loaded(
+        webdriver, wait_for_sync=False, wait_for_sync_timeout=5 * 60):
+    logger.info('Waiting for Mint Overview')
     try:
-        status_message = WebDriverWait(webdriver, 30).until(
+        # Wait for the accounts list to present before continuing.
+        WebDriverWait(webdriver, 30).until(
             expected_conditions.visibility_of_element_located(
-                (By.CSS_SELECTOR, ".SummaryView .message")))
-        WebDriverWait(webdriver, wait_for_sync_timeout).until(
-            lambda x: ("Account refresh complete" in
-                       status_message.get_attribute('innerHTML')))
+                (By.XPATH, '//span[text()="Accounts"]')))
+        logger.info('Mint overview loaded')
+        if (wait_for_sync):
+            logger.info('Waiting for Mint to sync accounts')
+            WebDriverWait(webdriver, wait_for_sync_timeout).until(
+                expected_conditions.visibility_of_element_located(
+                    (By.XPATH,
+                     '//strong[text()="Account refresh complete."]')))
+            logger.info('Mint account sync complete')
     except (TimeoutException, StaleElementReferenceException):
         logger.warning("Mint sync apparently incomplete after timeout. "
                        "Data retrieved may not be current.")
-    logger.info('Mint sync complete')
 
 
 def _get_api_header(webdriver):
