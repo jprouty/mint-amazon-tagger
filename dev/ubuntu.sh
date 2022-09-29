@@ -1,6 +1,8 @@
 #!/bin/bash
 # A script that creates, updates, and activates a virtual environment
 # specifically for development.
+# Must call this script via:
+#   source dev/ubuntu.sh
 
 if [ -d "dev_venv" ]
 then
