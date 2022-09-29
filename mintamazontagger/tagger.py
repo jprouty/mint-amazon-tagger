@@ -369,12 +369,6 @@ def get_mint_updates(
                     new_tran.category.name = (
                         category.get_mint_category_from_unspsc(unspsc))
 
-        if not micro_usd_nearly_equal(
-                t.amount,
-                mint.Transaction.sum_amounts(new_transactions)):
-            from pprint import pprint
-            pprint(t)
-            pprint(new_transactions)
         assert micro_usd_nearly_equal(
             t.amount,
             mint.Transaction.sum_amounts(new_transactions))

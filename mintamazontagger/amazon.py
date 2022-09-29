@@ -218,6 +218,7 @@ def associate_items_with_orders(
 
 
 ORDER_MERGE_FIELDS = {
+    'original_shipping_charge',
     'shipping_charge',
     'subtotal',
     'tax_before_promotions',
