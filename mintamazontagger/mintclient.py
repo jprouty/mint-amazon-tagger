@@ -482,6 +482,15 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     continue
                 else:
                     logger.error('Cannot find matching mint intuit account.')
+
+            # Skip modal asking for passwordless login.
+            skip_web_authn_reg_button = get_element_by_id(
+                webdriver, 'skipWebauthnRegistration')
+            if is_visible(skip_web_authn_reg_button):
+                logger.info('Mint Login Flow: Skipping Passwordless Registration.')
+                skip_web_authn_reg_button.click()
+                continue
+
         except StaleElementReferenceException:
             logger.warning("Page contents changed - trying again.")
         except ElementNotInteractableException:
