@@ -716,6 +716,9 @@ class TaggerWorker(QObject):
         if results.success and not self.stopping:
             self.on_review_ready.emit(results)
 
+        if self.stopping:
+            self.close_webdriver()
+
     def do_send_updates(self, updates, args):
         num_updates = self.mint_client.send_updates(
             updates,

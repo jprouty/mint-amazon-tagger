@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -33,13 +35,8 @@ def fetch_order_history(args, webdriver_factory,
 
     start_date = args.order_history_start_date
     end_date = args.order_history_end_date
-    # Refund reports have been broken for some time (as per jprouty). For the
-    # time being, do not attempt to fetch the refunds. Power users can attempts
-    # to fetch their own Refund reports and use the tool via CSV file.
-    # report_shortnames = ['Items', 'Orders', 'Refunds']
-    # report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
-    report_shortnames = ['Items', 'Orders']
-    report_types = ['ITEMS', 'SHIPMENTS']
+    report_shortnames = ['Items', 'Orders', 'Refunds']
+    report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
     report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(
                     name, t, start_date, end_date)
                     for t in report_shortnames]
@@ -108,7 +105,7 @@ def fetch_order_history(args, webdriver_factory,
 
     args.items_csv = open(report_paths[0], 'r', encoding='utf-8')
     args.orders_csv = open(report_paths[1], 'r', encoding='utf-8')
-    # args.refunds_csv = open(report_paths[2], 'r', encoding='utf-8')
+    args.refunds_csv = open(report_paths[2], 'r', encoding='utf-8')
     return True
 
 
@@ -218,6 +215,7 @@ def download_report(webdriver, report_name, report_path):
         exit(1)
 
     # 2. Download the report to the AMZN Reports directory
+    time.sleep(1)  # Temporary workaround to avoid an Inspector.detached event.
     response = webdriver.request('GET', report_url, allow_redirects=True)
     response.raise_for_status()
     with open(report_path, 'w', encoding='utf-8') as fh:
