@@ -14,6 +14,8 @@ import os
 from signal import signal, SIGINT
 import sys
 import time
+from urllib.parse import urlencode
+import webbrowser
 
 from PyQt5.QtCore import (
     Q_ARG, QDate, QEventLoop, Qt, QMetaObject, QObject, QTimer, QThread,
@@ -46,9 +48,10 @@ NEVER_SAVE_MSG = 'Email & password are *never* saved.'
 
 
 class TaggerGui:
-    def __init__(self, args, arg_name_to_help):
+    def __init__(self, args, arg_name_to_help, log_filename):
         self.args = args
         self.arg_name_to_help = arg_name_to_help
+        self.log_filename = log_filename
 
     def create_gui(self):
         app = QApplication(sys.argv)
@@ -292,7 +295,8 @@ class TaggerGui:
 
         self.tagger = TaggerDialog(
             args=args,
-            parent=self.window)
+            parent=self.window,
+            log_filename=self.log_filename)
         self.tagger.show()
         self.tagger.finished.connect(self.on_tagger_dialog_closed)
 
@@ -420,11 +424,12 @@ class TaggerGui:
 
 
 class TaggerDialog(QDialog):
-    def __init__(self, args, **kwargs):
+    def __init__(self, args, log_filename, **kwargs):
         super(TaggerDialog, self).__init__(**kwargs)
 
         self.reviewing = False
         self.args = args
+        self.log_filename = log_filename
 
         self.worker = TaggerWorker()
         self.thread = QThread()
@@ -470,8 +475,27 @@ class TaggerDialog(QDialog):
         self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.label.setStyleSheet(
             'QLabel { color: red; font-weight: bold; }')
+
+        self.report_issue_button = QPushButton('Report Issue on Github')
+        self.button_bar.addWidget(self.report_issue_button)
+        self.report_issue_button.clicked.connect(self.on_report_issue)
+
         self.cancel_button.setText('Close')
         self.cancel_button.clicked.connect(self.close)
+
+    def on_report_issue(self):
+        logger.info('Report Issue Clicked')
+        url_params = {
+            'title': 'In-app Report for v{} on platform {}'.format(
+                VERSION, sys.platform),
+            'body': 'Behavior observed: \n\n\n'
+            'Expected behavior: \n\n\n'
+            'Please attach your log file: {}'.format(self.log_filename)
+        }
+        webbrowser.open(
+            'https://github.com/jprouty/mint-amazon-tagger/issues/'
+            'new?{}'.format(urlencode(url_params)))
+        self.close()
 
     def open_amazon_order_id(self, order_id):
         if order_id:
@@ -614,16 +638,16 @@ class TaggerWorker(QObject):
     stopping = False
     webdriver = None
 
-    @pyqtSlot()
+    @ pyqtSlot()
     def stop(self):
         self.stopping = True
 
-    @pyqtSlot(str)
+    @ pyqtSlot(str)
     def mfa_code(self, code):
         logger.info(code)
         self.mfa_code = code
 
-    @pyqtSlot(object)
+    @ pyqtSlot(object)
     def create_updates(self, args, parent):
         try:
             self.do_create_updates(args, parent)
@@ -632,7 +656,7 @@ class TaggerWorker(QObject):
             self.on_error.emit(msg)
             logger.exception(msg)
 
-    @pyqtSlot(list, object)
+    @ pyqtSlot(list, object)
     def send_updates(self, updates, args):
         try:
             self.do_send_updates(updates, args)
@@ -730,7 +754,8 @@ def main():
         sys.exit(0)
 
     signal(SIGINT, sigint_handler)
-    sys.exit(TaggerGui(args, get_name_to_help_dict(parser)).create_gui())
+    sys.exit(TaggerGui(args, get_name_to_help_dict(
+        parser), log_filename).create_gui())
 
 
 if __name__ == '__main__':
