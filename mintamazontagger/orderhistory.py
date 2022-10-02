@@ -1,8 +1,12 @@
+from datetime import datetime
 import logging
 import os
+import random
 import time
 
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    ElementNotInteractableException, NoSuchElementException,
+    StaleElementReferenceException, TimeoutException)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
@@ -11,21 +15,81 @@ from selenium.webdriver.support.ui import WebDriverWait
 from mintamazontagger.args import has_order_history_csv_files
 from mintamazontagger.my_progress import no_progress_factory
 from mintamazontagger.webdriver import (
-    get_element_by_id, get_element_by_name, get_element_by_xpath)
+    get_element_by_id, get_element_by_name, get_element_by_xpath, is_visible)
 
 logger = logging.getLogger(__name__)
 
+# Login and then go to https://www.amazon.com/gp/b2b/reports
 ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
     'https://www.amazon.com/gp/navigation/redirector.html/ref=sign-in-redirect'
     '?ie=UTF8&associationHandle=usflex&currentPageURL='
     'https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyourstore%2Fhome%3Fie%3DUTF8%26'
     'ref_%3Dnav_youraccount_switchacct&pageType=&switchAccount=picker&'
     'yshURL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fb2b%2Freports')
-ORDER_HISTORY_REPORT_URL = 'https://www.amazon.com/gp/b2b/reports'
+
+
+class Report:
+    def __init__(self, readable_type, type, username, args):
+        self.type = type
+        self.start_date = args.order_history_start_date
+        self.end_date = args.order_history_end_date
+        self.readable_type = readable_type
+        self.name = (
+            f'{username} {self.readable_type} from '
+            f'{self.start_date:%d %b %Y} to {self.end_date:%d %b %Y}')
+        self.path = os.path.join(
+            args.report_download_location, f'{self.name}.csv')
+        self.download_link_xpath = (
+            f"//td[contains(text(), '{self.name}')]/.."
+            "//td/a[contains(text(), 'Download')]")
+
+
+def maybe_get_webdriver(
+        webdriver, args, factory, progress_factory, mfa_input_callback=None):
+    if webdriver:
+        return webdriver
+
+    if ((not args.amazon_email or not args.amazon_password)
+            and not args.amazon_user_will_login):
+        logger.error('No credentials provided for Amazon.com')
+        return
+
+    login_progress = progress_factory(
+        'Signing into Amazon.com to request order reports.', 0)
+    webdriver = factory()
+    if args.amazon_user_will_login:
+        login_success = nav_to_amazon_and_let_user_login(webdriver, args)
+    else:
+        login_success = nav_to_amazon_and_login(
+            webdriver, args, mfa_input_callback)
+    login_progress.finish()
+    if not login_success:
+        logger.critical('Failed to login to Amazon.com')
+        return
+    logger.info('Login to Amazon.com successful')
+    return webdriver
+
+
+def wait_for_report(webdriver, report, progress_factory, timeout):
+    logger.info(f'Waiting for {report.readable_type} report to be ready')
+    processing_progress = progress_factory(
+        f'Waiting for {report.readable_type} report to be ready.', 0)
+    try:
+        wait_cond = EC.presence_of_element_located(
+            (By.XPATH, report.download_link_xpath))
+        WebDriverWait(webdriver, timeout).until(wait_cond)
+        processing_progress.finish()
+    except TimeoutException:
+        processing_progress.finish()
+        logger.critical("Cannot find download link after a minute!")
+        return False
+    return True
 
 
 def fetch_order_history(args, webdriver_factory,
-                        progress_factory=no_progress_factory):
+                        progress_factory=no_progress_factory,
+                        mfa_input_callback=None):
+    # Don't attempt a fetch if CSV files are already in the args.
     if has_order_history_csv_files(args):
         return True
 
@@ -33,198 +97,241 @@ def fetch_order_history(args, webdriver_factory,
         args.amazon_email.split('@')[0]
         if args.amazon_email else 'mint_tagger_unknown_user')
 
-    start_date = args.order_history_start_date
-    end_date = args.order_history_end_date
-    report_shortnames = ['Items', 'Orders', 'Refunds']
-    report_types = ['ITEMS', 'SHIPMENTS', 'REFUNDS']
-    report_names = ['{} {} from {:%d %b %Y} to {:%d %b %Y}'.format(
-                    name, t, start_date, end_date)
-                    for t in report_shortnames]
-    report_paths = [os.path.join(args.report_download_location, name + '.csv')
-                    for name in report_names]
-
+    reports = [
+        Report('Items', 'ITEMS', name, args),
+        Report('Orders', 'SHIPMENTS', name, args),
+        Report('Refunds', 'REFUNDS', name, args),
+    ]
     os.makedirs(args.report_download_location, exist_ok=True)
 
     # Be lazy with getting the driver, as if no fetching is needed, then it's
     # all good.
     webdriver = None
-    for report_shortname, report_type, report_name, report_path in zip(
-            report_shortnames, report_types, report_names, report_paths):
-        if os.path.exists(report_path):
+    outstanding_reports = []
+    for report in reports:
+        if os.path.exists(report.path):
             # Report has already been fetched! Woot
             continue
 
-        # Report is not here. Go get it.
+        # The report is not already downloaded. Log into Amazon (only on the
+        # first time).
+        webdriver = maybe_get_webdriver(
+            webdriver, args, webdriver_factory, progress_factory,
+            mfa_input_callback)
         if not webdriver:
-            if ((not args.amazon_email or not args.amazon_password)
-                    and not args.amazon_user_will_login):
-                logger.error('No credentials provided for Amazon.com')
-                return False
-            login_progress = progress_factory(
-                'Signing into Amazon.com to request order reports.', 0)
-            webdriver = webdriver_factory()
-            if args.amazon_user_will_login:
-                login_success = nav_to_amazon_and_let_user_login(webdriver)
-            else:
-                login_success = nav_to_amazon_and_login(
-                    webdriver, args.amazon_email, args.amazon_password)
-            login_progress.finish()
-            if not login_success:
-                logger.critical(
-                    'Failed to login to Amazon.com')
-                return False
-            logger.info('Login to Amazon.com successful')
-
-        logger.info('Requesting {} report'.format(report_type))
-        request_progress = progress_factory(
-            'Requesting {} report '.format(report_shortname), 0)
-        request_report(webdriver, report_name, report_type,
-                       start_date, end_date)
-        request_progress.finish()
-
-        logger.info('Waiting for {} report to be ready'.format(report_type))
-        processing_progress = progress_factory(
-            'Waiting for {} report to be ready.'.format(
-                report_shortname), 0)
-        try:
-            wait_cond = EC.presence_of_element_located(
-                (By.XPATH, get_report_download_link_xpath(report_name)))
-            WebDriverWait(webdriver, args.order_history_timeout).until(
-                wait_cond)
-            processing_progress.finish()
-        except TimeoutException:
-            processing_progress.finish()
-            logger.critical("Cannot find download link after a minute!")
+            logger.critical('Failed to login to Amazon.com')
             return False
 
-        logger.info('Downloading {} report'.format(report_type))
-        download_progress = progress_factory(
-            'Downloading {} report '.format(report_shortname), 0)
-        download_report(webdriver, report_name, report_path)
-        download_progress.finish()
+        # Look to see if report is already requested and ready for download.
+        if get_element_by_xpath(webdriver, report.download_link_xpath):
+            logger.info(f'{report.readable_type} report already generated.')
+            download_report(webdriver, report, progress_factory)
+            continue
 
-    args.items_csv = open(report_paths[0], 'r', encoding='utf-8')
-    args.orders_csv = open(report_paths[1], 'r', encoding='utf-8')
-    args.refunds_csv = open(report_paths[2], 'r', encoding='utf-8')
+        request_report(webdriver, report, progress_factory)
+        outstanding_reports.append(report)
+
+    # Wait on each report to be ready for download.
+    for report in outstanding_reports:
+        if not wait_for_report(webdriver, report, progress_factory,
+                               args.order_history_timeout):
+            return False
+
+    # Temporary workaround to avoid an Inspector.detached event.
+    time.sleep(1)
+
+    # Download the reports.
+    for report in outstanding_reports:
+        download_report(webdriver, report, progress_factory)
+
+    args.items_csv = open(reports[0].path, 'r', encoding='utf-8')
+    args.orders_csv = open(reports[1].path, 'r', encoding='utf-8')
+    args.refunds_csv = open(reports[2].path, 'r', encoding='utf-8')
     return True
 
 
-def nav_to_amazon_and_let_user_login(webdriver):
+def nav_to_amazon_and_let_user_login(webdriver, args):
     logger.info('User logging in to Amazon.com')
 
     webdriver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
     try:
         wait_cond = EC.presence_of_element_located((By.ID, 'report-confirm'))
-        WebDriverWait(webdriver, 60 * 5).until(wait_cond)
+        WebDriverWait(webdriver, args.amazon_login_timeout).until(wait_cond)
     except TimeoutException:
         logger.critical('Cannot complete Amazon login!')
         return False
     return True
 
 
-def nav_to_amazon_and_login(webdriver, email, password):
+# Never attempt to enter the password more than 2 times to prevent locking an
+# account out due to too many fail attempts. A valid MFA can require reentry
+# of the password.
+_MAX_PASSWORD_ATTEMPTS = 2
+
+
+def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Starting automated login flow for Amazon.com')
 
     webdriver.get(ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN)
-    webdriver.implicitly_wait(1)
+    webdriver.implicitly_wait(0)
 
-    # Go straight to the account switcher, and look for the given email.
-    # If present, click on it! Otherwise, click on "Add account".
-    desired_account_element = get_element_by_xpath(
-        webdriver,
-        "//div[contains(text(), '{}')]".format(email))
-    if desired_account_element:
-        desired_account_element.click()
+    # Amazon login strategy: Work through the flow allowing for any order of
+    # interstitials. Exit only when reaching the report page, as detected by
+    # finding the element with id 'report-confirm' or if the Logging in to
+    # amazon.com timeout has been exceeded.
+    #
+    # For each attempt section, note that the element must both be present AND
+    # visible.
+    login_start_time = datetime.now()
+    num_password_attempts = 0
+    while not get_element_by_id(webdriver, 'report-confirm'):
+        since_start = datetime.now() - login_start_time
+        if (args.amazon_login_timeout
+                and since_start.total_seconds() > args.amazon_login_timeout):
+            logger.error('Amazon Login Flow: Exceeded login timeout')
+            return False
 
-        # It's possible this account has already authed recently. If so, the
-        # next block will be skipped and the login is complete!
-        if not get_element_by_id(webdriver, 'report-confirm'):
-            fill_and_submit_password(webdriver, password)
-    else:
-        # Cannot find the desired account in the switch. Log in via Add Account
-        get_element_by_xpath(webdriver, '//div[text()="Add account"]').click()
-        get_element_by_id(webdriver, 'ap_email').send_keys(email)
+        try:
+            # Account switcher: look for the given email. If present, click on
+            # it!
+            account_switcher_choice = get_element_by_xpath(
+                webdriver,
+                f"//div[contains(text(), '{args.amazon_email}')]")
+            if is_visible(account_switcher_choice):
+                logger.info(
+                    'Amazon Login Flow: Found email in account switcher')
+                account_switcher_choice.click()
+                _login_flow_advance(webdriver)
+                continue
 
-        # Login flow sometimes asks just for the email, then a
-        # continue button, then password.
-        continue_button = get_element_by_id(webdriver, 'continue')
-        if continue_button:
-            continue_button.click()
+            # Account switcher: Cannot find the desired account in the acccount
+            # switcher. Click "Add Account".
+            account_switcher_add_account = get_element_by_xpath(
+                webdriver, '//div[text()="Add account"]')
+            if is_visible(account_switcher_add_account):
+                logger.info(
+                    'Amazon Login Flow: '
+                    'Email not in account switcher - Pressing "Add account"')
+                account_switcher_add_account.click()
+                _login_flow_advance(webdriver)
+                continue
 
-        fill_and_submit_password(webdriver, password)
+            # Username and password entry. Sometimes these are separate
+            # interstitials, sometimes they are one.
+            email_input = get_element_by_id(webdriver, 'ap_email')
+            password_input = get_element_by_id(webdriver, 'ap_password')
+            if is_visible(email_input) or is_visible(password_input):
+                if is_visible(email_input):
+                    email_input.clear()
+                    email_input.send_keys(args.amazon_email)
+                    logger.info('Amazon Login Flow: Entering email')
+                if is_visible(password_input):
+                    password_input.clear()
+                    password_input.send_keys(args.amazon_password)
+                    logger.info('Amazon Login Flow: Entering password')
+                    num_password_attempts += 1
 
-    if not get_element_by_id(webdriver, 'report-confirm'):
-        logger.warning('Having trouble logging into Amazon. Please see the '
-                       'browser and complete login within the next 5 minutes. '
-                       'This script will continue automatically on success. '
-                       'You may need to manually navigate to: {}'.format(
-                           ORDER_HISTORY_REPORT_URL))
-        if get_element_by_id(webdriver, 'auth-mfa-otpcode'):
-            logger.warning('Hint: Looks like an auth challenge! Maybe check '
-                           'your email')
-    try:
-        wait_cond = EC.presence_of_element_located((By.ID, 'report-confirm'))
-        WebDriverWait(webdriver, 60 * 5).until(wait_cond)
-    except TimeoutException:
-        logger.critical('Cannot complete Amazon login!')
-        return False
+                remember_me = get_element_by_name(webdriver, 'rememberMe')
+                if is_visible(remember_me):
+                    remember_me.click()
+                    logger.info('Amazon Login Flow: Clicking Remember Me')
+
+                if num_password_attempts > _MAX_PASSWORD_ATTEMPTS:
+                    logger.error(
+                        'Amazon Login Flow: '
+                        'Too many password attempts; aborting.')
+                    return False
+
+                continue_button = get_element_by_id(webdriver, 'continue')
+                if is_visible(continue_button):
+                    continue_button.click()
+                    logger.info('Amazon Login Flow: Clicking Continue')
+                    _login_flow_advance(webdriver)
+                    continue
+                sign_in_submit = get_element_by_id(webdriver, 'signInSubmit')
+                if is_visible(sign_in_submit):
+                    sign_in_submit.click()
+                    logger.info('Amazon Login Flow: Clicking Sign in')
+                    _login_flow_advance(webdriver)
+                    continue
+
+            # OTP code:
+            otp_code_input = get_element_by_id(webdriver, 'auth-mfa-otpcode')
+            otp_continue = get_element_by_id(webdriver, 'auth-signin-button')
+            if is_visible(otp_code_input) and is_visible(otp_continue):
+                # Check "Don't require OTP on this browser"
+                remember_me_otp = get_element_by_xpath(
+                    webdriver,
+                    '//span[contains(text(), '
+                    '"Don\'t require OTP on this browser")]')
+                if is_visible(remember_me_otp):
+                    remember_me_otp.click()
+
+                mfa_code = (mfa_input_callback or input)(
+                    'Please enter your 6-digit Amazon OTP code: ')
+                otp_code_input.send_keys(mfa_code)
+                otp_continue.click()
+                _login_flow_advance(webdriver)
+                continue
+
+        except StaleElementReferenceException:
+            logger.warning('Amazon Login Flow: '
+                           'Page contents changed - trying again.')
+        except ElementNotInteractableException:
+            logger.warning('Amazon Login Flow: '
+                           'Page contents not interactable - trying again.')
+
+    logger.info('Amazon Login Flow: login successful.')
+    # If you made it here, you must be good to go!
     return True
 
 
-def request_report(webdriver, report_name, report_type, start_date, end_date):
-    # Do not request the report again if it's already available for
-    # download.
-    if get_element_by_xpath(
-            webdriver, get_report_download_link_xpath(report_name)):
-        return
+def _login_flow_advance(webdriver):
+    time.sleep(random.randint(500, 1500) / 1000)
+
+
+def request_report(webdriver, report, progress_factory):
+    logger.info(f'Requesting {report.readable_type} report')
+    request_progress = progress_factory(
+        f'Requesting {report.readable_type} report ', 0)
 
     Select(get_element_by_id(webdriver, 'report-type-native')
-           ).select_by_value(report_type)
+           ).select_by_value(report.type)
 
     get_element_by_xpath(
         webdriver,
         '//*[@id="startDateCalendar"]/div[2]/div/div/div/input'
-    ).send_keys(start_date.strftime('%m/%d/%Y'))
+    ).send_keys(report.start_date.strftime('%m/%d/%Y'))
     get_element_by_xpath(
         webdriver,
         '//*[@id="endDateCalendar"]/div[2]/div/div/div/input'
-    ).send_keys(end_date.strftime('%m/%d/%Y'))
+    ).send_keys(report.end_date.strftime('%m/%d/%Y'))
 
-    get_element_by_id(
-        webdriver, 'report-name').send_keys(report_name)
+    get_element_by_id(webdriver, 'report-name').send_keys(report.name)
 
     # Submit will not work as the input type is an image (nice Amazon)
     get_element_by_id(webdriver, 'report-confirm').click()
+    request_progress.finish()
 
 
-def get_report_download_link_xpath(report_name):
-    return "//td[contains(text(), '{}')]/..//td/a[text()='Download']".format(
-        report_name)
-
-
-def download_report(webdriver, report_name, report_path):
+def download_report(webdriver, report, progress_factory):
+    logger.info(f'Downloading {report.readable_type} report')
+    download_progress = progress_factory(
+        f'Downloading {report.readable_type} report', 0)
     # 1. Find the report download link
     report_url = None
     try:
         download_link = get_element_by_xpath(
             webdriver,
-            get_report_download_link_xpath(report_name))
+            report.download_link_xpath)
         report_url = download_link.get_attribute('href')
     except NoSuchElementException:
         logger.critical('Could not find the download link!')
         exit(1)
 
     # 2. Download the report to the AMZN Reports directory
-    time.sleep(1)  # Temporary workaround to avoid an Inspector.detached event.
     response = webdriver.request('GET', report_url, allow_redirects=True)
     response.raise_for_status()
-    with open(report_path, 'w', encoding='utf-8') as fh:
+    with open(report.path, 'w', encoding='utf-8') as fh:
         fh.write(response.text)
-
-
-def fill_and_submit_password(webdriver, password):
-    ap_password = get_element_by_id(webdriver, 'ap_password')
-    ap_password.clear()
-    ap_password.send_keys(password)
-    get_element_by_name(webdriver, 'rememberMe').click()
-    get_element_by_id(webdriver, 'signInSubmit').submit()
+    download_progress.finish()

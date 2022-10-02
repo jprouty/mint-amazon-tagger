@@ -39,7 +39,7 @@ class CleanCommand(setuptools.Command):
                 try:
                     os.remove(file)
                 except OSError:
-                    print("Error while deleting file: {}".format(file))
+                    print(f"Error while deleting file: {file}")
 
 
 class BlockReleaseCommand(setuptools.Command):
@@ -57,7 +57,7 @@ class BlockReleaseCommand(setuptools.Command):
             stale, latest = check_outdated('mint-amazon-tagger', VERSION)
             raise DistutilsError(
                 'Please update VERSION in __init__. '
-                'Current {} PyPI latest {}'.format(VERSION, latest))
+                f'Current {VERSION} PyPI latest {latest}')
         except ValueError:
             pass
 

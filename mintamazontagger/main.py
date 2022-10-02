@@ -61,7 +61,7 @@ class TaggerGui:
         timer.timeout.connect(lambda: None)
 
         app.setStyle('Fusion')
-        version_string = 'Mint Amazon Tagger v{}'.format(VERSION)
+        version_string = f'Mint Amazon Tagger v{VERSION}'
         app.setApplicationName(version_string)
         self.window = QMainWindow()
         self.window.setWindowTitle(version_string)
@@ -72,7 +72,7 @@ class TaggerGui:
             s.activated.connect(app.exit)
             self.quit_shortcuts.append(s)
 
-        logger.info('Running version {}'.format(VERSION))
+        logger.info(f'Running version {VERSION}')
         try:
             is_outdated, latest_version = check_outdated(
                 'mint-amazon-tagger', VERSION)
@@ -83,11 +83,11 @@ class TaggerGui:
                     'experience. '
                     'https://github.com/jprouty/mint-amazon-tagger')
                 logger.warning(
-                    'Running out of date software is bad. Latest is {}'.format(
-                        latest_version))
+                    'Running out of date software is bad. Latest is '
+                    f'{latest_version}')
         except ValueError:
             logger.error(
-                'Version {} is newer than PyPY version'.format(VERSION))
+                f'Version {VERSION} is newer than PyPY version')
 
         v_layout = QVBoxLayout()
         h_layout = QHBoxLayout()
@@ -440,7 +440,7 @@ class TaggerDialog(QDialog):
         self.worker.on_stopped.connect(self.on_stopped)
         self.worker.on_progress.connect(self.on_progress)
         self.worker.on_updates_sent.connect(self.on_updates_sent)
-        self.worker.on_mint_mfa.connect(self.on_mint_mfa)
+        self.worker.on_mfa.connect(self.on_mfa)
 
         self.thread.started.connect(
             partial(self.worker.create_updates, args, self))
@@ -471,7 +471,7 @@ class TaggerDialog(QDialog):
 
     def on_error(self, msg):
         logger.error(msg)
-        self.label.setText('Error: {}'.format(msg))
+        self.label.setText(f'Error: {msg}')
         self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.label.setStyleSheet(
             'QLabel { color: red; font-weight: bold; }')
@@ -486,15 +486,15 @@ class TaggerDialog(QDialog):
     def on_report_issue(self):
         logger.info('Report Issue Clicked')
         url_params = {
-            'title': 'In-app Report for v{} on platform {}'.format(
-                VERSION, sys.platform),
-            'body': 'Behavior observed: \n\n\n'
-            'Expected behavior: \n\n\n'
-            'Please attach your log file: {}'.format(self.log_filename)
+            'title': f'In-app Report for v{VERSION} on {sys.platform}',
+            'body': (
+                'Behavior observed: \n\n\n'
+                'Expected behavior: \n\n\n'
+                f'Please attach your log file: {self.log_filename}')
         }
         webbrowser.open(
             'https://github.com/jprouty/mint-amazon-tagger/issues/'
-            'new?{}'.format(urlencode(url_params)))
+            f'new?{urlencode(url_params)}')
         self.close()
 
     def open_amazon_order_id(self, order_id):
@@ -570,7 +570,7 @@ class TaggerDialog(QDialog):
 
     def on_updates_sent(self, num_sent):
         self.label.setText(
-            'All done! {} newly tagged Mint transactions'.format(num_sent))
+            f'All done! {num_sent} newly tagged Mint transactions')
         self.cancel_button.setText('Close')
 
     def on_open_unmatched(self, unmatched):
@@ -615,15 +615,15 @@ class TaggerDialog(QDialog):
         else:
             self.close()
 
-    def on_mint_mfa(self):
+    def on_mfa(self):
         mfa_code, ok = QInputDialog().getText(
-            self, 'Please enter your Mint Code.',
-            'Mint Code:')
+            self, 'Please enter your MFA/OTP Code.',
+            'Code:')
         self.worker.mfa_code = mfa_code
         QMetaObject.invokeMethod(
             self.worker, 'mfa_code', Qt.QueuedConnection,
             Q_ARG(str, mfa_code))
-        self.worker.on_mint_mfa_done.emit()
+        self.worker.on_mfa_done.emit()
 
 
 class TaggerWorker(QObject):
@@ -632,8 +632,8 @@ class TaggerWorker(QObject):
     on_review_ready = pyqtSignal(tagger.UpdatesResult)
     on_updates_sent = pyqtSignal(int)
     on_stopped = pyqtSignal()
-    on_mint_mfa = pyqtSignal()
-    on_mint_mfa_done = pyqtSignal()
+    on_mfa = pyqtSignal()
+    on_mfa_done = pyqtSignal()
     on_progress = pyqtSignal(str, int, int)
     stopping = False
     webdriver = None
@@ -652,7 +652,7 @@ class TaggerWorker(QObject):
         try:
             self.do_create_updates(args, parent)
         except Exception as e:
-            msg = 'Internal error while creating updates: {}'.format(e)
+            msg = f'Internal error while creating updates: {e}'
             self.on_error.emit(msg)
             logger.exception(msg)
 
@@ -661,7 +661,7 @@ class TaggerWorker(QObject):
         try:
             self.do_send_updates(updates, args)
         except Exception as e:
-            msg = 'Internal error while sending updates: {}'.format(e)
+            msg = f'Internal error while sending updates: {e}'
             self.on_error.emit(msg)
             logger.exception(msg)
 
@@ -679,11 +679,11 @@ class TaggerWorker(QObject):
         return self.webdriver
 
     def do_create_updates(self, args, parent):
-        def on_mint_mfa(prompt):
-            logger.info('Asking for Mint MFA')
-            self.on_mint_mfa.emit()
+        def on_mfa(prompt):
+            logger.info('Asking for MFA/OTP')
+            self.on_mfa.emit()
             loop = QEventLoop()
-            self.on_mint_mfa_done.connect(loop.quit)
+            self.on_mfa_done.connect(loop.quit)
             loop.exec_()
             logger.info(self.mfa_code)
             return self.mfa_code
@@ -698,10 +698,10 @@ class TaggerWorker(QObject):
         self.mint_client = MintClient(
             args,
             bound_webdriver_factory,
-            mfa_input_callback=on_mint_mfa)
+            mfa_input_callback=on_mfa)
 
         if not fetch_order_history(
-                args, bound_webdriver_factory, progress_factory):
+                args, bound_webdriver_factory, progress_factory, on_mfa):
             self.on_error.emit(
                 'Failed to fetch Amazon order history. Check credentials')
             return
@@ -742,9 +742,13 @@ def main():
     # mindful of what exceptions might be thrown).
     log_directory = os.path.join(TAGGER_BASE_PATH, 'Tagger Logs')
     os.makedirs(log_directory, exist_ok=True)
-    log_filename = os.path.join(log_directory, '{}.log'.format(
-        time.strftime("%Y-%m-%d_%H-%M-%S")))
-    root_logger.addHandler(logging.FileHandler(log_filename))
+    log_filename = os.path.join(
+        log_directory, f'{time.strftime("%Y-%m-%d_%H-%M-%S")}.log')
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s %(name)s: %(message)s'))
+    file_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
 
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')

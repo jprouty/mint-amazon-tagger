@@ -44,7 +44,7 @@ def get_webdriver(headless=False, session_path=None):
                         [session_path in param for param in proc.cmdline()]):
                     continue
                 logger.info(
-                    'Attempting to terminate process id {}'.format(proc.pid))
+                    f'Attempting to terminate process id {proc.pid}')
                 proc.terminate()
             except (psutil.NoSuchProcess, psutil.AccessDenied,
                     psutil.ZombieProcess):
@@ -140,8 +140,8 @@ def get_latest_chrome_driver_version():
 
     if latest_request.status_code != 200:
         raise RuntimeError(
-            'Error finding the latest chromedriver at {}, status = {}'.format(
-                latest_url, latest_request.status_code))
+            f'Error finding the latest chromedriver at {latest_url}, '
+            f'status = {latest_request.status_code}')
     return latest_request.text
 
 
@@ -162,8 +162,7 @@ def get_stable_chrome_driver(download_directory=os.getcwd()):
         if local_version == latest_chrome_driver_version:
             # Use the existing chrome driver - already the latest version.
             return local_executable_path
-        logger.info('Removing old version {} of Chromedriver'.format(
-            local_version))
+        logger.info(f'Removing old version {local_version} of Chromedriver')
         os.remove(local_executable_path)
 
     if not latest_chrome_driver_version:
@@ -172,16 +171,16 @@ def get_stable_chrome_driver(download_directory=os.getcwd()):
             'driver on the internet. Please double check your internet '
             'connection, then ask for assistance on the github project.')
         return None
-    logger.info('Downloading version {} of Chromedriver'.format(
-        latest_chrome_driver_version))
+    logger.info(
+        f'Downloading version {latest_chrome_driver_version} of Chromedriver')
     zip_file_url = get_chrome_driver_url(
         latest_chrome_driver_version, platform)
     request = requests.get(zip_file_url)
 
     if request.status_code != 200:
         raise RuntimeError(
-            'Error finding chromedriver at {}, status = {}'.format(
-                zip_file_url, request.status_code))
+            f'Error finding chromedriver at {zip_file_url}, '
+            'status = {request.status_code}')
 
     zip_file = zipfile.ZipFile(io.BytesIO(request.content))
     zip_file.extractall(path=download_directory)

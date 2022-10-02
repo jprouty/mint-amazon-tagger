@@ -66,7 +66,7 @@ def create_updates(
     except AttributeError as e:
         msg = (
             'Error while parsing Amazon Order history report CSV files: '
-            '{}'.format(e))
+            f'{e}')
         logger.exception(msg)
         on_critical(msg)
         return UpdatesResult()
@@ -74,14 +74,12 @@ def create_updates(
     if not len(orders):
         on_critical(
             'The Orders report contains no data. Try '
-            'downloading again. Report used: {}'.format(
-                orders_csv))
+            f'downloading again. Report used: {orders_csv}')
         return UpdatesResult()
     if not len(items):
         on_critical(
             'The Items report contains no data. Try '
-            'downloading again. Report used: {}'.format(
-                items_csv))
+            f'downloading again. Report used: {items_csv}')
         return UpdatesResult()
 
     # Initialize the stats. Explicitly initialize stats that might not be
@@ -99,8 +97,7 @@ def create_updates(
 
     if args.pickled_epoch:
         pickle_progress = indeterminate_progress_factory(
-            'Un-pickling Mint transactions from epoch: {} '.format(
-                args.pickled_epoch))
+            f'Un-pickling Mint transactions from epoch: {args.pickled_epoch} ')
         mint_trans, mint_categories = (
             get_trans_and_categories_from_pickle(
                 args.pickled_epoch, args.mint_pickle_location))
@@ -148,8 +145,7 @@ def create_updates(
         if args.save_pickle_backup:
             pickle_epoch = int(time.time())
             pickle_progress = indeterminate_progress_factory(
-                'Backing up Mint to local pickle epoch: {} '.format(
-                    pickle_epoch))
+                f'Backing up Mint to local pickle epoch: {pickle_epoch}')
             dump_trans_and_categories(
                 mint_trans, mint_categories, pickle_epoch,
                 args.mint_pickle_location)
@@ -179,7 +175,7 @@ def get_mint_category_history_for_items(trans, args):
 
     # Filter for transactions that have been tagged before.
     valid_prefixes = args.amazon_domains.lower().split(',')
-    valid_prefixes = ['{}: '.format(pre) for pre in valid_prefixes]
+    valid_prefixes = [f'{pre}: ' for pre in valid_prefixes]
     if args.description_prefix_override:
         valid_prefixes.append(args.description_prefix_override.lower())
     trans = [t for t in trans if
@@ -327,7 +323,7 @@ def get_mint_updates(
             order = amazon.Order.merge(t.orders)
             merged_orders.extend(orders)
 
-            prefix = '{}: '.format(order.website)
+            prefix = f'{order.website}: '
             if args.description_prefix_override:
                 prefix = args.description_prefix_override
 
@@ -353,7 +349,7 @@ def get_mint_updates(
         else:
             refunds = amazon.Refund.merge(t.orders)
             merged_refunds.extend(refunds)
-            prefix = '{} refund: '.format(refunds[0].website)
+            prefix = f'{refunds[0].website} refund: '
 
             if args.description_return_prefix_override:
                 prefix = args.description_return_prefix_override
@@ -503,9 +499,10 @@ def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):
     for orig_trans, new_trans in orig_trans_to_tagged:
         oid = orig_trans.orders[0].order_id
-        print('\nFor Amazon {}: {}\nInvoice URL: {}'.format(
-            'Order' if orig_trans.amount < 0 else 'Refund',
-            oid, amazon.get_invoice_url(oid)))
+        order_type = "Order" if orig_trans.amount < 0 else "Refund"
+        print(
+            f'\nFor Amazon {order_type}: {oid}\n'
+            f'Invoice URL: {amazon.get_invoice_url(oid)}')
 
         if orig_trans.children:
             for i, trans in enumerate(orig_trans.children):
@@ -514,13 +511,11 @@ def print_dry_run(orig_trans_to_tagged, ignore_category=False):
                     i + 1,
                     trans.dry_run_str()))
         else:
-            print('\nCurrent: \t{}'.format(
-                orig_trans.dry_run_str()))
+            print(f'\nCurrent: \t{orig_trans.dry_run_str()}')
 
         if len(new_trans) == 1:
             trans = new_trans[0]
-            print('\nProposed: \t{}'.format(
-                trans.dry_run_str(ignore_category)))
+            print(f'\nProposed: \t{trans.dry_run_str(ignore_category)}')
         else:
             for i, trans in enumerate(reversed(new_trans)):
                 print('{}{}) Proposed: \t{}'.format(

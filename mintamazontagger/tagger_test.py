@@ -32,7 +32,8 @@ def get_args(
         description_return_prefix_override=description_return_prefix_override,
         amazon_domains=amazon_domains,
         mint_input_description_filter=mint_input_description_filter,
-        mint_input_include_user_description=mint_input_include_user_description,
+        mint_input_include_user_description=(
+            mint_input_include_user_description),
         mint_input_include_inferred_description=(
             mint_input_include_inferred_description),
         mint_input_categories_filter=mint_input_categories_filter,

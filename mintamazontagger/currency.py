@@ -29,9 +29,9 @@ def float_usd_to_micro_usd(float_usd):
 
 
 def micro_usd_to_usd_string(micro_usd):
-    return '{}${:.2f}'.format(
-        '' if micro_usd >= -5000 else '-',
-        micro_usd_to_float_usd(abs(micro_usd)))
+    return (
+        f"{'' if micro_usd >= -5000 else '-'}$"
+        f"{micro_usd_to_float_usd(abs(micro_usd)):.2f}")
 
 
 def parse_usd_as_micro_usd(amount):

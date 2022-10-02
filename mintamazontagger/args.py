@@ -29,6 +29,10 @@ def define_common_args(parser):
         action='store_true',
         default=False,
         help='If set, let the user log in on their own.')
+    parser.add_argument(
+        '--amazon_login_timeout',
+        default=60 * 5,
+        help='The number of seconds to wait attempting to log into Amazon.')
 
     parser.add_argument(
         '--order_history_start_date',

@@ -44,11 +44,15 @@ def main():
     # mindful of what exceptions might be thrown).
     log_directory = os.path.join(TAGGER_BASE_PATH, 'Tagger Logs')
     os.makedirs(log_directory, exist_ok=True)
-    log_filename = os.path.join(log_directory, '{}.log'.format(
-        time.strftime("%Y-%m-%d_%H-%M-%S")))
-    root_logger.addHandler(logging.FileHandler(log_filename))
+    log_filename = os.path.join(
+        log_directory, f'{time.strftime("%Y-%m-%d_%H-%M-%S")}.log')
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s %(name)s: %(message)s'))
+    file_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
 
-    logger.info('Running version {}'.format(VERSION))
+    logger.info(f'Running version {VERSION}')
     try:
         is_outdated, latest_version = check_outdated(
             'mint-amazon-tagger', VERSION)
@@ -57,7 +61,7 @@ def main():
                            'pip3 install mint-amazon-tagger --upgrade\n\n')
     except ValueError:
         logger.error(
-            'Version {} is newer than PyPY version'.format(VERSION))
+            f'Version {VERSION} is newer than PyPY version')
 
     parser = argparse.ArgumentParser(
         description='Tag Mint transactions based on itemized Amazon history.')
@@ -65,7 +69,7 @@ def main():
     args = parser.parse_args()
 
     if args.version:
-        print('mint-amazon-tagger {}\nBy: Jeff Prouty'.format(VERSION))
+        print(f'mint-amazon-tagger {VERSION}\nBy: Jeff Prouty')
         exit(0)
 
     webdriver = None
@@ -159,7 +163,7 @@ def main():
                 max=len(results.updates)),
             ignore_category=args.no_tag_categories)
 
-        logger.info('Sent {} updates to Mint'.format(num_updates))
+        logger.info(f'Sent {num_updates} updates to Mint')
 
 
 def maybe_prompt_for_mint_credentials(args):
@@ -191,45 +195,46 @@ def log_amazon_stats(items, orders, refunds):
     if len(orders) == 0 or len(items) == 0:
         logger.info('\tThere were not Amazon orders/items!')
         return
-    logger.info('\n{} orders with {} matching items'.format(
-        len([o for o in orders if o.items_matched]),
-        len([i for i in items if i.matched])))
-    logger.info('{} unmatched orders and {} unmatched items'.format(
-        len([o for o in orders if not o.items_matched]),
-        len([i for i in items if not i.matched])))
+    logger.info(
+        f'\n{len([o for o in orders if o.items_matched])} orders with '
+        f'{len([i for i in items if i.matched])} matching items')
+    logger.info(
+        f'{len([o for o in orders if not o.items_matched])} unmatched orders '
+        f'and {len([i for i in items if not i.matched])} unmatched items')
 
     first_order_date = min([o.order_date for o in orders])
     last_order_date = max([o.order_date for o in orders])
-    logger.info('Orders ranging from {} to {}'.format(
-        first_order_date, last_order_date))
+    logger.info(f'Orders ranging from {first_order_date} to {last_order_date}')
 
     per_item_totals = [i.item_total for i in items]
     per_order_totals = [o.total_charged for o in orders]
 
-    logger.info('{} total spend'.format(
-        micro_usd_to_usd_string(sum(per_order_totals))))
+    logger.info(
+        f'{micro_usd_to_usd_string(sum(per_order_totals))} total spend')
 
-    logger.info('{} avg order total (range: {} - {})'.format(
-        micro_usd_to_usd_string(sum(per_order_totals) / len(orders)),
-        micro_usd_to_usd_string(min(per_order_totals)),
-        micro_usd_to_usd_string(max(per_order_totals))))
-    logger.info('{} avg item price (range: {} - {})'.format(
-        micro_usd_to_usd_string(sum(per_item_totals) / len(items)),
-        micro_usd_to_usd_string(min(per_item_totals)),
-        micro_usd_to_usd_string(max(per_item_totals))))
+    logger.info(
+        f'{micro_usd_to_usd_string(sum(per_order_totals) / len(orders))} avg '
+        f'order total (range: {micro_usd_to_usd_string(min(per_order_totals))}'
+        f' - {micro_usd_to_usd_string(max(per_order_totals))})')
+    logger.info(
+        f'{micro_usd_to_usd_string(sum(per_item_totals) / len(items))} avg '
+        f'item price (range: {micro_usd_to_usd_string(min(per_item_totals))}'
+        f' - {micro_usd_to_usd_string(max(per_item_totals))})')
 
     if refunds:
         first_refund_date = min(
             [r.refund_date for r in refunds if r.refund_date])
         last_refund_date = max(
             [r.refund_date for r in refunds if r.refund_date])
-        logger.info('\n{} refunds dating from {} to {}'.format(
-            len(refunds), first_refund_date, last_refund_date))
+        logger.info(
+            f'\n{len(refunds)} refunds dating from '
+            f'{first_refund_date} to {last_refund_date}')
 
         per_refund_totals = [r.total_refund_amount for r in refunds]
 
-        logger.info('{} total refunded'.format(
-            micro_usd_to_usd_string(sum(per_refund_totals))))
+        logger.info(
+            f'{micro_usd_to_usd_string(sum(per_refund_totals))} '
+            'total refunded')
 
 
 def log_processing_stats(stats):
@@ -266,9 +271,8 @@ def print_unmatched(amzn_obj):
     proposed_mint_desc = mint.summarize_title(
         [i.get_title() for i in amzn_obj.items]
         if not amzn_obj.is_refund else [amzn_obj.get_title()],
-        '{}{}: '.format(
-            amzn_obj.website, '' if not amzn_obj.is_refund else ' refund'))
-    logger.warning('{}'.format(proposed_mint_desc))
+        f"{amzn_obj.website}{'' if not amzn_obj.is_refund else ' refund'}: ")
+    logger.warning(proposed_mint_desc)
     logger.warning('\t{}\t{}\t{}'.format(
         amzn_obj.transact_date()
         if amzn_obj.transact_date()

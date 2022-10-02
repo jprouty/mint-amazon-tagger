@@ -139,7 +139,7 @@ def parse_amazon_date(date_str):
 def get_invoice_url(order_id):
     return (
         'https://www.amazon.com/gp/css/summary/print.html?ie=UTF8&'
-        'orderID={oid}'.format(oid=order_id))
+        f'orderID={order_id}')
 
 
 def associate_items_with_orders(
@@ -252,15 +252,19 @@ class Order:
 
     def has_hidden_shipping_fee(self):
         # Colorado - https://tax.colorado.gov/retail-delivery-fee
-        # "Effective July 1, 2022, Colorado imposes a retail delivery fee on all
-        # deliveries by motor vehicle to a location in Colorado with at least
-        # one item of tangible personal property subject to state sales or use
-        # tax."
+        # "Effective July 1, 2022, Colorado imposes a retail delivery fee on
+        # all deliveries by motor vehicle to a location in Colorado with at
+        # least one item of tangible personal property subject to state sales
+        # or use tax."
         # Rate July 2022 to June 2023: $0.27
         # This is not the case as of 8/31/2022 for Amazon Order Reports.
-        # "Retailers that make retail deliveries must show the total of the fees
-        # on the receipt or invoice as one item called “retail delivery fees”."
-        return self.shipping_address_state == 'CO' and self.tax_charged > 0 and self.shipment_date >= date(2022, 7, 1)
+        # "Retailers that make retail deliveries must show the total of the
+        # fees on the receipt or invoice as one item called “retail delivery
+        # fees”."
+        return (
+            self.shipping_address_state == 'CO'
+            and self.tax_charged > 0
+            and self.shipment_date >= date(2022, 7, 1))
 
     def hidden_shipping_fee(self):
         return float_usd_to_micro_usd(0.27)
@@ -299,19 +303,12 @@ class Order:
 
     def get_notes(self):
         return (
-            'Amazon order id: {}\n'
-            'Buyer: {} ({})\n'
-            'Order date: {}\n'
-            'Ship date: {}\n'
-            'Tracking: {}\n'
-            'Invoice url: {}').format(
-                self.order_id,
-                self.buyer_name,
-                self.ordering_customer_email,
-                self.order_date,
-                self.shipment_date,
-                self.tracking,
-                get_invoice_url(self.order_id))
+            f'Amazon order id: {self.order_id}\n'
+            f'Buyer: {self.buyer_name} ({self.ordering_customer_email})\n'
+            f'Order date: {self.order_date}\n'
+            f'Ship date: {self.shipment_date}\n'
+            f'Tracking: {self.tracking}\n'
+            f'Invoice url: {get_invoice_url(self.order_id)}')
 
     def attribute_subtotal_diff_to_misc_charge(self):
         diff = self.total_charged - self.total_by_subtotals()
@@ -475,17 +472,13 @@ class Order:
 
     def __repr__(self):
         return (
-            'Order ({id}): {date} Total {total}\tSubtotal {subtotal}\t'
-            'Tax {tax}\tPromo {promo}\tShip {ship}\t'
-            'Items: \n{items}'.format(
-                id=self.order_id,
-                date=(self.shipment_date or self.order_date),
-                total=micro_usd_to_usd_string(self.total_charged),
-                subtotal=micro_usd_to_usd_string(self.subtotal),
-                tax=micro_usd_to_usd_string(self.tax_charged),
-                promo=micro_usd_to_usd_string(self.total_promotions),
-                ship=micro_usd_to_usd_string(self.shipping_charge),
-                items=pformat(self.items)))
+            f'Order ({self.order_id}): {self.shipment_date or self.order_date}'
+            f' Total {micro_usd_to_usd_string(self.total_charged)}\t'
+            f'Subtotal {micro_usd_to_usd_string(self.subtotal)}\t'
+            f'Tax {micro_usd_to_usd_string(self.tax_charged)}\t'
+            f'Promo {micro_usd_to_usd_string(self.total_promotions)}\t'
+            f'Ship {micro_usd_to_usd_string(self.shipping_charge)}\t'
+            f'Items: \n{pformat(self.items)}')
 
 
 class Item:
@@ -553,10 +546,7 @@ class Item:
             return items
         unique_items = defaultdict(list)
         for i in items:
-            key = '{}-{}-{}'.format(
-                i.title,
-                i.asin_isbn,
-                i.item_subtotal)
+            key = f'{i.title}-{i.asin_isbn}-{i.item_subtotal}'
             unique_items[key].append(i)
         results = []
         for same_items in unique_items.values():
@@ -572,13 +562,11 @@ class Item:
 
     def __repr__(self):
         return (
-            '{qty} of Item: Total {total}\tSubtotal {subtotal}\t'
-            'Tax {tax} {desc}'.format(
-                qty=self.quantity,
-                total=micro_usd_to_usd_string(self.item_total),
-                subtotal=micro_usd_to_usd_string(self.item_subtotal),
-                tax=micro_usd_to_usd_string(self.item_subtotal_tax),
-                desc=self.title))
+            f'{self.quantity} of Item: '
+            f'Total {micro_usd_to_usd_string(self.item_total)}\t'
+            f'Subtotal {micro_usd_to_usd_string(self.item_subtotal)}\t'
+            f'Tax {micro_usd_to_usd_string(self.item_subtotal_tax)} '
+            f'{self.title}')
 
 
 class Refund:
@@ -617,18 +605,12 @@ class Refund:
 
     def get_notes(self):
         return (
-            'Amazon refund for order id: {}\n'
-            'Buyer: {}\n'
-            'Order date: {}\n'
-            'Refund date: {}\n'
-            'Refund reason: {}\n'
-            'Invoice url: {}').format(
-                self.order_id,
-                self.buyer_name,
-                self.order_date,
-                self.refund_date,
-                self.refund_reason,
-                get_invoice_url(self.order_id))
+            f'Amazon refund for order id: {self.order_id}\n'
+            f'Buyer: {self.buyer_name}\n'
+            f'Order date: {self.order_date}\n'
+            f'Refund date: {self.refund_date}\n'
+            f'Refund reason: {self.refund_reason}\n'
+            f'Invoice url: {get_invoice_url(self.order_id)}')
 
     def to_mint_transaction(self, t):
         # Refunds have a positive amount.
@@ -646,12 +628,9 @@ class Refund:
             return refunds
         unique_refund_items = defaultdict(list)
         for r in refunds:
-            key = '{}-{}-{}-{}-{}'.format(
-                r.refund_date,
-                r.refund_reason,
-                r.title,
-                r.total_refund_amount,
-                r.asin_isbn)
+            key = (
+                f'{r.refund_date}-{r.refund_reason}-{r.title}-'
+                f'{r.total_refund_amount}-{r.asin_isbn}')
             unique_refund_items[key].append(r)
         results = []
         for same_items in unique_refund_items.values():
@@ -671,10 +650,8 @@ class Refund:
 
     def __repr__(self):
         return (
-            '{qty} of Refund: Total {total}\tSubtotal {subtotal}\t'
-            'Tax {tax} {desc}'.format(
-                qty=self.quantity,
-                total=micro_usd_to_usd_string(self.total_refund_amount),
-                subtotal=micro_usd_to_usd_string(self.refund_amount),
-                tax=micro_usd_to_usd_string(self.refund_tax_amount),
-                desc=self.title))
+            f'{self.quantity} of Refund: '
+            f'Total {micro_usd_to_usd_string(self.total_refund_amount)}\t'
+            f'Subtotal {micro_usd_to_usd_string(self.refund_amount)}\t'
+            f'Tax {micro_usd_to_usd_string(self.refund_tax_amount)} '
+            f'{self.title}')

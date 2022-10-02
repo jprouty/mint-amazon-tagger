@@ -2,6 +2,7 @@ from datetime import datetime
 import logging
 import os
 from pprint import pprint
+import random
 import requests
 import time
 
@@ -23,9 +24,9 @@ logger = logging.getLogger(__name__)
 MINT_API_VERSION = 'pfm/v1'
 
 MINT_HOME = 'https://mint.intuit.com'
-MINT_OVERVIEW = '{}/overview'.format(MINT_HOME)
-MINT_TRANSACTIONS = '{}/{}/transactions'.format(MINT_HOME, MINT_API_VERSION)
-MINT_CATEGORIES = '{}/{}/categories'.format(MINT_HOME, MINT_API_VERSION)
+MINT_OVERVIEW = f'{MINT_HOME}/overview'
+MINT_TRANSACTIONS = f'{MINT_HOME}/{MINT_API_VERSION}/transactions'
+MINT_CATEGORIES = f'{MINT_HOME}/{MINT_API_VERSION}/categories'
 
 
 class MintClient():
@@ -69,8 +70,8 @@ class MintClient():
         if not self.login():
             logger.error('Cannot login')
             return []
-        logger.info('Getting all Mint transactions since {} to {}.'.format(
-            from_date, to_date))
+        logger.info(
+            f'Getting all Mint transactions since {from_date} to {to_date}.')
         params = {
             'limit': '100000',
             'fromDate': from_date,
@@ -95,9 +96,8 @@ class MintClient():
         if self.args.mint_save_json:
             json_path = os.path.join(
                 self.args.mint_json_location,
-                'Mint {} Transactions.json'.format(int(time.time())))
-            logger.info('Saving Mint Transactions to json file: {}'.format(
-                json_path))
+                f'Mint {int(time.time())} Transactions.json')
+            logger.info(f'Saving Mint Transactions to json file: {json_path}')
             with open(json_path, "w") as json_out:
                 pprint(response_json, json_out)
         # Remove all transactions that do not have a fiData message. These are
@@ -123,9 +123,8 @@ class MintClient():
         if self.args.mint_save_json:
             json_path = os.path.join(
                 self.args.mint_json_location,
-                'Mint {} Categories.json'.format(int(time.time())))
-            logger.info('Saving Mint Categories to json file: {}'.format(
-                json_path))
+                f'Mint {int(time.time())} Categories.json')
+            logger.info(f'Saving Mint Categories to json file: {json_path}')
             with open(json_path, "w") as json_out:
                 pprint(response_json, json_out)
         result = {}
@@ -154,14 +153,13 @@ class MintClient():
                     }
 
                 logger.debug(
-                    'Sending a "modify" transaction request: {}'.format(
-                        modify_trans))
+                    f'Sending a "modify" transaction request: {modify_trans}')
                 response = self.webdriver.request(
                     'PUT',
-                    '{}/{}'.format(MINT_TRANSACTIONS, trans.id),
+                    f'{MINT_TRANSACTIONS}/{trans.id}',
                     json=modify_trans,
                     headers=self.get_api_header())
-                logger.debug('Received response: {}'.format(response.__dict__))
+                logger.debug(f'Received response: {response.__dict__}')
                 progress.next()
                 num_requests += 1
             else:
@@ -171,8 +169,7 @@ class MintClient():
                     category = (orig_trans.category if ignore_category
                                 else trans.category)
                     itemized_split = {
-                        'amount': '{}'.format(
-                            micro_usd_to_float_usd(trans.amount)),
+                        'amount': f'{micro_usd_to_float_usd(trans.amount)}',
                         'description': trans.description,
                         'category': {'id': category.id, 'name': category.name},
                         'notes': trans.notes,
@@ -185,14 +182,13 @@ class MintClient():
                     'splitData': {'children': split_children},
                 }
                 logger.debug(
-                    'Sending a "split" transaction request: {}'.format(
-                        split_edit))
+                    f'Sending a "split" transaction request: {split_edit}')
                 response = self.webdriver.request(
                     'PUT',
-                    '{}/{}'.format(MINT_TRANSACTIONS, trans.id),
+                    f'{MINT_TRANSACTIONS}/{trans.id}',
                     json=split_edit,
                     headers=self.get_api_header())
-                logger.debug('Received response: {}'.format(response.__dict__))
+                logger.debug(f'Received response: {response.__dict__}')
                 progress.next()
                 num_requests += 1
 
@@ -203,14 +199,13 @@ class MintClient():
 def _is_json_response_success(request_string, response):
     if response.status_code != requests.codes.ok:
         logger.error(
-            'Error getting {}. status_code = {}'.format(
-                request_string, response.status_code))
+            f'Error getting {request_string}. '
+            f'status_code = {response.status_code}')
         return False
     content_type = response.headers.get('content-type', '')
     if not content_type.startswith('application/json'):
         logger.error(
-            'Error getting {}. content_type = {}'.format(
-                request_string, content_type))
+            f'Error getting {request_string}. content_type = {content_type}')
         return False
     return True
 
@@ -222,18 +217,18 @@ _MAX_PASSWORD_ATTEMPTS = 2
 
 
 def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
-    logger.info('Navigating to Mint homepage.')
+    logger.info('Mint Login Flow: Navigating to Mint homepage.')
     webdriver.get(MINT_HOME)
     webdriver.implicitly_wait(0)
 
-    logger.info('Clicking "Sign in" button.')
     sign_in_button = get_element_by_link_text(webdriver, 'Sign in')
     if not sign_in_button:
-        logger.error('Cannot find "Sign in" button on Mint homepage.')
+        logger.error('Mint Login Flow: Cannot find "Sign in" button.')
         return False
+    logger.info('Mint Login Flow: Clicking "Sign in" button.')
     sign_in_button.click()
 
-    # Mint Logging in to mint.com is a bit messy. Work through the flow,
+    # Logging in to mint.com is a bit messy. Work through the flow,
     # allowing for any order of interstitials. Exit only when reaching the
     # overview page (indicating the user is logged in) or if the Logging in to
     # mint.com timeout has been exceeded.
@@ -248,11 +243,11 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
         since_start = datetime.now() - login_start_time
         if (args.mint_login_timeout
                 and since_start.total_seconds() > args.mint_login_timeout):
-            logger.error('Exceeded login timeout')
+            logger.error('Mint Login Flow: Exceeded login timeout')
             return False
 
         if args.mint_user_will_login:
-            logger.info('Mint login to be performed by user.')
+            logger.info('Mint Login Flow: login to be performed by user')
             _login_flow_advance(webdriver)
             continue
 
@@ -278,7 +273,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 webdriver,
                 ('//*[@id="ius-sign-in-mfa-parent"]/div/form/button/'
                  'span[text()="Continue"]'))
-            # New flow for password as if 9/29/2022 - uses mfa_continue_button to continue.
+            # New flow for password as if 9/29/2022 - uses mfa_continue_button
+            # to continue.
             confirmation_password_input = get_element_by_id(
                 webdriver, 'iux-password-confirmation-password')
 
@@ -329,7 +325,8 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                             'confirmation password input')
                 do_submit = True
             if num_password_attempts > _MAX_PASSWORD_ATTEMPTS:
-                logger.error('Too many password entries attempted; aborting.')
+                logger.error(
+                    'Mint Login Flow: Too many password attempts; aborting.')
                 return False
             if do_submit:
                 if is_visible(submit_button):
@@ -350,7 +347,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                         'verification')
                     mfa_continue_button.click()
                 else:
-                    logger.error('Cannot find visible submit button!')
+                    logger.error('Mint Login Flow: Cannot find submit button!')
 
                 _login_flow_advance(webdriver)
                 continue
@@ -382,7 +379,7 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                     webdriver, 'ius-known-device-use-a-different-id')
                 if not is_visible(use_different_account_button):
                     logger.error(
-                        'Cannot locate the add different account button.')
+                        'Mint Login Flow: Cannot locate add account button.')
                     return False
                 logger.info(
                     'Mint Login Flow: Selecting "Different user" from '
@@ -410,13 +407,14 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 # Attempt to use the user preferred method, falling back to the
                 # first method.
                 mfa_method_option = get_element_by_id(
-                    webdriver, 'ius-mfa-option-{}'.format(
-                        args.mint_mfa_preferred_method))
+                    webdriver,
+                    f'ius-mfa-option-{args.mint_mfa_preferred_method}')
                 if is_visible(mfa_method_option):
                     mfa_method_option.click()
-                    logger.info('Mint Login Flow: '
-                                'Selecting {} MFA method'.format(
-                                    args.mint_mfa_preferred_method))
+                    logger.info(
+                        'Mint Login Flow: '
+                        f'Selecting {args.mint_mfa_preferred_method} '
+                        'MFA method')
                 else:
                     mfa_method_cards = get_elements_by_class_name(
                         webdriver, 'ius-mfa-card-challenge')
@@ -464,48 +462,76 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             # MFA account selector:
             mfa_select_account = get_element_by_id(
                 webdriver, 'ius-mfa-select-account-section')
-            mfa_token_submit_button = get_element_by_xpath(
+            continue_button = get_element_by_xpath(
                 webdriver, '//button[text()=\'Continue\']')
             if is_visible(mfa_select_account):
                 account = args.mint_intuit_account or args.mint_email
-                logger.info('MFA select intuit account')
+                logger.info('Mint Login Flow: MFA select intuit account')
 
                 account_input = get_element_by_xpath(
-                    mfa_select_account,
-                    '//label/span/div/span[text()=\'{}\']'.format(account))
+                    webdriver,
+                    f'//label/span/div/span[text()=\'{account}\']')
                 if (is_visible(account_input)
                         and is_visible(mfa_token_submit_button)):
                     logger.info('Mint Login Flow: MFA account selection')
                     account_input.click()
-                    mfa_token_submit_button.submit()
+                    continue_button.click()
                     _login_flow_advance(webdriver)
                     continue
                 else:
-                    logger.error('Cannot find matching mint intuit account.')
+                    logger.error(
+                        'Mint Login Flow: '
+                        'Cannot find matching mint intuit account.')
+
+            # Multiple intuit accounts for email address.
+            select_account = get_element_by_id(
+                webdriver, 'ius-select-account-radio-option-0-input')
+            # select_account_submit_button = get_element_by_xpath(
+            #     webdriver, '//button[text()=\'Continue\']')
+            if is_visible(select_account):
+                account = args.mint_intuit_account or args.mint_email
+                logger.info(
+                    'Mint Login Flow: '
+                    'Select Intuit account from email (multiple present)')
+
+                account_input = get_element_by_xpath(
+                    webdriver,
+                    f'//label/span/div/span[text()=\'{account}\']')
+                if is_visible(account_input) and is_visible(continue_button):
+                    logger.info('Mint Login Flow: Found matching account')
+                    account_input.click()
+                    continue_button.click()
+                    _login_flow_advance(webdriver)
+                    continue
+                else:
+                    logger.error(
+                        'Mint Login Flow: '
+                        'Cannot find matching mint intuit account.')
 
             # Skip modal asking for passwordless login.
             skip_web_authn_reg_button = get_element_by_id(
                 webdriver, 'skipWebauthnRegistration')
             if is_visible(skip_web_authn_reg_button):
-                logger.info('Mint Login Flow: Skipping Passwordless Registration.')
+                logger.info(
+                    'Mint Login Flow: Skipping Passwordless Registration.')
                 skip_web_authn_reg_button.click()
                 continue
 
         except StaleElementReferenceException:
-            logger.warning("Page contents changed - trying again.")
+            logger.warning(
+                'Mint Login Flow: Page contents changed - trying again.')
         except ElementNotInteractableException:
-            logger.warning("Page contents not interactable - trying again.")
+            logger.warning(
+                'Mint Login Flow: '
+                'Page contents not interactable - trying again.')
 
-    # Wait until the "Accounts" section is visible on the page. Sometimes the login flow can advance too quickly, prior to when selenium requests can begin working.
-    '//span[text()="Accounts"]'
-
-    logger.info('Mint login successful.')
+    logger.info('Mint Login Flow: login successful.')
     # If you made it here, you must be good to go!
     return True
 
 
 def _login_flow_advance(webdriver):
-    time.sleep(2.22)
+    time.sleep(random.randint(500, 1500) / 1000)
 
 
 def _wait_for_overview_loaded(
@@ -530,12 +556,10 @@ def _wait_for_overview_loaded(
 
 
 def _get_api_header(webdriver):
-    key_var = "window.__shellInternal.appExperience.appApiKey"
-    api_key = webdriver.execute_script("return " + key_var)
-    auth = 'Intuit_APIKey intuit_apikey={}, intuit_apikey_version={}'.format(
-        api_key, '1.0')
-    header = {
+    api_key = webdriver.execute_script(
+        "return window.__shellInternal.appExperience.appApiKey")
+    auth = f'Intuit_APIKey intuit_apikey={api_key}, intuit_apikey_version=1.0'
+    return {
         'authorization': auth,
         'accept': 'application/json',
     }
-    return header

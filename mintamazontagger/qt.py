@@ -130,8 +130,8 @@ class AmazonUnmatchedTableDialog(QDialog):
         self.setLayout(v_layout)
 
         label = QLabel(
-            'Below are the {} Amazon Orders/Refunds which did not match a '
-            'Mint transaction.'.format(len(unmatched_orders)))
+            f'Below are the {len(unmatched_orders)} Amazon Orders/Refunds '
+            'which did not match a Mint transaction.')
         v_layout.addWidget(label)
 
         table = QTableView()
@@ -206,8 +206,8 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
         proposed_mint_desc = mint.summarize_title(
             [i.get_title() for i in amzn_obj.items]
             if not amzn_obj.is_refund else [amzn_obj.get_title()],
-            '{}{}: '.format(
-                amzn_obj.website, '' if not amzn_obj.is_refund else ' refund'))
+            f'{amzn_obj.website}'
+            f'{"" if not amzn_obj.is_refund else " refund"}: ')
         return [
             amzn_obj.transact_date().strftime('%m/%d/%y')
             if amzn_obj.transact_date()
@@ -269,37 +269,34 @@ class AmazonStatsDialog(QDialog):
             return
 
         v_layout.addWidget(QLabel(
-            '\n{} orders with {} matching items'.format(
-                len([o for o in orders if o.items_matched]),
-                len([i for i in items if i.matched]))))
+            f'\n{len([o for o in orders if o.items_matched])} orders with '
+            f'{len([i for i in items if i.matched])} matching items'))
         v_layout.addWidget(QLabel(
-            '{} unmatched orders and {} unmatched items'.format(
-                len([o for o in orders if not o.items_matched]),
-                len([i for i in items if not i.matched]))))
+            f'{len([o for o in orders if not o.items_matched])} unmatched '
+            f'orders and {len([i for i in items if not i.matched])} unmatched '
+            'items'))
 
         first_order_date = min([o.order_date for o in orders])
         last_order_date = max([o.order_date for o in orders])
 
         v_layout.addWidget(QLabel(
-            'Orders ranging from {} to {}'.format(
-                first_order_date, last_order_date)))
+            f'Orders ranging from {first_order_date} to {last_order_date}'))
 
         per_item_totals = [i.item_total for i in items]
         per_order_totals = [o.total_charged for o in orders]
 
         v_layout.addWidget(QLabel(
-            '{} total spend'.format(
-                micro_usd_to_usd_string(sum(per_order_totals)))))
+            f'{micro_usd_to_usd_string(sum(per_order_totals))} total spend'))
         v_layout.addWidget(QLabel(
-            '{} avg order total (range: {} - {})'.format(
-                micro_usd_to_usd_string(sum(per_order_totals) / len(orders)),
-                micro_usd_to_usd_string(min(per_order_totals)),
-                micro_usd_to_usd_string(max(per_order_totals)))))
+            f'{micro_usd_to_usd_string(sum(per_order_totals) / len(orders))} '
+            'avg order total (range: '
+            f'{micro_usd_to_usd_string(min(per_order_totals))} - '
+            f'{micro_usd_to_usd_string(max(per_order_totals))})'))
         v_layout.addWidget(QLabel(
-            '{} avg item price (range: {} - {})'.format(
-                micro_usd_to_usd_string(sum(per_item_totals) / len(items)),
-                micro_usd_to_usd_string(min(per_item_totals)),
-                micro_usd_to_usd_string(max(per_item_totals)))))
+            f'{micro_usd_to_usd_string(sum(per_item_totals) / len(items))} '
+            'avg item price (range: '
+            f'{micro_usd_to_usd_string(min(per_item_totals))} - '
+            f'{micro_usd_to_usd_string(max(per_item_totals))})'))
 
         if refunds:
             first_refund_date = min(
@@ -307,14 +304,14 @@ class AmazonStatsDialog(QDialog):
             last_refund_date = max(
                 [r.refund_date for r in refunds if r.refund_date])
             v_layout.addWidget(QLabel(
-                '\n{} refunds dating from {} to {}'.format(
-                    len(refunds), first_refund_date, last_refund_date)))
+                f'\n{len(refunds)} refunds dating from '
+                f'{first_refund_date} to {last_refund_date}'))
 
             per_refund_totals = [r.total_refund_amount for r in refunds]
 
             v_layout.addWidget(QLabel(
-                '{} total refunded'.format(
-                    micro_usd_to_usd_string(sum(per_refund_totals)))))
+                f'{micro_usd_to_usd_string(sum(per_refund_totals))} '
+                'total refunded'))
 
         close_button = QPushButton('Close')
         v_layout.addWidget(close_button)

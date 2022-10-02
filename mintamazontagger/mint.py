@@ -86,7 +86,7 @@ class Category(object):
         self.id = mint_categories[self.name]['id']
 
     def __repr__(self):
-        return '{}({})'.format(self.name, self.id)
+        return f'{self.name}({self.id})'
 
 
 class Transaction(object):
@@ -139,23 +139,17 @@ class Transaction(object):
         return base if ignore_category else base + (self.category.name,)
 
     def dry_run_str(self, ignore_category=False):
-        return '{} \t {} \t {} \t {}'.format(
-            self.date.strftime('%Y-%m-%d'),
-            micro_usd_to_usd_string(self.amount),
-            '--IGNORED--' if ignore_category else self.category,
-            self.description)
+        return (
+            f'{self.date.strftime("%Y-%m-%d")} \t'
+            f'{micro_usd_to_usd_string(self.amount)} \t'
+            f'{"--IGNORED--" if ignore_category else self.category} \t'
+            f'{self.description}')
 
     def __repr__(self):
-        notes = 'with notes' if self.notes else ''
         return (
-            'Mint Trans({id}): {amount} {date} {description} {category} '
-            '{notes}'.format(
-                id=self.id,
-                amount=micro_usd_to_usd_string(self.amount),
-                date=self.date,
-                description=self.description,
-                category=self.category,
-                notes=notes))
+            f'Mint Trans({self.id}): {micro_usd_to_usd_string(self.amount)} '
+            f'{self.date} {self.description} {self.category} '
+            f'{"with notes" if self.notes else ""}')
 
     @classmethod
     def parse_from_json(cls, json_dicts, progress=NoProgress()):
@@ -212,13 +206,9 @@ class FinancialInstitutionData(object):
 
     def __repr__(self):
         return (
-            'Mint FI Trans({id}): '
-            '{amount} {date} {description} {category}'.format(
-                id=self.id,
-                amount=micro_usd_to_usd_string(self.amount),
-                date=self.date,
-                description=self.description,
-                category=self.inferred_category))
+            f'Mint FI Trans({self.id}): '
+            f'{micro_usd_to_usd_string(self.amount)} {self.date} '
+            f'{self.description} {self.inferred_category}')
 
 
 def itemize_new_trans(new_trans, prefix):
