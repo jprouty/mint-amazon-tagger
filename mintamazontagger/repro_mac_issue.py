@@ -5,7 +5,8 @@ import tempfile
 
 from mintamazontagger.webdriver import get_stable_chrome_driver
 
-if __name__ == '__main__':
+
+def main():
     chrome_options = ChromeOptions()
     temp_dir = tempfile.TemporaryDirectory()
     # The follow line doesn't matter (doesn't seem to increase incident rate).
@@ -25,3 +26,7 @@ if __name__ == '__main__':
     with tempfile.NamedTemporaryFile() as fh:
         fh.write(response.content)
         print(fh.name)
+
+
+if __name__ == '__main__':
+    main()
