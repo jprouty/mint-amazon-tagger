@@ -98,7 +98,7 @@ setuptools.setup(
         console_scripts=[
             'mint-amazon-tagger-cli=mintamazontagger.cli:main',
             'mint-amazon-tagger=mintamazontagger.main:main',
-            'mint-amazon-tagger-repro_mac_issue=mintamazontagger.repro_mac_issue:main'
+            'mint-amazon-tagger-repro_selenium_issue=mintamazontagger.repro_mac_issue:main'
         ],
     ),
     cmdclass={
