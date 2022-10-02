@@ -12,7 +12,8 @@ from selenium.common.exceptions import (
     InvalidArgumentException, NoSuchElementException)
 from selenium.webdriver import ChromeOptions
 from selenium.webdriver.common.by import By
-from seleniumrequests import Chrome
+# from seleniumrequests import Chrome
+from mintamazontagger.seleniumrequests import Chrome
 
 logger = logging.getLogger(__name__)
 
