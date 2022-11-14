@@ -14,7 +14,6 @@ from selenium.webdriver import ChromeOptions
 from selenium.webdriver.common.by import By
 # from seleniumrequests import Chrome
 from mintamazontagger.seleniumrequests import Chrome
-# from mintamazontagger.seleniumrequests2 import Chrome
 
 logger = logging.getLogger(__name__)
 
