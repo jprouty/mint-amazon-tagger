@@ -21,11 +21,20 @@ logger = logging.getLogger(__name__)
 
 # Login and then go to https://www.amazon.com/gp/b2b/reports
 ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
-    'https://www.amazon.com/gp/navigation/redirector.html/ref=sign-in-redirect'
-    '?ie=UTF8&associationHandle=usflex&currentPageURL='
-    'https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyourstore%2Fhome%3Fie%3DUTF8%26'
-    'ref_%3Dnav_youraccount_switchacct&pageType=&switchAccount=picker&'
-    'yshURL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fb2b%2Freports')
+    'https://www.amazon.com/ap/signin'
+    '?openid.pape.max_auth_age=3600'
+    '&openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fb2b%2Freports'
+    '&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select'
+    '&openid.assoc_handle=usflex'
+    '&openid.mode=checkid_setup'
+    '&language=en_US'
+    '&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select'
+    '&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0')
+# 'https://www.amazon.com/gp/navigation/redirector.html/ref=sign-in-redirect'
+# '?ie=UTF8&associationHandle=usflex&currentPageURL='
+# 'https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyourstore%2Fhome%3Fie%3DUTF8%26'
+# 'ref_%3Dnav_youraccount_switchacct&pageType=&switchAccount=picker&'
+# 'yshURL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fb2b%2Freports')
 
 
 class Report:
@@ -74,15 +83,22 @@ def wait_for_report(webdriver, report, progress_factory, timeout):
     logger.info(f'Waiting for {report.readable_type} report to be ready')
     processing_progress = progress_factory(
         f'Waiting for {report.readable_type} report to be ready.', 0)
-    try:
-        wait_cond = EC.presence_of_element_located(
-            (By.XPATH, report.download_link_xpath))
-        WebDriverWait(webdriver, timeout).until(wait_cond)
-        processing_progress.finish()
-    except TimeoutException:
-        processing_progress.finish()
-        logger.critical("Cannot find download link after a minute!")
-        return False
+    refresh_button = get_element_by_id(webdriver, 'report-refresh-button')
+    wait_start_time = datetime.now()
+    while not get_element_by_xpath(webdriver, report.download_link_xpath):
+        since_start = datetime.now() - wait_start_time
+        if (since_start.total_seconds() > timeout):
+            logger.critical(
+                f'Cannot find {report.readable_type}  report download link after {timeout}s')
+            processing_progress.finish()
+            return False
+
+        # Click the refresh button every 2 seconds
+        logger.info('Clicking "Refresh Reports" button')
+        refresh_button.click()
+        time.sleep(2)
+
+    processing_progress.finish()
     return True
 
 
@@ -246,6 +262,14 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
                 if is_visible(continue_button):
                     continue_button.click()
                     logger.info('Amazon Login Flow: Clicking Continue')
+                    _login_flow_advance(webdriver)
+                    continue
+                # id "auth-signin-button" is a span that sits above input id=signInSubmit.
+                auth_signin_button = get_element_by_id(
+                    webdriver, 'auth-signin-button')
+                if is_visible(auth_signin_button):
+                    auth_signin_button.click()
+                    logger.info('Amazon Login Flow: Clicking Auth Sign In')
                     _login_flow_advance(webdriver)
                     continue
                 sign_in_submit = get_element_by_id(webdriver, 'signInSubmit')

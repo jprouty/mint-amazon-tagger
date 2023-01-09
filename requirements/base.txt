@@ -7,4 +7,4 @@ range-key-dict
 requests
 readchar
 selenium
-selenium-requests
+selenium-requests>=2.0.3

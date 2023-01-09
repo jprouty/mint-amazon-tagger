@@ -1,7 +1,6 @@
 import os
 from selenium.webdriver import ChromeOptions
-# from seleniumrequests import Chrome
-from mintamazontagger.seleniumrequests import Chrome
+from seleniumrequests import Chrome
 import tempfile
 
 from mintamazontagger.webdriver import get_stable_chrome_driver

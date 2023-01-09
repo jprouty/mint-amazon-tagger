@@ -251,6 +251,10 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             _login_flow_advance(webdriver)
             continue
 
+        # DO NOT COMMIT
+        print("Pausing login flow")
+        input()
+
         try:
             userid_input = get_element_by_id(webdriver, 'ius-userid')
             identifier_input = get_element_by_id(webdriver, 'ius-identifier')
