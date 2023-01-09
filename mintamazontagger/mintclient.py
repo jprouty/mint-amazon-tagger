@@ -251,13 +251,11 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             _login_flow_advance(webdriver)
             continue
 
-        # DO NOT COMMIT
-        print("Pausing login flow")
-        input()
-
         try:
             userid_input = get_element_by_id(webdriver, 'ius-userid')
             identifier_input = get_element_by_id(webdriver, 'ius-identifier')
+            identifier_first_input = get_element_by_id(
+                webdriver, 'iux-identifier-first-unknown-identifier')
             ius_text_input = get_element_by_id(webdriver, 'ius-text-input')
             password_input = get_element_by_id(webdriver, 'ius-password')
             submit_button = get_element_by_id(
@@ -274,9 +272,9 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
             password_verification_input = get_element_by_id(
                 webdriver, 'iux-password-verification-password')
             mfa_continue_button = get_element_by_xpath(
-                webdriver,
-                ('//*[@id="ius-sign-in-mfa-parent"]/div/form/button/'
-                 'span[text()="Continue"]'))
+                webdriver, '//button/span[text()="Continue"]')
+            sign_in_button = get_element_by_xpath(
+                webdriver, '//button/span[text()="Sign In"]')
             # New flow for password as if 9/29/2022 - uses mfa_continue_button
             # to continue.
             confirmation_password_input = get_element_by_id(
@@ -295,6 +293,12 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                 identifier_input.clear()
                 identifier_input.send_keys(args.mint_email)
                 logger.info('Mint Login Flow: Entering email into "id" field')
+                do_submit = True
+            if is_visible(identifier_first_input):
+                identifier_first_input.clear()
+                identifier_first_input.send_keys(args.mint_email)
+                logger.info(
+                    'Mint Login Flow: Entering email into first "id" field')
                 do_submit = True
             if is_visible(ius_text_input):
                 ius_text_input.clear()
@@ -350,6 +354,10 @@ def _nav_to_mint_and_login(webdriver, args, mfa_input_callback=None):
                         'Mint Login Flow: Submitting credentials for password '
                         'verification')
                     mfa_continue_button.click()
+                elif is_visible(sign_in_button):
+                    logger.info(
+                        'Mint Login Flow: Submitting via "Sign in"')
+                    sign_in_button.click()
                 else:
                     logger.error('Mint Login Flow: Cannot find submit button!')
 
