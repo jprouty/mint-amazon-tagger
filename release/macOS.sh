@@ -46,6 +46,13 @@ codesign --verify --verbose --force --deep --sign \
   --options=runtime \
   "${app_dir}"
 
+echo "Signing selenium-manager"
+codesign --verify --verbose --force --sign \
+  "${app_identity}" \
+  --entitlements "${entitlements}" \
+  --options=runtime \
+  "${app_dir}/Contents/Resources/selenium/webdriver/common/macos/selenium-manager"
+
 echo "Creating installer/disk image"
 readonly temp_dmg="dist/${app_name}.temp.dmg"
 hdiutil create \
