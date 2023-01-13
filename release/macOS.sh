@@ -39,19 +39,13 @@ pyinstaller \
 deactivate
 rm -rf release_venv
 
-echo "Signing the app"
+echo "Signing the app and selenium-manager"
 codesign --verify --verbose --force --deep --sign \
   "${app_identity}" \
   --entitlements "${entitlements}" \
   --options=runtime \
+  "${app_dir}/Contents/Resources/selenium/webdriver/common/macos/selenium-manager" \
   "${app_dir}"
-
-echo "Signing selenium-manager"
-codesign --verify --verbose --force --sign \
-  "${app_identity}" \
-  --entitlements "${entitlements}" \
-  --options=runtime \
-  "${app_dir}/Contents/Resources/selenium/webdriver/common/macos/selenium-manager"
 
 echo "Creating installer/disk image"
 readonly temp_dmg="dist/${app_name}.temp.dmg"
