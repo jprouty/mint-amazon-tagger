@@ -22,3 +22,4 @@ auto-save-list
 tramp
 .\#*
 .DS_Store
+chromedriver
