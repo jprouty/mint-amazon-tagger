@@ -2,3 +2,5 @@ autopep8
 flake8
 ipython
 pytest
+twine
+wheel
