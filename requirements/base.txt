@@ -1,4 +1,5 @@
 PyQt5
+chardet
 outdated
 oathtool
 psutil
