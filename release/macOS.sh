@@ -39,11 +39,12 @@ pyinstaller \
 deactivate
 rm -rf release_venv
 
-echo "Signing the app"
+echo "Signing the app and selenium-manager"
 codesign --verify --verbose --force --deep --sign \
   "${app_identity}" \
   --entitlements "${entitlements}" \
   --options=runtime \
+  "${app_dir}/Contents/Resources/selenium/webdriver/common/macos/selenium-manager" \
   "${app_dir}"
 
 echo "Creating installer/disk image"
@@ -103,7 +104,7 @@ xcrun altool --notarize-app \
 echo "Check notary status later via: "
 echo "  xcrun altool --notarization-history 0 -u \"${email}\" -p \"@keychain:AC_PASSWORD\""
 echo "    AND"
-echo "  xcrun altool --notarization-info <REQUEST_ID> -u \"${email}\""
+echo "  xcrun altool --notarization-info <REQUEST_ID> -u \"${email}\" -p \"@keychain:AC_PASSWORD\""
 echo
 echo "Once successful, staple and you're done!:"
 echo "  xcrun stapler staple \"${dmg_path}\""
