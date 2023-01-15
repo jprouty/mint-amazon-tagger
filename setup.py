@@ -92,7 +92,7 @@ setuptools.setup(
         'requests',
         'readchar',
         'selenium',
-        'selenium-requests',
+        'selenium-requests>=2.0.3',
     ],
     entry_points=dict(
         console_scripts=[
