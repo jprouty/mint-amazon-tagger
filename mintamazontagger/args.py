@@ -111,7 +111,8 @@ def define_common_args(parser):
         '--mint_intuit_account',
         default=None,
         help=('The intuit account to select if multiple are associated with '
-              '--mint_email.'))
+              '--mint_email. If not provided, attempt to use the intuit account '
+              'username that matches --mint_email.'))
 
     # Mint API options:
     default_session_path = os.path.join(TAGGER_BASE_PATH, 'ChromeSession')

@@ -83,7 +83,7 @@ def wait_for_report(webdriver, report, progress_factory, timeout):
     logger.info(f'Waiting for {report.readable_type} report to be ready')
     processing_progress = progress_factory(
         f'Waiting for {report.readable_type} report to be ready.', 0)
-    refresh_button = get_element_by_id(webdriver, 'report-refresh-button')
+
     wait_start_time = datetime.now()
     while not get_element_by_xpath(webdriver, report.download_link_xpath):
         since_start = datetime.now() - wait_start_time
@@ -93,10 +93,16 @@ def wait_for_report(webdriver, report, progress_factory, timeout):
             processing_progress.finish()
             return False
 
-        # Click the refresh button every 2 seconds
-        logger.info('Clicking "Refresh Reports" button')
-        refresh_button.click()
-        time.sleep(2)
+        # Click the refresh button every 5 seconds.
+        try:
+            logger.info('Clicking "Refresh Reports" button')
+            refresh_button = get_element_by_id(
+                webdriver, 'report-refresh-button')
+            if is_visible(refresh_button):
+                refresh_button.click()
+        except StaleElementReferenceException:
+            pass
+        time.sleep(5)
 
     processing_progress.finish()
     return True
@@ -208,30 +214,6 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
             return False
 
         try:
-            # Account switcher: look for the given email. If present, click on
-            # it!
-            account_switcher_choice = get_element_by_xpath(
-                webdriver,
-                f"//div[contains(text(), '{args.amazon_email}')]")
-            if is_visible(account_switcher_choice):
-                logger.info(
-                    'Amazon Login Flow: Found email in account switcher')
-                account_switcher_choice.click()
-                _login_flow_advance(webdriver)
-                continue
-
-            # Account switcher: Cannot find the desired account in the acccount
-            # switcher. Click "Add Account".
-            account_switcher_add_account = get_element_by_xpath(
-                webdriver, '//div[text()="Add account"]')
-            if is_visible(account_switcher_add_account):
-                logger.info(
-                    'Amazon Login Flow: '
-                    'Email not in account switcher - Pressing "Add account"')
-                account_switcher_add_account.click()
-                _login_flow_advance(webdriver)
-                continue
-
             # Username and password entry. Sometimes these are separate
             # interstitials, sometimes they are one.
             email_input = get_element_by_id(webdriver, 'ap_email')
@@ -295,6 +277,30 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
                     'Please enter your 6-digit Amazon OTP code: ')
                 otp_code_input.send_keys(mfa_code)
                 otp_continue.click()
+                _login_flow_advance(webdriver)
+                continue
+
+            # Account switcher: look for the given email. If present, click on
+            # it!
+            account_switcher_choice = get_element_by_xpath(
+                webdriver,
+                f"//div[contains(text(), '{args.amazon_email}')]")
+            if is_visible(account_switcher_choice):
+                logger.info(
+                    'Amazon Login Flow: Found email in account switcher')
+                account_switcher_choice.click()
+                _login_flow_advance(webdriver)
+                continue
+
+            # Account switcher: Cannot find the desired account in the acccount
+            # switcher. Click "Add Account".
+            account_switcher_add_account = get_element_by_xpath(
+                webdriver, '//div[text()="Add account"]')
+            if is_visible(account_switcher_add_account):
+                logger.info(
+                    'Amazon Login Flow: '
+                    'Email not in account switcher - Pressing "Add account"')
+                account_switcher_add_account.click()
                 _login_flow_advance(webdriver)
                 continue
 
