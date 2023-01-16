@@ -83,6 +83,7 @@ setuptools.setup(
     ],
     install_requires=[
         'PyQt5',
+        'mintapi',
         'mock',
         'oathtool',
         'outdated',
