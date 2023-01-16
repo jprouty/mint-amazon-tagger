@@ -1,6 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
+import logging
 import pickle
 import re
 import os
@@ -11,6 +12,7 @@ from mintamazontagger.currency import (
     round_micro_usd_to_cent)
 from mintamazontagger.my_progress import NoProgress
 
+logger = logging.getLogger(__name__)
 
 def truncate_title(title, target_length, base_str=None):
     words = []
@@ -57,6 +59,8 @@ def pythonify_mint_transaction_dict(raw_dict, is_fi_data=False):
     if is_fi_data:
         raw_dict['inferredCategory'] = Category(raw_dict['inferredCategory'])
     else:
+        if 'category' not in raw_dict:
+            logger.fatal(f'No category for mint transaction: {raw_dict}')
         raw_dict['category'] = Category(raw_dict['category'])
         raw_dict['fiData'] = FinancialInstitutionData(raw_dict['fiData'])
         # Ensure the notes field is always present (None if not present).
