@@ -88,13 +88,13 @@ def define_common_args(parser):
         choices=['sms', 'email', 'soft-token'],
         help='The perferred Mint MFA method (2factor auth codes).')
     parser.add_argument(
-        '--mfa_soft_token',
+        '--mint_mfa_soft_token',
         default=None,
         help='The MFA soft-token to pass to oathtool.')
     parser.add_argument(
-        '--mint_login_timeout',
+        '--mint_sync_timeout',
         default=60 * 5,
-        help='The number of seconds to wait attempting to log into Mint.')
+        help='The number of seconds to wait attempting to sync a Mint account.')
     parser.add_argument(
         '--mint_wait_for_sync',
         action='store_true',
