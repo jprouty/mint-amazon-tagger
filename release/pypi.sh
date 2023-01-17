@@ -26,4 +26,4 @@ python -m mintamazontagger.main
 cd ..
 
 deactivate
-# rm -rf pypi_test_venv
+rm -rf pypi_test_venv
