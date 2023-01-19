@@ -7,18 +7,13 @@ import requests
 import time
 
 from mintamazontagger.currency import micro_usd_to_float_usd
-from mintamazontagger.webdriver import (
-    get_element_by_id, get_element_by_xpath,
-    get_element_by_link_text, get_elements_by_class_name,
-    is_visible)
+from mintamazontagger.webdriver import get_element_by_id, is_visible
 
 from mintapi.api import Mint
 
-from selenium.common.exceptions import (
-    ElementNotInteractableException, StaleElementReferenceException,
-    TimeoutException)
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
@@ -36,6 +31,8 @@ class MintClient():
     webdriver_factory = None
     webdriver = None
     mint_api = None
+    # To signify a successful user login when args.mint_user_will_login is present.
+    user_login_success = False
 
     def __init__(self, args, webdriver_factory, mfa_input_callback=None):
         self.args = args
@@ -47,29 +44,49 @@ class MintClient():
             return True
         return self.args.mint_email and self.args.mint_password
 
-    def login(self):
+    def get_api_header(self):
+        # Defer to MintAPI if present.
         if self.mint_api:
+            return self.mint_api._get_api_key_header()
+        # Otherwise, attempt ourselves (needed in the case of args.mint_user_will_login).
+        return _get_api_header(self.webdriver)
+
+    def is_logged_in(self):
+        return self.mint_api or self.user_login_success
+
+    def login(self):
+        if self.is_logged_in():
             return True
         if not self.hasValidCredentialsForLogin():
             logger.error('Missing Mint email or password.')
             return False
 
-        logger.info('You may be asked for an auth code at the command line! '
-                    'Be sure to press ENTER after typing the 6 digit code.')
         self.webdriver = self.webdriver_factory()
-        self.mint_api = Mint(
-            driver=self.webdriver,
-            email=self.args.mint_email,
-            password=self.args.mint_password,
-            mfa_method=self.args.mint_mfa_preferred_method,
-            mfa_token=self.args.mint_mfa_soft_token,
-            mfa_input_callback=self.mfa_input_callback,
-            intuit_account=self.args.mint_intuit_account,
-            wait_for_sync=self.args.mint_wait_for_sync,
-            wait_for_sync_timeout=self.args.mint_sync_timeout,
-            quit_driver_on_fail=False,
-        )
-        return True
+
+        if self.args.mint_user_will_login:
+            logger.info(
+                'Mint Login Flow: login to be performed manually by the user')
+            self.user_login_success = _await_user_login(
+                self.webdriver, self.args.mint_login_timeout)
+        else:
+            logger.info('Mint Login Flow: MintAPI to complete login')
+            logger.info('You may be asked for an auth code at the command line! '
+                        'Be sure to press ENTER after typing the 6 digit code.')
+            self.mint_api = Mint(
+                driver=self.webdriver,
+                email=self.args.mint_email,
+                password=self.args.mint_password,
+                mfa_method=self.args.mint_mfa_preferred_method,
+                mfa_token=self.args.mint_mfa_soft_token,
+                mfa_input_callback=self.mfa_input_callback,
+                intuit_account=self.args.mint_intuit_account,
+                wait_for_sync=self.args.mint_wait_for_sync,
+                wait_for_sync_timeout=self.args.mint_sync_timeout,
+                quit_driver_on_fail=False,
+            )
+        # Use our own wait for sync logic in both cases, to protect making api calls too soon.
+        _wait_for_overview_loaded(self.webdriver, self.args.mint_wait_for_sync)
+        return self.is_logged_in()
 
     def get_transactions(self, from_date=None, to_date=None):
         if not self.login():
@@ -84,7 +101,7 @@ class MintClient():
         }
 
         response = self.webdriver.request(
-            'GET', MINT_TRANSACTIONS, headers=self.mint_api._get_api_key_header(),
+            'GET', MINT_TRANSACTIONS, headers=self.get_api_header(),
             params=params)
         if not _is_json_response_success('transactions', response):
             return []
@@ -118,7 +135,7 @@ class MintClient():
         logger.info('Getting Mint categories.')
 
         response = self.webdriver.request(
-            'GET', MINT_CATEGORIES, headers=self.mint_api._get_api_key_header())
+            'GET', MINT_CATEGORIES, headers=self.get_api_header())
         if not _is_json_response_success('categories', response):
             return []
         response_json = response.json()
@@ -163,7 +180,7 @@ class MintClient():
                     'PUT',
                     f'{MINT_TRANSACTIONS}/{trans.id}',
                     json=modify_trans,
-                    headers=self.mint_api._get_api_key_header())
+                    headers=self.get_api_header())
                 logger.debug(f'Received response: {response.__dict__}')
                 progress.next()
                 num_requests += 1
@@ -192,7 +209,7 @@ class MintClient():
                     'PUT',
                     f'{MINT_TRANSACTIONS}/{trans.id}',
                     json=split_edit,
-                    headers=self.mint_api._get_api_key_header())
+                    headers=self.get_api_header())
                 logger.debug(f'Received response: {response.__dict__}')
                 progress.next()
                 num_requests += 1
@@ -213,3 +230,46 @@ def _is_json_response_success(request_string, response):
             f'Error getting {request_string}. content_type = {content_type}')
         return False
     return True
+
+
+def _get_api_header(webdriver):
+    api_key = webdriver.execute_script(
+        "return window.__shellInternal.appExperience.appApiKey")
+    auth = f'Intuit_APIKey intuit_apikey={api_key}, intuit_apikey_version=1.0'
+    return {
+        'authorization': auth,
+        'accept': 'application/json',
+    }
+
+
+def _await_user_login(webdriver, timeout):
+    try:
+        WebDriverWait(webdriver, timeout).until(EC.url_contains(MINT_OVERVIEW))
+        return True
+    except TimeoutException:
+        logger.info(
+            f'Mint Login Flow: User login did not complete within {timeout} '
+            'seconds. Tool is looking for the account overview page before '
+            'proceeding.')
+        return False
+
+
+def _wait_for_overview_loaded(
+        webdriver, wait_for_sync=False, wait_for_sync_timeout=5 * 60):
+    logger.info('Waiting for Mint Overview')
+    try:
+        # Wait for the accounts list to present before continuing.
+        WebDriverWait(webdriver, 30).until(
+            EC.visibility_of_element_located(
+                (By.XPATH, '//span[text()="Accounts"]')))
+        logger.info('Mint overview loaded')
+        if (wait_for_sync):
+            logger.info('Waiting for Mint to sync accounts')
+            WebDriverWait(webdriver, wait_for_sync_timeout).until(
+                EC.visibility_of_element_located(
+                    (By.XPATH,
+                     '//strong[text()="Account refresh complete."]')))
+            logger.info('Mint account sync complete')
+    except (TimeoutException, StaleElementReferenceException):
+        logger.warning("Mint sync apparently incomplete after timeout. "
+                       "Data retrieved may not be current.")
