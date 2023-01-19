@@ -5,6 +5,7 @@ import random
 import time
 
 from selenium.common.exceptions import (
+    ElementClickInterceptedException,
     ElementNotInteractableException, NoSuchElementException,
     StaleElementReferenceException, TimeoutException)
 from selenium.webdriver.common.by import By
@@ -84,6 +85,8 @@ def wait_for_report(webdriver, report, progress_factory, timeout):
     processing_progress = progress_factory(
         f'Waiting for {report.readable_type} report to be ready.', 0)
 
+    click_refresh_interval_s = 30
+
     wait_start_time = datetime.now()
     while not get_element_by_xpath(webdriver, report.download_link_xpath):
         since_start = datetime.now() - wait_start_time
@@ -93,16 +96,21 @@ def wait_for_report(webdriver, report, progress_factory, timeout):
             processing_progress.finish()
             return False
 
-        # Click the refresh button every 5 seconds.
         try:
+            wait_cond = EC.presence_of_element_located(
+                (By.XPATH, report.download_link_xpath))
+            WebDriverWait(webdriver, click_refresh_interval_s).until(wait_cond)
+        except TimeoutException:
             logger.info('Clicking "Refresh Reports" button')
-            refresh_button = get_element_by_id(
-                webdriver, 'report-refresh-button')
-            if is_visible(refresh_button):
-                refresh_button.click()
-        except StaleElementReferenceException:
-            pass
-        time.sleep(5)
+            try:
+                refresh_button = get_element_by_id(
+                    webdriver, 'report-refresh-button')
+                if is_visible(refresh_button):
+                    refresh_button.click()
+            except StaleElementReferenceException:
+                pass
+            except ElementClickInterceptedException:
+                pass
 
     processing_progress.finish()
     return True
