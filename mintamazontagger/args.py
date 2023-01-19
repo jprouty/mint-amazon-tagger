@@ -92,6 +92,10 @@ def define_common_args(parser):
         default=None,
         help='The MFA soft-token to pass to oathtool.')
     parser.add_argument(
+        '--mint_login_timeout',
+        default=60 * 5,
+        help='The number of seconds to wait attempting to log into Mint.')
+    parser.add_argument(
         '--mint_sync_timeout',
         default=60 * 5,
         help='The number of seconds to wait attempting to sync a Mint account.')
