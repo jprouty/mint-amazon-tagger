@@ -25,7 +25,7 @@ tagged. Feel free to adjust categories after the fact without fear that the
 next run will wipe everything out. If you do want to re-tag
 previously tagged transactions take a look at the retag_changed option.
 
-This tool **does not** save your username or password. The tool is powered by the [Selenium framework](https://www.selenium.dev/) to automate an instance of the Chrome/Chromium browser. When running the tool it will prompt for the username and password and then enter it into the browser for you. There are options that allow for manual user operation of the login flows for both Mint and Amazon. 
+This tool **does not** save your username or password. The tool is powered by the [Selenium framework](https://www.selenium.dev/) to automate an instance of the Chrome/Chromium browser. When running the tool it will prompt for the username and password and then enter it into the browser for you. There are options that allow for manual user operation of the login flows for both Mint and Amazon.
 
 This tool **does not** require an Amazon store card/Visa. All you need is to pay for your Amazon orders with an account that is synchronized with Mint. For example, if you alternate between 5 different credit cards to pay for purchases on your Amazon account, only the transactions from credit cards synchronized with Mint will get tagged.
 
@@ -33,6 +33,19 @@ Some things the tagger cannot do:
 
 - Amazon credit card award points are not reported anywhere in the order/item reports.
 - Amazon gift cards are not yet supported (see [issue #59](https://github.com/jprouty/mint-amazon-tagger/issues/59))
+
+## Support ##
+
+This project has been a passion project of [mine](https://github.com/jprouty) to better understand cashflow (critical to trend analysis and budgeting).
+
+If you have found this tool useful, please consider showing your support:
+
+- [CashApp](https://cash.app/$JeffProuty)
+- [Venmo](https://www.venmo.com/u/jeff-prouty)
+- [Paypal.me](https://paypal.me/jeffprouty)
+- [Patreon](https://patreon.com/jeffprouty) - **recurring**
+- Bitcoin - BTC Address: `3JfvxXzJJ85pxk7wnUmjTUKc6MfDXFWjpg`
+- Ethereum - ETH Address: `0xFcd385b3D18DABa5231a64EEA2327fE1F1b1Ff15`
 
 ## Install and Getting started ##
 
@@ -67,6 +80,7 @@ docker run -it --rm mint-amazon-tagger
 
 3. Chromedriver should be fetched automatically. But if you run into issues,
 try this:
+
 ```
 # Mac:
 brew tap homebrew/cask
@@ -128,6 +142,6 @@ Not every bank treats Amazon purchases the same, or processes transactions as qu
 
 Some common options to try:
 
-* --mint_input_include_inferred_description. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
-* --mint_input_include_user_description. Similar to above; considers the current description as shown in the Mint tool (including any user edits).
-* --max_days_between_payment_and_shipping. If your bank is slow at posting payments, adjusting this value up to 7 or more will increase your chance of matching. If you have a high volume of purchases, this can increase your chance of mis-tagging items.
+- --mint_input_include_inferred_description. This allows for more generous consideration of Mint transactions for matching. See [more context here](https://github.com/jprouty/mint-amazon-tagger/issues/50)
+- --mint_input_include_user_description. Similar to above; considers the current description as shown in the Mint tool (including any user edits).
+- --max_days_between_payment_and_shipping. If your bank is slow at posting payments, adjusting this value up to 7 or more will increase your chance of matching. If you have a high volume of purchases, this can increase your chance of mis-tagging items.
