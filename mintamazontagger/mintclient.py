@@ -66,6 +66,7 @@ class MintClient():
         if self.args.mint_user_will_login:
             logger.info(
                 'Mint Login Flow: login to be performed manually by the user')
+            self.webdriver.get(MINT_HOME)
             self.user_login_success = _await_user_login(
                 self.webdriver, self.args.mint_login_timeout)
         else:
