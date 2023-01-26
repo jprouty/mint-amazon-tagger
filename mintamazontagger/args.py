@@ -18,12 +18,10 @@ def define_common_args(parser):
     # Amazon creds:
     parser.add_argument(
         '--amazon_email', default=None,
-        help=('Amazon e-mail. If not provided, you will be '
-              'prompted for it.'))
+        help=('Amazon e-mail.'))
     parser.add_argument(
         '--amazon_password', default=None,
-        help=('Amazon password. If not provided, you will be '
-              'prompted for it.'))
+        help=('Amazon password.'))
     parser.add_argument(
         '--amazon_user_will_login',
         action='store_true',
@@ -76,12 +74,10 @@ def define_common_args(parser):
     # Mint creds:
     parser.add_argument(
         '--mint_email', default=None,
-        help=('Mint e-mail address for login. If not provided here, will be '
-              'prompted for user.'))
+        help=('Mint e-mail address for login.'))
     parser.add_argument(
         '--mint_password', default=None,
-        help=('Mint password for login. If not provided here, will be '
-              'prompted for.'))
+        help=('Mint password for login.'))
     parser.add_argument(
         '--mint_mfa_preferred_method',
         default='email',

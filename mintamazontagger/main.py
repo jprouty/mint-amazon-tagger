@@ -132,36 +132,41 @@ class TaggerGui:
         mint_layout = QFormLayout()
 
         mint_layout.addRow(
-            'Email:',
+            self.create_line_label('Email:', 'mint_email'),
             self.create_line_edit('mint_email', tool_tip=NEVER_SAVE_MSG))
         mint_layout.addRow(
-            'Password:',
+            self.create_line_label('Password:', 'mint_password'),
             self.create_line_edit(
                 'mint_password', tool_tip=NEVER_SAVE_MSG, password=True))
         mint_layout.addRow(
-            'MFA Code:',
+            self.create_line_label('MFA Code: ', 'mint_mfa_preferred_method'),
             self.create_combobox(
                 'mint_mfa_preferred_method',
                 ['SMS', 'Email'],
                 lambda x: x.lower()))
         mint_layout.addRow(
-            'I will login myself',
+            self.create_line_label('I will login myself',
+                                   'mint_user_will_login'),
             self.create_checkbox('mint_user_will_login'))
         mint_layout.addRow(
-            'Sync first?',
+            self.create_line_label('Sync first?', 'mint_wait_for_sync'),
             self.create_checkbox('mint_wait_for_sync'))
 
         mint_layout.addRow(
-            'description Filter',
+            self.create_line_label('Description Filter',
+                                   'mint_input_description_filter'),
             self.create_line_edit('mint_input_description_filter'))
         mint_layout.addRow(
-            'Include user description',
+            self.create_line_label(
+                'Include user description', 'mint_input_include_user_description'),
             self.create_checkbox('mint_input_include_user_description'))
         mint_layout.addRow(
-            'Include inferred description',
+            self.create_line_label(
+                'Include inferred description', 'mint_input_include_inferred_description'),
             self.create_checkbox('mint_input_include_inferred_description'))
         mint_layout.addRow(
-            'Input Categories Filter',
+            self.create_line_label(
+                'Input Categories Filter', 'mint_input_categories_filter'),
             self.create_line_edit('mint_input_categories_filter'))
         mint_group.setLayout(mint_layout)
         h_layout.addWidget(mint_group)
@@ -171,24 +176,27 @@ class TaggerGui:
         tagger_left = QFormLayout()
 
         tagger_left.addRow(
-            'Verbose Itemize',
+            self.create_line_label('Verbose Itemize', 'verbose_itemize'),
             self.create_checkbox('verbose_itemize'))
         tagger_left.addRow(
-            'Do not Itemize',
+            self.create_line_label('Do not Itemize', 'no_itemize'),
             self.create_checkbox('no_itemize'))
         tagger_left.addRow(
-            'Retag Changed',
+            self.create_line_label('Retag Changed', 'retag_changed'),
             self.create_checkbox('retag_changed'))
 
         tagger_right = QFormLayout()
         tagger_right.addRow(
-            'Do not tag categories',
+            self.create_line_label(
+                'Do not tag categories', 'no_tag_categories'),
             self.create_checkbox('no_tag_categories'))
         tagger_right.addRow(
-            'Do not predict categories',
+            self.create_line_label(
+                'Do not predict categories', 'do_not_predict_categories'),
             self.create_checkbox('do_not_predict_categories'))
         tagger_right.addRow(
-            'Max days between payment/shipment',
+            self.create_line_label(
+                'Max days between payment/shipment', 'max_days_between_payment_and_shipping'),
             self.create_combobox(
                 'max_days_between_payment_and_shipping',
                 ['3', '4', '5', '6', '7', '8', '9', '10'],
@@ -215,23 +223,24 @@ class TaggerGui:
         amazon_fetch_layout.addRow(QLabel(
             'Fetches recent Amazon order history for you.'))
         amazon_fetch_layout.addRow(
-            'Email:',
+            self.create_line_label('Email:', 'amazon_email'),
             self.create_line_edit('amazon_email', tool_tip=NEVER_SAVE_MSG))
         amazon_fetch_layout.addRow(
-            'Password:',
+            self.create_line_label('Password:', 'amazon_password'),
             self.create_line_edit(
                 'amazon_password', tool_tip=NEVER_SAVE_MSG, password=True))
         amazon_fetch_layout.addRow(
-            'I will login myself',
+            self.create_line_label('I will login myself',
+                                   'amazon_user_will_login'),
             self.create_checkbox(
                 'amazon_user_will_login'))
         amazon_fetch_layout.addRow(
-            'Start date:',
+            self.create_line_label('Start date:', 'order_history_start_date'),
             self.create_date_edit(
                 'order_history_start_date',
                 'Select Amazon order history start date'))
         amazon_fetch_layout.addRow(
-            'End date:',
+            self.create_line_label('End date:', 'order_history_end_date'),
             self.create_date_edit(
                 'order_history_end_date',
                 'Select Amazon order history end date'))
@@ -249,19 +258,19 @@ class TaggerGui:
         amazon_import_layout.addRow(order_history_link)
 
         amazon_import_layout.addRow(
-            'Items CSV:',
+            self.create_line_label('Items CSV:', 'items_csv'),
             self.create_file_edit(
                 'items_csv',
                 'Select Amazon Items Report'
             ))
         amazon_import_layout.addRow(
-            'Orders CSV:',
+            self.create_line_label('Orders CSV:', 'orders_csv'),
             self.create_file_edit(
                 'orders_csv',
                 'Select Amazon Orders Report'
             ))
         amazon_import_layout.addRow(
-            'Refunds CSV:',
+            self.create_line_label('Refunds CSV:', 'refunds_csv'),
             self.create_file_edit(
                 'refunds_csv',
                 'Select Amazon Refunds Report'
@@ -328,6 +337,14 @@ class TaggerGui:
 
     def advance_focus(self):
         self.window.focusNextChild()
+
+    def create_line_label(self, label, tool_tip_name=None, tool_tip=None):
+        line_edit = QLabel(label)
+        if not tool_tip and tool_tip_name:
+            tool_tip = self.arg_name_to_help[tool_tip_name]
+        if tool_tip:
+            line_edit.setToolTip(tool_tip)
+        return line_edit
 
     def create_line_edit(self, name, tool_tip=None, password=False):
         line_edit = QLineEdit(getattr(self.args, name))
