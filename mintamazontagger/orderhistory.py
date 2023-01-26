@@ -226,7 +226,7 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
                 'Amazon Login Flow: Too many login attempts - aborting.')
             return False
 
-        # input('Press enter to advance login flow')
+        input('Press enter to advance login flow')
 
         try:
             if attempt_username_and_password(webdriver, args.amazon_email, args.amazon_password):
@@ -264,7 +264,6 @@ def attempt_password(webdriver, password):
     password_input.clear()
     password_input.send_keys(password)
     logger.info('Amazon Login Flow: Entering password')
-    num_password_attempts += 1
     return True
 
 

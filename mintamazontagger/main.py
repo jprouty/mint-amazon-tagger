@@ -281,6 +281,7 @@ class TaggerGui:
         pass
 
     def on_tagger_dialog_closed(self):
+
         self.start_button.setEnabled(True)
         # Reset any csv file handles, as there might have been an error and
         # they user may try again (could already be consumed/closed).
@@ -498,7 +499,7 @@ class TaggerDialog(QDialog):
         self.report_issue_button.clicked.connect(self.on_report_issue)
 
         self.cancel_button.setText('Close')
-        self.cancel_button.clicked.connect(self.close)
+        self.cancel_button.clicked.connect(self.on_stopped)
 
     def on_report_issue(self):
         logger.info('Report Issue Clicked')
@@ -512,7 +513,7 @@ class TaggerDialog(QDialog):
         webbrowser.open(
             'https://github.com/jprouty/mint-amazon-tagger/issues/'
             f'new?{urlencode(url_params)}')
-        self.close()
+        self.on_stopped()
 
     def open_amazon_order_id(self, order_id):
         if order_id:
@@ -618,6 +619,9 @@ class TaggerDialog(QDialog):
             Q_ARG(object, self.args))
 
     def on_stopped(self):
+        logger.info('Calling close_webdriver')
+        QMetaObject.invokeMethod(
+            self.worker, 'close_webdriver', Qt.QueuedConnection)
         self.close()
 
     def on_progress(self, msg, max, value):
@@ -630,7 +634,7 @@ class TaggerDialog(QDialog):
             QMetaObject.invokeMethod(
                 self.worker, 'stop', Qt.QueuedConnection)
         else:
-            self.close()
+            self.on_stopped()
 
     def on_mfa(self):
         mfa_code, ok = QInputDialog().getText(
@@ -682,8 +686,11 @@ class TaggerWorker(QObject):
             self.on_error.emit(msg)
             logger.exception(msg)
 
+    @ pyqtSlot()
     def close_webdriver(self):
+        logger.info('close_webdriver')
         if self.webdriver:
+            logger.info('closing')
             self.webdriver.close()
             self.webdriver = None
 
