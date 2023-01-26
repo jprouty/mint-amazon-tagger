@@ -193,10 +193,10 @@ def nav_to_amazon_and_let_user_login(webdriver, args):
     return True
 
 
-# Never attempt to enter the password more than 2 times to prevent locking an
+# Never attempt to enter the username/password more than 3 times to prevent locking an
 # account out due to too many fail attempts. A valid MFA can require reentry
 # of the password.
-_MAX_PASSWORD_ATTEMPTS = 2
+_MAX_LOGIN_ATTEMPTS = 3
 
 
 def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
@@ -213,7 +213,7 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
     # For each attempt section, note that the element must both be present AND
     # visible.
     login_start_time = datetime.now()
-    num_password_attempts = 0
+    num_login_attempts = 0
     while not get_element_by_id(webdriver, 'report-confirm'):
         since_start = datetime.now() - login_start_time
         if (args.amazon_login_timeout
@@ -221,97 +221,20 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
             logger.error('Amazon Login Flow: Exceeded login timeout')
             return False
 
+        if num_login_attempts > _MAX_LOGIN_ATTEMPTS:
+            logger.error(
+                'Amazon Login Flow: Too many login attempts - aborting.')
+            return False
+
+        # input('Press enter to advance login flow')
+
         try:
-            # Username and password entry. Sometimes these are separate
-            # interstitials, sometimes they are one.
-            email_input = get_element_by_id(webdriver, 'ap_email')
-            password_input = get_element_by_id(webdriver, 'ap_password')
-            if is_visible(email_input) or is_visible(password_input):
-                if is_visible(email_input):
-                    email_input.clear()
-                    email_input.send_keys(args.amazon_email)
-                    logger.info('Amazon Login Flow: Entering email')
-                if is_visible(password_input):
-                    password_input.clear()
-                    password_input.send_keys(args.amazon_password)
-                    logger.info('Amazon Login Flow: Entering password')
-                    num_password_attempts += 1
-
-                remember_me = get_element_by_name(webdriver, 'rememberMe')
-                if is_visible(remember_me):
-                    remember_me.click()
-                    logger.info('Amazon Login Flow: Clicking Remember Me')
-
-                if num_password_attempts > _MAX_PASSWORD_ATTEMPTS:
-                    logger.error(
-                        'Amazon Login Flow: '
-                        'Too many password attempts; aborting.')
-                    return False
-
-                continue_button = get_element_by_id(webdriver, 'continue')
-                if is_visible(continue_button):
-                    continue_button.click()
-                    logger.info('Amazon Login Flow: Clicking Continue')
-                    _login_flow_advance(webdriver)
-                    continue
-                # id "auth-signin-button" is a span that sits above input id=signInSubmit.
-                auth_signin_button = get_element_by_id(
-                    webdriver, 'auth-signin-button')
-                if is_visible(auth_signin_button):
-                    auth_signin_button.click()
-                    logger.info('Amazon Login Flow: Clicking Auth Sign In')
-                    _login_flow_advance(webdriver)
-                    continue
-                sign_in_submit = get_element_by_id(webdriver, 'signInSubmit')
-                if is_visible(sign_in_submit):
-                    sign_in_submit.click()
-                    logger.info('Amazon Login Flow: Clicking Sign in')
-                    _login_flow_advance(webdriver)
-                    continue
-
-            # OTP code:
-            otp_code_input = get_element_by_id(webdriver, 'auth-mfa-otpcode')
-            otp_continue = get_element_by_id(webdriver, 'auth-signin-button')
-            if is_visible(otp_code_input) and is_visible(otp_continue):
-                # Check "Don't require OTP on this browser"
-                remember_me_otp = get_element_by_xpath(
-                    webdriver,
-                    '//span[contains(text(), '
-                    '"Don\'t require OTP on this browser")]')
-                if is_visible(remember_me_otp):
-                    remember_me_otp.click()
-
-                mfa_code = (mfa_input_callback or input)(
-                    'Please enter your 6-digit Amazon OTP code: ')
-                otp_code_input.send_keys(mfa_code)
-                otp_continue.click()
-                _login_flow_advance(webdriver)
-                continue
-
-            # Account switcher: look for the given email. If present, click on
-            # it!
-            account_switcher_choice = get_element_by_xpath(
-                webdriver,
-                f"//div[contains(text(), '{args.amazon_email}')]")
-            if is_visible(account_switcher_choice):
-                logger.info(
-                    'Amazon Login Flow: Found email in account switcher')
-                account_switcher_choice.click()
-                _login_flow_advance(webdriver)
-                continue
-
-            # Account switcher: Cannot find the desired account in the acccount
-            # switcher. Click "Add Account".
-            account_switcher_add_account = get_element_by_xpath(
-                webdriver, '//div[text()="Add account"]')
-            if is_visible(account_switcher_add_account):
-                logger.info(
-                    'Amazon Login Flow: '
-                    'Email not in account switcher - Pressing "Add account"')
-                account_switcher_add_account.click()
-                _login_flow_advance(webdriver)
-                continue
-
+            if attempt_username_and_password(webdriver, args.amazon_email, args.amazon_password):
+                num_login_attempts += 1
+            else:
+                attempt_otp(webdriver, mfa_input_callback) or attempt_account_switcher_for_email(
+                    webdriver, args.amazon_email)
+            _login_flow_advance(webdriver)
         except StaleElementReferenceException:
             logger.warning('Amazon Login Flow: '
                            'Page contents changed - trying again.')
@@ -322,6 +245,99 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
     logger.info('Amazon Login Flow: login successful.')
     # If you made it here, you must be good to go!
     return True
+
+
+def attempt_username(webdriver, email):
+    email_input = get_element_by_id(webdriver, 'ap_email')
+    if not is_visible(email_input):
+        return False
+    email_input.clear()
+    email_input.send_keys(email)
+    logger.info('Amazon Login Flow: Entering email')
+    return True
+
+
+def attempt_password(webdriver, password):
+    password_input = get_element_by_id(webdriver, 'ap_password')
+    if not is_visible(password_input):
+        return False
+    password_input.clear()
+    password_input.send_keys(password)
+    logger.info('Amazon Login Flow: Entering password')
+    num_password_attempts += 1
+    return True
+
+
+def attempt_username_and_password(webdriver, username, password):
+    if not attempt_username(webdriver, username) and not attempt_password(webdriver, password):
+        return False
+
+    remember_me = get_element_by_name(webdriver, 'rememberMe')
+    if is_visible(remember_me):
+        remember_me.click()
+        logger.info('Amazon Login Flow: Clicking Remember Me')
+
+    continue_button = get_element_by_id(webdriver, 'continue')
+    if is_visible(continue_button):
+        continue_button.click()
+        logger.info('Amazon Login Flow: Clicking Continue')
+        return True
+    # id "auth-signin-button" is a span that sits above input id=signInSubmit.
+    auth_signin_button = get_element_by_id(webdriver, 'auth-signin-button')
+    if is_visible(auth_signin_button):
+        auth_signin_button.click()
+        logger.info('Amazon Login Flow: Clicking Auth Sign In')
+        return True
+    sign_in_submit = get_element_by_id(webdriver, 'signInSubmit')
+    if is_visible(sign_in_submit):
+        sign_in_submit.click()
+        logger.info('Amazon Login Flow: Clicking Sign in')
+        return True
+
+
+def attempt_otp(webdriver, mfa_input_callback):
+    otp_code_input = get_element_by_id(webdriver, 'auth-mfa-otpcode')
+    otp_continue = get_element_by_id(webdriver, 'auth-signin-button')
+    if not is_visible(otp_code_input) or not is_visible(otp_continue):
+        return False
+    # Check "Don't require OTP on this browser"
+    remember_me_otp = get_element_by_xpath(
+        webdriver,
+        '//span[contains(text(), '
+        '"Don\'t require OTP on this browser")]')
+    if is_visible(remember_me_otp):
+        remember_me_otp.click()
+
+    mfa_code = (mfa_input_callback or input)(
+        'Please enter your 6-digit Amazon OTP code: ')
+    otp_code_input.send_keys(mfa_code)
+    otp_continue.click()
+    return True
+
+
+def attempt_account_switcher_for_email(webdriver, email):
+    # Account switcher: look for the given email. If present, click on
+    # it!
+    account_switcher_choice = get_element_by_xpath(
+        webdriver,
+        f"//div[contains(text(), '{email}')]")
+    if is_visible(account_switcher_choice):
+        logger.info(
+            'Amazon Login Flow: Found email in account switcher')
+        account_switcher_choice.click()
+        return True
+
+    # Account switcher: Cannot find the desired account in the account
+    # switcher. Click "Add Account".
+    account_switcher_add_account = get_element_by_xpath(
+        webdriver, '//div[text()="Add account"]')
+    if is_visible(account_switcher_add_account):
+        logger.info(
+            'Amazon Login Flow: '
+            'Email not in account switcher - Pressing "Add account"')
+        account_switcher_add_account.click()
+        return True
+    return False
 
 
 def _login_flow_advance(webdriver):
