@@ -197,23 +197,27 @@ def associate_items_with_orders(
 
         # The number of combinations are factorial, so limit the number of
         # attempts (by a 1 sec timeout) before giving up.
-        start_time = time.time()
-        for item_groupings in algorithm_u(oid_items, len(orders)):
-            if time.time() - start_time > 1:
-                break
-            subtotals_with_groupings = sorted(
-                [(Item.sum_subtotals(itms), itms)
-                 for itms in item_groupings],
-                key=lambda g: g[0])
-            if all([micro_usd_nearly_equal(
-                    subtotals_with_groupings[i][0],
-                    orders[i].subtotal) for i in range(len(orders))]):
-                for idx, order in enumerate(orders):
-                    items = subtotals_with_groupings[idx][1]
-                    order.set_items(items,
-                                    assert_unmatched=True)
-                    item_progress.next(len(items))
-                break
+        # Also catch any recursion depth exceptions.
+        try:
+            start_time = time.time()
+            for item_groupings in algorithm_u(oid_items, len(orders)):
+                if time.time() - start_time > 1:
+                    break
+                subtotals_with_groupings = sorted(
+                    [(Item.sum_subtotals(itms), itms)
+                     for itms in item_groupings],
+                    key=lambda g: g[0])
+                if all([micro_usd_nearly_equal(
+                        subtotals_with_groupings[i][0],
+                        orders[i].subtotal) for i in range(len(orders))]):
+                    for idx, order in enumerate(orders):
+                        items = subtotals_with_groupings[idx][1]
+                        order.set_items(items,
+                                        assert_unmatched=True)
+                        item_progress.next(len(items))
+                    break
+        except RecursionError:
+            break
     item_progress.finish()
 
 
