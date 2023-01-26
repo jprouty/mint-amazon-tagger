@@ -23,19 +23,16 @@ logger = logging.getLogger(__name__)
 # Login and then go to https://www.amazon.com/gp/b2b/reports
 ORDER_HISTORY_URL_VIA_SWITCH_ACCOUNT_LOGIN = (
     'https://www.amazon.com/ap/signin'
-    '?openid.pape.max_auth_age=3600'
+    '?openid.pape.max_auth_age=0'
     '&openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fb2b%2Freports'
     '&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select'
     '&openid.assoc_handle=usflex'
     '&openid.mode=checkid_setup'
+    '&switch_account=picker'
+    '&ignoreAuthState=1'
     '&language=en_US'
     '&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select'
     '&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0')
-# 'https://www.amazon.com/gp/navigation/redirector.html/ref=sign-in-redirect'
-# '?ie=UTF8&associationHandle=usflex&currentPageURL='
-# 'https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyourstore%2Fhome%3Fie%3DUTF8%26'
-# 'ref_%3Dnav_youraccount_switchacct&pageType=&switchAccount=picker&'
-# 'yshURL=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fb2b%2Freports')
 
 
 class Report:
@@ -225,8 +222,6 @@ def nav_to_amazon_and_login(webdriver, args, mfa_input_callback=None):
             logger.error(
                 'Amazon Login Flow: Too many login attempts - aborting.')
             return False
-
-        input('Press enter to advance login flow')
 
         try:
             if attempt_username_and_password(webdriver, args.amazon_email, args.amazon_password):

@@ -619,7 +619,6 @@ class TaggerDialog(QDialog):
             Q_ARG(object, self.args))
 
     def on_stopped(self):
-        logger.info('Calling close_webdriver')
         QMetaObject.invokeMethod(
             self.worker, 'close_webdriver', Qt.QueuedConnection)
         self.close()
@@ -688,9 +687,7 @@ class TaggerWorker(QObject):
 
     @ pyqtSlot()
     def close_webdriver(self):
-        logger.info('close_webdriver')
         if self.webdriver:
-            logger.info('closing')
             self.webdriver.close()
             self.webdriver = None
 

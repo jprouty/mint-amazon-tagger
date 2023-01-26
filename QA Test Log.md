@@ -8,6 +8,7 @@ This file tracks the last time a feature has been verified to be working by jpro
 | Single user login - return user | 1/26/23 | 1.61 |
 | Multiple user login - first time | 1/26/23 | 1.61 |
 | Multiple user login - return user | 1/26/23 | 1.61 |
+| "I will login myself" | - | - |
 
 ## Amazon Order Reports ##
 
@@ -22,8 +23,10 @@ This file tracks the last time a feature has been verified to be working by jpro
 
 | Function / Feature | Last Tested | Version |
 | ------------------ | ----------- | ------- |
+| "I will login myself" | - | 1.60 |
 | Tagger finds matches | 1/26/23 | 1.61 |
 | Tagger GUI deep links to Amazon order details | 1/26/23 | 1.61 |
 | Tagger uploads changes successfully to Mint | 1/26/23 | 1.61 |
-| Tagger details show in Mint UI, including note contents | 1/26/23 | 1.61 |
+| Tagger details show in Mint UI, including note contents for single item order | 1/26/23 | 1.61 |
+| Tagger details show in Mint UI for itemized / multiple item order | 1/26/23 | 1.61 |
 | Tagger respects custom category selection for named item | - | - |
