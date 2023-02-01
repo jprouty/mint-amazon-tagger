@@ -253,6 +253,11 @@ def get_mint_updates(
         # Always consider the original description from the financial
         # institution. Conditionally consider the current/user description or
         # the Mint inferred description.
+
+        # Manually added transactions don't have `fi_data.description`, so return user description
+        if not hasattr(t.fi_data, 'description'):
+            return (t.description.lower(), )
+
         result = (t.fi_data.description.lower(), )
         if args.mint_input_include_user_description:
             result = result + (t.description.lower(), )
