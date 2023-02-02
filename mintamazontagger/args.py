@@ -182,6 +182,13 @@ def define_common_args(parser):
               'transaction. If the user changes the description, then the '
               'tagger won\'t know to leave it alone.'))
 
+    parser.add_argument(
+        '--max_unmatched_order_combinations', type=int,
+        default=20,
+        help=('Maximum number of orders to attempt to combinatorically match with '
+              'transactions. The current implementation is pretty memory intensive, '
+              'so setting this higher will potentially consume all available memory, '
+              'and cause the tagger to take a while.'))
     # Tagging options:
     parser.add_argument(
         '--no_tag_categories', action='store_true',

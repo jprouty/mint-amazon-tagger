@@ -485,6 +485,10 @@ def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
         oid_to_orders[o.order_id].append(o)
     amount_to_orders = defaultdict(list)
     for orders_same_id in oid_to_orders.values():
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(orders_same_id) > args.max_unmatched_order_combinations:
+            continue
+        
         combos = []
         for r in range(2, len(orders_same_id) + 1):
             combos.extend(itertools.combinations(orders_same_id, r))
