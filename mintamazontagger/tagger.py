@@ -253,6 +253,11 @@ def get_mint_updates(
         # Always consider the original description from the financial
         # institution. Conditionally consider the current/user description or
         # the Mint inferred description.
+
+        # Manually added transactions don't have `fi_data.description`, so return user description
+        if not hasattr(t.fi_data, 'description'):
+            return (t.description.lower(), )
+
         result = (t.fi_data.description.lower(), )
         if args.mint_input_include_user_description:
             result = result + (t.description.lower(), )
@@ -485,6 +490,10 @@ def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
         oid_to_orders[o.order_id].append(o)
     amount_to_orders = defaultdict(list)
     for orders_same_id in oid_to_orders.values():
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(orders_same_id) > args.max_unmatched_order_combinations:
+            continue
+        
         combos = []
         for r in range(2, len(orders_same_id) + 1):
             combos.extend(itertools.combinations(orders_same_id, r))
