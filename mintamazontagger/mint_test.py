@@ -88,7 +88,7 @@ class TransactionClass(unittest.TestCase):
         # Give it a mismatch initially:
         trans.category.id = 99
         trans.update_category_id(MINT_CATEGORIES)
-        self.assertEqual(trans.category.id, '18888881_4')
+        self.assertEqual(trans.category.id, '8_4')
 
         trans.category.name = 'SOME INVALID CAT'
         with self.assertRaises(AssertionError):
@@ -96,7 +96,7 @@ class TransactionClass(unittest.TestCase):
 
         trans.category.name = 'Shopping'
         trans.update_category_id(MINT_CATEGORIES)
-        self.assertEqual(trans.category.id, '18888881_2')
+        self.assertEqual(trans.category.id, '8_2')
 
     def test_get_compare_tuple(self):
         trans = transaction(

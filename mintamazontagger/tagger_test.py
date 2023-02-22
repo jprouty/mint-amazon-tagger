@@ -308,6 +308,7 @@ class Tagger(unittest.TestCase):
 
         self.assertEqual(len(updates), 2)
 
+        # Verify functionality of num_updates truncates the 2 updates down to 1.
         updates2, _ = tagger.get_mint_updates(
             [o1, o2], [i1, i2], [],
             [t1, t2],
@@ -315,6 +316,58 @@ class Tagger(unittest.TestCase):
             MINT_CATEGORIES)
 
         self.assertEqual(len(updates2), 1)
+
+    def test_get_mint_updates_one_trans_one_oid_multiple_orders(self):
+        # Test example from https://github.com/jprouty/mint-amazon-tagger/issues/133
+        i1 = item(
+            order_id='A',
+            title='Nature\'s Miracle High-Sided Litter Box, 23 x 18.5 x 11 inches',
+            item_subtotal='$21.55',
+            item_subtotal_tax='$1.43',
+            item_total='$22.98',
+            purchase_price_per_unit='$21.55',
+            quantity=1)
+        o1 = order(
+            order_id='A',
+            subtotal='$21.55',
+            shipping_charge='$0.00',
+            tax_charged='$1.43',
+            tax_before_promotions='$1.43',
+            total_charged='$22.98')
+
+        i2 = item(
+            order_id='A',
+            title='Cat\'s Pride Max Power Clumping Clay Multi-Cat Litter 15 Pounds',
+            item_subtotal='$11.49',
+            item_subtotal_tax='$0.76',
+            item_total='$12.25',
+            purchase_price_per_unit='$11.49',
+            quantity=1
+            )
+        o2 = order(
+            order_id='A',
+            subtotal='$11.49',
+            shipping_charge='$0.00',
+            tax_charged='$0.76',
+            tax_before_promotions='$0.76',
+            total_charged='$11.49')
+        # TODO: Verify that the original and current description are the same
+        # TODO: Get full description
+        description = 'AMAZON.COM AMZN.CO'
+        t1 = transaction(
+            description=description,
+            original_description=description,
+            category='Shopping',
+            amount=-35.23)
+
+        stats = Counter()
+        updates, _ = tagger.get_mint_updates(
+            [o1, o2], [i1, i2], [],
+            [t1],
+            get_args(), stats,
+            MINT_CATEGORIES)
+
+        self.assertEqual(len(updates), 1)
 
 
 if __name__ == '__main__':

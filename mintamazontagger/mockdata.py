@@ -39,7 +39,7 @@ def transaction_json(
         'amount': amount,
         'category': {
             'categoryType': 'EXPENSE',
-            'id': '8_2',
+            'id': '8_4',
             'name': category,
             'parentId': '8_0',
             'parentName': 'Root'},
@@ -53,8 +53,8 @@ def transaction_json(
             'description': original_description,
             'id': '202205251030281220511#20220511',
             'inferredCategory': {
-                'id': '8_2',
-                'name': 'Shopping'},
+                'id': '8_4',
+                'name': category},
             'inferredDescription': 'AMZN Mktp US*TW7KN5RV3'},
         'id': id,
         'isExpense': True,

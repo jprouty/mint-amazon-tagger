@@ -16,7 +16,7 @@ python3 -m venv pypi_test_venv
 source pypi_test_venv/bin/activate
 
 pip install --upgrade pip
-# Wait 60 seconds for pypi before attempting to install the newly published version.
+# Wait 180 seconds for pypi before attempting to install the newly published version.
 sleep 180
 pip install --no-cache-dir mint-amazon-tagger
 
