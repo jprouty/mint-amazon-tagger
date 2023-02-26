@@ -7,9 +7,11 @@
 if [ -d "dev_venv" ]
 then
     source dev_venv/bin/activate
+    pip install --upgrade pip
     pip install --upgrade -r requirements/base.txt -r requirements/ubuntu.txt -r requirements/dev.txt
 else
     python3 -m venv dev_venv
     source dev_venv/bin/activate
+    pip install --upgrade pip
     pip install --upgrade -r requirements/base.txt -r requirements/ubuntu.txt -r requirements/dev.txt
 fi

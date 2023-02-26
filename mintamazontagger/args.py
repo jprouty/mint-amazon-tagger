@@ -80,9 +80,9 @@ def define_common_args(parser):
         help=('Mint password for login.'))
     parser.add_argument(
         '--mint_mfa_preferred_method',
-        default='email',
+        default='sms',
         choices=['sms', 'email', 'soft-token'],
-        help='The perferred Mint MFA method (2factor auth codes).')
+        help='The preferred Mint MFA method (2factor auth codes).')
     parser.add_argument(
         '--mint_mfa_soft_token',
         default=None,

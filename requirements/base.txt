@@ -1,6 +1,6 @@
 PyQt5
 chardet
-mintapi
+mintapi>=2.12
 outdated
 oathtool
 psutil
