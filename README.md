@@ -63,10 +63,16 @@ git clone https://github.com/jprouty/mint-amazon-tagger.git
 cd mint-amazon-tagger
 
 # Build the image:
-docker build -t mint-amazon-tagger .
+docker build -t mint-amazon-tagger . 
 
 # Run the container:
 docker run -it --rm mint-amazon-tagger
+```
+
+If you're using ARM, you need to build with:
+
+```
+docker build --platform linux/amd64 -t mint-amazon-tagger .
 ```
 
 ### ADVANCED - Run from python source ###
