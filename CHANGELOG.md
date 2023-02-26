@@ -1,3 +1,8 @@
+## 1.62
+
+- Bug fix: ["AMAZON.COM" transactions were not being considered, despite never being tagged](https://github.com/jprouty/mint-amazon-tagger/issues/133).
+- Bug Fix: [Add better GUI reporting when missing email/password or "I will login myself" is checked](https://github.com/jprouty/mint-amazon-tagger/issues/144).
+
 ## 1.61
 
 - Change log established
