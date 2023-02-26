@@ -281,7 +281,6 @@ class TaggerGui:
         pass
 
     def on_tagger_dialog_closed(self):
-
         self.start_button.setEnabled(True)
         # Reset any csv file handles, as there might have been an error and
         # they user may try again (could already be consumed/closed).
@@ -302,6 +301,27 @@ class TaggerGui:
         if self.fetch_amazon:
             for attr_name in ('orders_csv', 'items_csv', 'refunds_csv'):
                 setattr(args, attr_name, None)
+            # Input validation for amazon login credentials:
+            if not getattr(self.args, 'amazon_user_will_login') and (not getattr(self.args, 'amazon_email') or not getattr(self.args, 'amazon_password')):
+                error_dialog = QErrorMessage(self.window)
+                error_dialog.showMessage('Amazon: Please select "I will login myself" or provide an email and password.')
+                self.on_tagger_dialog_closed()
+                return
+        else:
+            # Input validation for CSV files:
+            if not getattr(self.args, 'orders_csv') or not getattr(self.args, 'items_csv'):
+                error_dialog = QErrorMessage(self.window)
+                error_dialog.showMessage('Please provide matching date ranged Orders and Items CSV reports')
+                logger.error('User did not provide Orders or Items CSV when required')
+                self.on_tagger_dialog_closed()
+                return
+
+        # Input validation for mint login credentials:
+        if not getattr(self.args, 'mint_user_will_login') and (not getattr(self.args, 'mint_email') or not getattr(self.args, 'mint_password')):
+                error_dialog = QErrorMessage(self.window)
+                error_dialog.showMessage('Mint: Please select "I will login myself" or provide an email and password.')
+                self.on_tagger_dialog_closed()
+                return
 
         self.tagger = TaggerDialog(
             args=args,

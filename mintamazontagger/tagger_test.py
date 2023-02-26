@@ -26,7 +26,8 @@ def get_args(
         num_updates=0,
         retag_changed=False,
         do_not_predict_categories=True,
-        max_days_between_payment_and_shipping=3):
+        max_days_between_payment_and_shipping=3,
+        max_unmatched_order_combinations=10):
     return Args(
         description_prefix_override=description_prefix_override,
         description_return_prefix_override=description_return_prefix_override,
@@ -46,6 +47,7 @@ def get_args(
         do_not_predict_categories=do_not_predict_categories,
         max_days_between_payment_and_shipping=(
             max_days_between_payment_and_shipping),
+        max_unmatched_order_combinations=max_unmatched_order_combinations
     )
 
 
@@ -341,7 +343,7 @@ class Tagger(unittest.TestCase):
             item_subtotal='$11.49',
             item_subtotal_tax='$0.76',
             item_total='$12.25',
-            purchase_price_per_unit='$11.49',
+            purchase_price_per_unit='$12.25',
             quantity=1
             )
         o2 = order(
@@ -350,7 +352,7 @@ class Tagger(unittest.TestCase):
             shipping_charge='$0.00',
             tax_charged='$0.76',
             tax_before_promotions='$0.76',
-            total_charged='$11.49')
+            total_charged='$12.25')
         # TODO: Verify that the original and current description are the same
         # TODO: Get full description
         description = 'AMAZON.COM AMZN.CO'

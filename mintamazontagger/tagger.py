@@ -268,6 +268,7 @@ def get_mint_updates(
     trans = [t for t in trans if any(
         any(merch_str in n for n in get_original_names(t))
         for merch_str in merch_whitelist)]
+
     stats['amazon_in_desc'] = len(trans)
     # Skip t if it's pending.
     trans = [t for t in trans if not t.is_pending]
@@ -403,7 +404,11 @@ def get_mint_updates(
 
         valid_prefixes = (
             args.amazon_domains.lower().split(',') + [prefix.lower()])
-        has_prefix = any(t.description.lower().startswith(pre)
+        # As per https://github.com/jprouty/mint-amazon-tagger/issues/133, be
+        # sure to check for possible prefixes with ": ". Some financial
+        # institutions are showing Amazon purchases as "AMAZON.COM ..." in Mint,
+        # making a simple prefix search unsuitable.
+        has_prefix = any(t.description.lower().startswith(pre + ': ')
                          for pre in valid_prefixes)
         if has_prefix:
             if args.prompt_retag:
@@ -463,6 +468,7 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
     if closest_match:
         for o in closest_match:
             o.match(t)
+
         t.match(closest_match)
         if progress:
             progress.next(len(closest_match))
@@ -488,12 +494,13 @@ def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
     oid_to_orders = defaultdict(list)
     for o in unmatched_orders:
         oid_to_orders[o.order_id].append(o)
+
     amount_to_orders = defaultdict(list)
     for orders_same_id in oid_to_orders.values():
         # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
         if len(orders_same_id) > args.max_unmatched_order_combinations:
             continue
-        
+
         combos = []
         for r in range(2, len(orders_same_id) + 1):
             combos.extend(itertools.combinations(orders_same_id, r))
