@@ -1,5 +1,9 @@
 # Mint Transactions Tagger for Amazon Purchases
 
+## Amazon to Sunset Required Export Tool ##
+
+**Amazon is planning to sunset the "Order History Reports" tool on March 20th. The Amazon report tool is the primary source for tagging. Please follow [this issue](https://github.com/jprouty/mint-amazon-tagger/issues/147) for more information.**
+
 ## Overview ##
 
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
@@ -63,7 +67,7 @@ git clone https://github.com/jprouty/mint-amazon-tagger.git
 cd mint-amazon-tagger
 
 # Build the image:
-docker build -t mint-amazon-tagger . 
+docker build -t mint-amazon-tagger .
 
 # Run the container:
 docker run -it --rm mint-amazon-tagger
