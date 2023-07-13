@@ -2,8 +2,10 @@ from collections import defaultdict
 from copy import deepcopy
 import csv
 from datetime import datetime, date
+from dateutil import parser
+import io
 import os
-from pprint import pformat
+from pprint import pformat, pprint
 import re
 import string
 import time
@@ -19,6 +21,13 @@ from mintamazontagger.mint import truncate_title
 from mintamazontagger.my_progress import NoProgress, no_progress_factory
 
 PRINTABLE = set(string.printable)
+
+
+ORDER_HISTORY_CSV_PATTERN = re.compile(
+    r'Retail.OrderHistory.\d+/Retail.OrderHistory.\d+.csv')
+
+def is_order_history_csv(zip_file_name):
+    return bool(ORDER_HISTORY_CSV_PATTERN.match(zip_file_name))
 
 
 def rm_leading_qty(item_title):
@@ -38,59 +47,42 @@ def get_title(amzn_obj, target_length):
 
 
 CURRENCY_FIELD_NAMES = set([
-    'Item Subtotal',
-    'Item Subtotal Tax',
-    'Item Total',
-    'List Price Per Unit',
-    'Purchase Price Per Unit',
-    'Refund Amount',
-    'Refund Tax Amount',
+    'Unit Price',
+    'Unit Price Tax',
     'Shipping Charge',
-    'Subtotal',
-    'Tax Charged',
-    'Tax Before Promotions',
-    'Total Charged',
-    'Total Promotions',
+    'Total Discounts',
+    'Total Owed',
+    'Shipment Item Subtotal',
+    'Shipment Item Subtotal Tax',
 ])
 
 DATE_FIELD_NAMES = set([
     'Order Date',
-    'Refund Date',
-    'Shipment Date',
+    'Ship Date',
 ])
 
 RENAME_FIELD_NAMES = {
     'Carrier Name & Tracking Number': 'tracking',
 }
 
-
-def num_lines_csv(csv_file):
-    return sum([1 for r in csv.DictReader(
-        open(csv_file.name, encoding='utf-8'))])
-
-
-def is_empty_csv(csv_file, num_records, key='Buyer Name'):
-    # Amazon likes to put "No data found for this time period" in the first
-    # row.
-    # Amazon appears to be giving 0 sized CSVs now!
-    if os.stat(csv_file.name).st_size == 0:
-        return True
-    return (num_records <= 1 and next(csv.DictReader(
-        open(csv_file.name, encoding='utf-8')))[key] is None)
-
-
 def parse_from_csv_common(
         cls,
         csv_file,
         progress_label='Parse from csv',
         progress_factory=no_progress_factory):
-    num_records = num_lines_csv(csv_file)
-    if is_empty_csv(csv_file, num_records):
-        return []
+    # contents = csv_file.read().decode()
+    contents = csv_file.read().decode('utf-8')
+    # Strip a leading FEFF if present.
+    if contents[0:1] == '\ufeff':
+        contents = contents[2:]
 
-    progress = progress_factory(progress_label, num_records)
-    reader = csv.DictReader(csv_file)
+    num_records = sum(1 for c in contents if c == '\n') - 1
     result = []
+    if not num_records:
+        return result
+    
+    progress = progress_factory(progress_label, num_records)
+    reader = csv.DictReader(io.StringIO(contents))
     for raw_dict in reader:
         result.append(cls(raw_dict))
         progress.next()
@@ -101,13 +93,21 @@ def parse_from_csv_common(
 def pythonify_amazon_dict(raw_dict):
     keys = set(raw_dict.keys())
 
+    if 'Quantity' in keys:
+        raw_dict['Quantity'] = int(raw_dict['Quantity'])
+
     # Convert to microdollar ints
     for ck in keys & CURRENCY_FIELD_NAMES:
         raw_dict[ck] = parse_usd_as_micro_usd(raw_dict[ck])
 
     # Convert to datetime.date
     for dk in keys & DATE_FIELD_NAMES:
-        raw_dict[dk] = parse_amazon_date(raw_dict[dk])
+        date_str = raw_dict[dk]
+        # Can have more than one ship date:
+        if " and " in date_str:
+            raw_dict[dk] = [parse_amazon_date(d) for d in date_str.split(" and ")]
+        else:
+            raw_dict[dk] = parse_amazon_date(date_str)
 
     # Rename long or unpythonic names:
     for old_key in keys & RENAME_FIELD_NAMES.keys():
@@ -115,11 +115,9 @@ def pythonify_amazon_dict(raw_dict):
         raw_dict[new_key] = raw_dict[old_key]
         del raw_dict[old_key]
 
-    if 'Quantity' in keys:
-        raw_dict['Quantity'] = int(raw_dict['Quantity'])
-
-    if 'Shipping Charge' in keys:
-        raw_dict['Original Shipping Charge'] = raw_dict['Shipping Charge']
+    # Can have more than one tracking number:
+    if " and " in raw_dict['tracking']:
+        raw_dict['tracking'] = raw_dict['tracking'].split(" and ")
 
     return dict([
         (k.lower().replace(' ', '_').replace('/', '_'), v)
@@ -127,13 +125,12 @@ def pythonify_amazon_dict(raw_dict):
     ])
 
 
+# TODO: Consider if we want to retain the time.
 def parse_amazon_date(date_str):
-    if not date_str:
+    if not date_str or date_str == 'Not Available':
         return None
-    try:
-        return datetime.strptime(date_str, '%m/%d/%Y').date()
-    except ValueError:
-        return datetime.strptime(date_str, '%m/%d/%y').date()
+    return parser.parse(date_str)
+    # return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.Z').date()
 
 
 def get_invoice_url(order_id):
@@ -241,9 +238,9 @@ class Order:
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
-        if self.has_hidden_shipping_fee():
-            self.shipping_charge += self.hidden_shipping_fee()
-            self.total_charged += self.hidden_shipping_fee()
+        # if self.has_hidden_shipping_fee():
+        #     self.shipping_charge += self.hidden_shipping_fee()
+        #     self.total_charged += self.hidden_shipping_fee()
 
     @classmethod
     def parse_from_csv(cls, csv_file, progress_factory=no_progress_factory):
@@ -491,7 +488,6 @@ class Item:
 
     def __init__(self, raw_dict):
         self.__dict__.update(pythonify_amazon_dict(raw_dict))
-        self.__dict__['original_item_subtotal_tax'] = self.item_subtotal_tax
 
     @classmethod
     def parse_from_csv(cls, csv_file, progress_factory=no_progress_factory):
@@ -567,10 +563,18 @@ class Item:
     def __repr__(self):
         return (
             f'{self.quantity} of Item: '
-            f'Total {micro_usd_to_usd_string(self.item_total)}\t'
-            f'Subtotal {micro_usd_to_usd_string(self.item_subtotal)}\t'
-            f'Tax {micro_usd_to_usd_string(self.item_subtotal_tax)} '
-            f'{self.title}')
+            f'Order ID {self.order_id}\t'
+            f'Status {self.order_status}\t'
+            f'Ship Status {self.shipment_status}\t'
+            f'Order Date {self.order_date}\t'
+            f'Ship Date {self.ship_date}\t'
+            f'Tracking {self.tracking}\t'
+            f'Unit Price {micro_usd_to_usd_string(self.unit_price)}\t'
+            f'Unit Tax {micro_usd_to_usd_string(self.unit_price_tax)}\t'
+            f'Total Owed {micro_usd_to_usd_string(self.total_owed)}\t'
+            f'Shipping Charge {micro_usd_to_usd_string(self.shipping_charge)}\t'
+            f'Discounts {micro_usd_to_usd_string(self.total_discounts)}\t'
+            f'{self.product_name}')
 
 
 class Refund:

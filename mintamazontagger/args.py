@@ -9,67 +9,12 @@ def get_name_to_help_dict(parser):
     return dict([(a.dest, a.help) for a in parser._actions])
 
 
-def has_order_history_csv_files(args):
-    return args.items_csv and args.orders_csv
-
-
 def define_common_args(parser):
     """Parseargs shared between both CLI & GUI programs."""
-    # Amazon creds:
+    # Amazon Input, as zip file:
     parser.add_argument(
-        '--amazon_email', default=None,
-        help=('Amazon e-mail.'))
-    parser.add_argument(
-        '--amazon_password', default=None,
-        help=('Amazon password.'))
-    parser.add_argument(
-        '--amazon_user_will_login',
-        action='store_true',
-        default=False,
-        help='If set, let the user log in on their own.')
-    parser.add_argument(
-        '--amazon_login_timeout',
-        default=60 * 5,
-        help='The number of seconds to wait attempting to log into Amazon.')
-
-    parser.add_argument(
-        '--order_history_start_date',
-        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d').date(),
-        default=datetime.date.today() - datetime.timedelta(days=90),
-        help=('The start date for fetching Amazon order history. Defaults to '
-              '90 days ago from today. Format: YYYY-MM-DD'))
-    parser.add_argument(
-        '--order_history_end_date',
-        type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d').date(),
-        default=datetime.date.today(),
-        help=('The end date for fetching Amazon order history. Defaults to '
-              'today. Format: YYYY-MM-DD'))
-    parser.add_argument(
-        '--order_history_timeout',
-        type=int,
-        default=10 * 60,
-        help=('The amount of time (in seconds) to wait for order retrieval '
-              'from Amazon before considering the process to have timed out.'))
-
-    default_report_location = os.path.join(
-        TAGGER_BASE_PATH, 'Amazon Order Reports')
-    parser.add_argument(
-        '--report_download_location', type=str,
-        default=default_report_location,
-        help='Where to place the downloaded reports.')
-
-    # Amazon Input, as CSV file:
-    parser.add_argument(
-        '--items_csv', type=argparse.FileType('r', encoding='utf-8'),
-        help=('The "Items" Order History Report from Amazon. If not present, '
-              'will try to fetch order history for you. See --amazon_email.'))
-    parser.add_argument(
-        '--orders_csv', type=argparse.FileType('r', encoding='utf-8'),
-        help='The "Orders and Shipments" Order History Report from Amazon')
-    parser.add_argument(
-        '--refunds_csv', type=argparse.FileType('r', encoding='utf-8'),
-        help='The "Refunds" Order History Report from Amazon. '
-             'This is optional.')
+        '--amazon_export', type=argparse.FileType('r', encoding='utf-8'),
+        help=('The Amazon Data Export zip file.'))
 
     # Mint creds:
     parser.add_argument(

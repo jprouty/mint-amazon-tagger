@@ -1,9 +1,9 @@
 from collections import defaultdict
 import operator
 
-from PyQt5.QtCore import Qt, QAbstractTableModel, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QAbstractTableModel, QUrl
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import (
     QAbstractItemView, QDialog, QLabel, QPushButton, QTableView, QVBoxLayout)
 
 from mintamazontagger import amazon

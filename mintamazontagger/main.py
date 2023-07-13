@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-# This script fetches Amazon "Order History Reports" and annotates your Mint
-# transactions based on actual items in each purchase. It can handle orders
-# that are split into multiple shipments/charges, and can even itemized each
+# This tool takes an Amazon Data Export and annotates Mint
+# transactions based on the actual items in each order. It can handle orders
+# that are split into multiple shipments/charges and can itemized each
 # transaction for maximal control over categorization.
 
 import argparse
@@ -17,16 +17,17 @@ import time
 from urllib.parse import urlencode
 import webbrowser
 
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     Q_ARG, QDate, QEventLoop, Qt, QMetaObject, QObject, QTimer, QThread,
     QUrl, pyqtSlot, pyqtSignal)
-from PyQt5.QtGui import QDesktopServices, QKeySequence
-from PyQt5.QtWidgets import (
+from PyQt6.QtGui import QDesktopServices, QKeySequence
+from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCalendarWidget,
     QCheckBox, QComboBox, QDialog, QErrorMessage, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QInputDialog,
     QLabel, QLineEdit, QMainWindow, QProgressBar,
-    QPushButton, QShortcut, QTableView, QWidget, QVBoxLayout)
+    QPushButton, QTableView, QWidget, QVBoxLayout)
+# from PyQt6.QtWidgets import QShortcut
 from outdated import check_outdated
 
 from mintamazontagger import amazon
@@ -39,7 +40,6 @@ from mintamazontagger.qt import (
     TaggerStatsDialog)
 from mintamazontagger.mintclient import MintClient
 from mintamazontagger.my_progress import QtProgress
-from mintamazontagger.orderhistory import fetch_order_history
 from mintamazontagger.webdriver import get_webdriver
 
 logger = logging.getLogger(__name__)
@@ -67,10 +67,11 @@ class TaggerGui:
         self.window.setWindowTitle(version_string)
 
         self.quit_shortcuts = []
-        for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
-            s = QShortcut(QKeySequence(seq), self.window)
-            s.activated.connect(app.exit)
-            self.quit_shortcuts.append(s)
+        # REVIVE
+        # for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
+        #     s = QShortcut(QKeySequence(seq), self.window)
+        #     s.activated.connect(app.exit)
+        #     self.quit_shortcuts.append(s)
 
         logger.info(f'Running version {VERSION}')
         try:
@@ -97,33 +98,9 @@ class TaggerGui:
         amazon_group.setMinimumWidth(300)
         amazon_layout = QVBoxLayout()
 
-        amazon_mode = QComboBox()
-        amazon_mode.addItem('Fetch Reports')
-        amazon_mode.addItem('Use Local Reports')
-        amazon_mode.setFocusPolicy(Qt.StrongFocus)
+        amazon_mode_layout = self.create_amazon_import_layout()
 
-        has_csv = any([
-            self.args.orders_csv, self.args.items_csv, self.args.refunds_csv])
-        self.amazon_mode_layout = (
-            self.create_amazon_import_layout()
-            if has_csv else self.create_amazon_fetch_layout())
-        amazon_mode.setCurrentIndex(1 if has_csv else 0)
-        self.fetch_amazon = not has_csv
-
-        def on_amazon_mode_changed(i):
-            self.clear_layout(self.amazon_mode_layout)
-            if i == 0:
-                self.amazon_mode_layout = self.create_amazon_fetch_layout()
-                self.fetch_amazon = True
-            elif i == 1:
-                self.amazon_mode_layout = self.create_amazon_import_layout()
-                self.fetch_amazon = False
-            amazon_layout.addLayout(self.amazon_mode_layout)
-        amazon_mode.currentIndexChanged.connect(
-            on_amazon_mode_changed)
-
-        amazon_layout.addWidget(amazon_mode)
-        amazon_layout.addLayout(self.amazon_mode_layout)
+        amazon_layout.addLayout(amazon_mode_layout)
         amazon_group.setLayout(amazon_layout)
         h_layout.addWidget(amazon_group)
 
@@ -216,64 +193,25 @@ class TaggerGui:
         main_widget.setLayout(v_layout)
         self.window.setCentralWidget(main_widget)
         self.window.show()
-        return app.exec_()
-
-    def create_amazon_fetch_layout(self):
-        amazon_fetch_layout = QFormLayout()
-        amazon_fetch_layout.addRow(QLabel(
-            'Fetches recent Amazon order history for you.'))
-        amazon_fetch_layout.addRow(
-            self.create_line_label('Email:', 'amazon_email'),
-            self.create_line_edit('amazon_email', tool_tip=NEVER_SAVE_MSG))
-        amazon_fetch_layout.addRow(
-            self.create_line_label('Password:', 'amazon_password'),
-            self.create_line_edit(
-                'amazon_password', tool_tip=NEVER_SAVE_MSG, password=True))
-        amazon_fetch_layout.addRow(
-            self.create_line_label('I will login myself',
-                                   'amazon_user_will_login'),
-            self.create_checkbox(
-                'amazon_user_will_login'))
-        amazon_fetch_layout.addRow(
-            self.create_line_label('Start date:', 'order_history_start_date'),
-            self.create_date_edit(
-                'order_history_start_date',
-                'Select Amazon order history start date'))
-        amazon_fetch_layout.addRow(
-            self.create_line_label('End date:', 'order_history_end_date'),
-            self.create_date_edit(
-                'order_history_end_date',
-                'Select Amazon order history end date'))
-        return amazon_fetch_layout
+        # return app.exec_()
+        return app.exec()
 
     def create_amazon_import_layout(self):
         amazon_import_layout = QFormLayout()
 
         order_history_link = QLabel()
         order_history_link.setText(
-            '''<a href="https://www.amazon.com/gp/b2b/reports">
-            Download your Amazon reports</a><br>
-            and select them below:''')
+            '''<a href="https://www.amazon.com/hz/privacy-central/data-requests/preview.html">
+            Export Amazon Data</a><br>
+            and select below when complete:''')
         order_history_link.setOpenExternalLinks(True)
         amazon_import_layout.addRow(order_history_link)
 
         amazon_import_layout.addRow(
-            self.create_line_label('Items CSV:', 'items_csv'),
+            self.create_line_label('Data Export:', 'amazon_export'),
             self.create_file_edit(
-                'items_csv',
-                'Select Amazon Items Report'
-            ))
-        amazon_import_layout.addRow(
-            self.create_line_label('Orders CSV:', 'orders_csv'),
-            self.create_file_edit(
-                'orders_csv',
-                'Select Amazon Orders Report'
-            ))
-        amazon_import_layout.addRow(
-            self.create_line_label('Refunds CSV:', 'refunds_csv'),
-            self.create_file_edit(
-                'refunds_csv',
-                'Select Amazon Refunds Report'
+                'amazon_export',
+                'Select Amazon Data Export'
             ))
         return amazon_import_layout
 
@@ -284,13 +222,13 @@ class TaggerGui:
         self.start_button.setEnabled(True)
         # Reset any csv file handles, as there might have been an error and
         # they user may try again (could already be consumed/closed).
-        for attr_name in ('orders_csv', 'items_csv', 'refunds_csv'):
-            file = getattr(self.args, attr_name)
-            if file:
-                setattr(
-                    self.args,
-                    attr_name,
-                    open(file.name, 'r', encoding='utf-8'))
+        attr_name = 'amazon_export'
+        file = getattr(self.args, attr_name)
+        if file:
+            setattr(
+                self.args,
+                attr_name,
+                open(file.name, 'r', encoding='utf-8'))
 
     def on_start_button_clicked(self):
         self.start_button.setEnabled(False)
@@ -298,23 +236,13 @@ class TaggerGui:
         # provided csv file paths, so the tagger actually fetches (versus using
         # the given paths).
         args = argparse.Namespace(**vars(self.args))
-        if self.fetch_amazon:
-            for attr_name in ('orders_csv', 'items_csv', 'refunds_csv'):
-                setattr(args, attr_name, None)
-            # Input validation for amazon login credentials:
-            if not getattr(self.args, 'amazon_user_will_login') and (not getattr(self.args, 'amazon_email') or not getattr(self.args, 'amazon_password')):
-                error_dialog = QErrorMessage(self.window)
-                error_dialog.showMessage('Amazon: Please select "I will login myself" or provide an email and password.')
-                self.on_tagger_dialog_closed()
-                return
-        else:
-            # Input validation for CSV files:
-            if not getattr(self.args, 'orders_csv') or not getattr(self.args, 'items_csv'):
-                error_dialog = QErrorMessage(self.window)
-                error_dialog.showMessage('Please provide matching date ranged Orders and Items CSV reports')
-                logger.error('User did not provide Orders or Items CSV when required')
-                self.on_tagger_dialog_closed()
-                return
+        # Input validation for Amazon Export Zip:
+        if not getattr(self.args, 'amazon_export'):
+            error_dialog = QErrorMessage(self.window)
+            error_dialog.showMessage('Please provide valid Amazon Export Zip file')
+            logger.error('User did not provide Amazon Export zip')
+            self.on_tagger_dialog_closed()
+            return
 
         # Input validation for mint login credentials:
         if not getattr(self.args, 'mint_user_will_login') and (not getattr(self.args, 'mint_email') or not getattr(self.args, 'mint_password')):
@@ -343,7 +271,7 @@ class TaggerGui:
         x_box = QCheckBox()
         x_box.setTristate(False)
         x_box.setCheckState(
-            Qt.Checked if getattr(self.args, name) else Qt.Unchecked)
+            Qt.CheckState.Checked if getattr(self.args, name) else Qt.CheckState.Unchecked)
         if not tool_tip and name in self.arg_name_to_help:
             tool_tip = 'When checked, ' + self.arg_name_to_help[name]
         if tool_tip:
@@ -352,7 +280,7 @@ class TaggerGui:
         def on_changed(state):
             setattr(
                 self.args, name,
-                state != Qt.Checked if invert else state == Qt.Checked)
+                state != Qt.CheckState.Checked.value if invert else state == Qt.CheckState.Checked.value)
         x_box.stateChanged.connect(on_changed)
         return x_box
 
@@ -373,8 +301,8 @@ class TaggerGui:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             line_edit.setToolTip(tool_tip)
-        if password:
-            line_edit.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+        # if password:
+        #     line_edit.setEchoMode(QLineEdit.PasswordEchoOnEdit)
 
         def on_changed(state):
             setattr(self.args, name, state)
@@ -417,7 +345,7 @@ class TaggerGui:
         return date_edit
 
     def create_file_edit(
-            self, name, popup_title, filter='CSV files (*.csv)',
+            self, name, popup_title, filter='Zip files (*.zip)',
             tool_tip=None):
         file_button = QPushButton(
             'Select a file' if not getattr(self.args, name)
@@ -431,8 +359,7 @@ class TaggerGui:
         def on_button():
             dlg = QFileDialog()
             selection = dlg.getOpenFileName(
-                self.window, popup_title, self.args.report_download_location,
-                filter)
+                self.window, popup_title, filter=filter)
             if selection[0]:
                 prev_file = getattr(self.args, name)
                 if prev_file:
@@ -448,7 +375,7 @@ class TaggerGui:
 
     def create_combobox(self, name, items, transform, tool_tip=None):
         combo = QComboBox()
-        combo.setFocusPolicy(Qt.StrongFocus)
+        # combo.setFocusPolicy(Qt.StrongFocus)
         if not tool_tip:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
@@ -510,7 +437,7 @@ class TaggerDialog(QDialog):
     def on_error(self, msg):
         logger.error(msg)
         self.label.setText(f'Error: {msg}')
-        self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.label.setStyleSheet(
             'QLabel { color: red; font-weight: bold; }')
 
@@ -634,13 +561,13 @@ class TaggerDialog(QDialog):
         self.adjustSize()
 
         QMetaObject.invokeMethod(
-            self.worker, 'send_updates', Qt.QueuedConnection,
+            self.worker, 'send_updates', Qt.ConnectionType.QueuedConnection,
             Q_ARG(list, updates),
             Q_ARG(object, self.args))
 
     def on_stopped(self):
         QMetaObject.invokeMethod(
-            self.worker, 'close_webdriver', Qt.QueuedConnection)
+            self.worker, 'close_webdriver', Qt.ConnectionType.QueuedConnection)
         self.close()
 
     def on_progress(self, msg, max, value):
@@ -651,7 +578,7 @@ class TaggerDialog(QDialog):
     def on_cancel(self):
         if not self.reviewing:
             QMetaObject.invokeMethod(
-                self.worker, 'stop', Qt.QueuedConnection)
+                self.worker, 'stop', Qt.ConnectionType.QueuedConnection)
         else:
             self.on_stopped()
 
@@ -661,7 +588,7 @@ class TaggerDialog(QDialog):
             'Code:')
         self.worker.mfa_code = mfa_code
         QMetaObject.invokeMethod(
-            self.worker, 'mfa_code', Qt.QueuedConnection,
+            self.worker, 'mfa_code', Qt.ConnectionType.QueuedConnection,
             Q_ARG(str, mfa_code))
         self.worker.on_mfa_done.emit()
 
@@ -740,12 +667,6 @@ class TaggerWorker(QObject):
             args,
             bound_webdriver_factory,
             mfa_input_callback=on_mfa)
-
-        if not fetch_order_history(
-                args, bound_webdriver_factory, progress_factory, on_mfa):
-            self.on_error.emit(
-                'Failed to fetch Amazon order history. Check credentials')
-            return
 
         results = tagger.create_updates(
             args, self.mint_client,

@@ -12,6 +12,7 @@ import itertools
 import logging
 import readchar
 import time
+import zipfile
 
 from mintamazontagger import amazon
 from mintamazontagger import category
@@ -28,11 +29,13 @@ UpdatesResult = namedtuple(
     'UpdatesResult',
     field_names=(
         'success',
-        'items', 'orders', 'refunds', 'updates', 'unmatched_orders', 'stats'),
+        'items', 'updates', 'unmatched_orders', 'stats'),
     defaults=(
         False,
-        None, None, None, None, None, None))
+        None, None, None, None))
 
+
+import pprint
 
 def create_updates(
         args,
@@ -41,45 +44,31 @@ def create_updates(
         indeterminate_progress_factory=no_progress_factory,
         determinate_progress_factory=no_progress_factory,
         counter_progress_factory=no_progress_factory):
-    items_csv = args.items_csv
-    orders_csv = args.orders_csv
-    refunds_csv = args.refunds_csv
+    items = []
+    with zipfile.ZipFile(args.amazon_export.name) as zip_file:
+        order_history_csvs = [f for f in zip_file.namelist() if amazon.is_order_history_csv(f)]
+        if not order_history_csvs:
+            on_critical(
+                'Cannot find any order history data in the given Amazon Export.')
+            return UpdatesResult()
 
-    if not items_csv or not orders_csv:  # Refunds are optional
-        on_critical(
-            'Order history either not provided or unable to fetch. '
-            'Exiting.')
-        return UpdatesResult()
+        try:
+            for csv in order_history_csvs:
+                items.extend(amazon.Item.parse_from_csv(
+                    zip_file.open(csv),
+                    progress_factory=determinate_progress_factory))
+        except AttributeError as e:
+            msg = (
+                'Error while parsing Amazon Order history report CSV files: '
+                f'{e}')
+            logger.exception(msg)
+            on_critical(msg)
+            return UpdatesResult()
 
-    try:
-        orders = amazon.Order.parse_from_csv(
-            orders_csv,
-            progress_factory=determinate_progress_factory)
-        items = amazon.Item.parse_from_csv(
-            items_csv,
-            progress_factory=determinate_progress_factory)
-        refunds = ([] if not refunds_csv
-                   else amazon.Refund.parse_from_csv(
-                       refunds_csv,
-                       progress_factory=determinate_progress_factory))
-
-    except AttributeError as e:
-        msg = (
-            'Error while parsing Amazon Order history report CSV files: '
-            f'{e}')
-        logger.exception(msg)
-        on_critical(msg)
-        return UpdatesResult()
-
-    if not len(orders):
-        on_critical(
-            'The Orders report contains no data. Try '
-            f'downloading again. Report used: {orders_csv}')
-        return UpdatesResult()
     if not len(items):
         on_critical(
             'The Items report contains no data. Try '
-            f'downloading again. Report used: {items_csv}')
+            f'downloading again. Reports used: {order_history_csvs}')
         return UpdatesResult()
 
     # Initialize the stats. Explicitly initialize stats that might not be
@@ -104,11 +93,11 @@ def create_updates(
         pickle_progress.finish()
     else:
         # Get the date of the oldest Amazon order.
-        start_date = min([o.order_date for o in orders])
-        if refunds:
-            start_date = min(
-                start_date,
-                min([o.order_date for o in refunds]))
+        start_date = min([i.order_date.date() for i in items])
+        # if refunds:
+        #     start_date = min(
+        #         start_date,
+        #         min([o.order_date for o in refunds]))
 
         # Double the length of transaction history to help aid in
         # personalized category tagging overrides.
@@ -152,13 +141,13 @@ def create_updates(
             pickle_progress.finish()
 
     updates, unmatched_orders = get_mint_updates(
-        orders, items, refunds,
+        items,
         mint_trans,
         args, stats,
         mint_categories,
         progress_factory=determinate_progress_factory)
     return UpdatesResult(
-        True, items, orders, refunds, updates, unmatched_orders, stats)
+        True, items, updates, unmatched_orders, stats)
 
 
 def get_mint_category_history_for_items(trans, args):
@@ -210,7 +199,7 @@ def get_mint_category_history_for_items(trans, args):
 
 
 def get_mint_updates(
-        orders, items, refunds,
+        items,
         trans,
         args, stats,
         mint_categories,
@@ -218,30 +207,27 @@ def get_mint_updates(
     mint_historic_category_renames = get_mint_category_history_for_items(
         trans, args)
 
-    # Remove items from canceled orders.
-    items = [i for i in items if not i.is_cancelled()]
-    # Remove items that haven't shipped yet (also aren't charged).
-    items = [i for i in items if i.order_status == 'Shipped']
+    # Remove items from canceled orders or pending orders.
+    items = [i for i in items if i.order_status != 'Closed']
+    # Remove items that haven't shipped yet / aren't charged / or cancelled items out of an otherwise valid order.
+    items = [i for i in items if i.order_status != 'Not Available']
     # Remove items with zero quantity (it happens!)
     items = [i for i in items if i.quantity > 0]
+    # Re-evaluate the following:
     # Make more Items such that every item is quantity 1. This is critical
     # prior to associate_items_with_orders such that items with non-1
     # quantities split into different packages can be associated with the
     # appropriate order.
-    items = [si for i in items for si in i.split_by_quantity()]
+    # items = [si for i in items for si in i.split_by_quantity()]
 
-    order_item_to_unspsc = dict(
-        ((i.title, i.order_id), i.unspsc_code)
-        for i in items)
-
-    itemProgress = progress_factory(
-        'Matching Amazon Items with Orders',
-        len(items))
-    amazon.associate_items_with_orders(orders, items, itemProgress)
-    itemProgress.finish()
+    # itemProgress = progress_factory(
+    #     'Matching Amazon Items with Orders',
+    #     len(items))
+    # amazon.associate_items_with_orders(orders, items, itemProgress)
+    # itemProgress.finish()
 
     # Only match orders that have items.
-    orders = [o for o in orders if o.items]
+    # orders = [o for o in orders if o.items]
 
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
@@ -281,35 +267,35 @@ def get_mint_updates(
 
     # Match orders.
     orderMatchProgress = progress_factory(
-        'Matching Amazon Orders w/ Mint Trans',
-        len(orders))
-    match_transactions(trans, orders, args, orderMatchProgress)
+        'Matching Amazon Items w/ Mint Trans',
+        len(items))
+    match_transactions(trans, items, args, orderMatchProgress)
     orderMatchProgress.finish()
 
     unmatched_trans = [t for t in trans if not t.orders]
 
     # Match refunds.
-    refundMatchProgress = progress_factory(
-        'Matching Amazon Refunds w/ Mint Trans',
-        len(refunds))
-    match_transactions(unmatched_trans, refunds, args, refundMatchProgress)
-    refundMatchProgress.finish()
+    # refundMatchProgress = progress_factory(
+    #     'Matching Amazon Refunds w/ Mint Trans',
+    #     len(refunds))
+    # match_transactions(unmatched_trans, refunds, args, refundMatchProgress)
+    # refundMatchProgress.finish()
 
-    unmatched_orders = [o for o in orders if not o.matched]
+    unmatched_orders = [o for o in items if not o.matched]
     unmatched_trans = [t for t in trans if not t.orders]
-    unmatched_refunds = [r for r in refunds if not r.matched]
+    # unmatched_refunds = [r for r in refunds if not r.matched]
 
     num_gift_card = len([o for o in unmatched_orders
                          if 'Gift Certificate' in o.payment_instrument_type])
     num_unshipped = len([o for o in unmatched_orders if not o.shipment_date])
 
-    matched_orders = [o for o in orders if o.matched]
+    matched_orders = [o for o in items if o.matched]
     matched_trans = [t for t in trans if t.orders]
     matched_refunds = [r for r in refunds if r.matched]
 
     stats['trans_unmatch'] = len(unmatched_trans)
     stats['order_unmatch'] = len(unmatched_orders)
-    stats['refund_unmatch'] = len(unmatched_refunds)
+    # stats['refund_unmatch'] = len(unmatched_refunds)
     stats['trans_match'] = len(matched_trans)
     stats['order_match'] = len(matched_orders)
     stats['refund_match'] = len(matched_refunds)
@@ -364,12 +350,6 @@ def get_mint_updates(
             for r in refunds:
                 new_tran = r.to_mint_transaction(t)
                 new_transactions.append(new_tran)
-
-                # Attempt to find the category from the original purchase.
-                unspsc = order_item_to_unspsc.get((r.title, r.order_id), None)
-                if unspsc:
-                    new_tran.category.name = (
-                        category.get_mint_category_from_unspsc(unspsc))
 
         assert micro_usd_nearly_equal(
             t.amount,

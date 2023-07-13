@@ -20,13 +20,11 @@ from mintamazontagger import amazon
 from mintamazontagger import mint
 from mintamazontagger import tagger
 from mintamazontagger import VERSION
-from mintamazontagger.args import (
-    define_cli_args, has_order_history_csv_files, TAGGER_BASE_PATH)
+from mintamazontagger.args import define_cli_args, TAGGER_BASE_PATH
 from mintamazontagger.my_progress import (
     counter_progress_cli, determinate_progress_cli, indeterminate_progress_cli)
 from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.mintclient import MintClient
-from mintamazontagger.orderhistory import fetch_order_history
 from mintamazontagger.webdriver import get_webdriver
 
 logger = logging.getLogger(__name__)
@@ -98,14 +96,9 @@ def main():
     mint_client = MintClient(args, webdriver_factory)
 
     # Attempt to fetch the order history if csv files are not already provided.
-    if not has_order_history_csv_files(args):
-        if not maybe_prompt_for_amazon_credentials(args):
-            logger.critical('Failed to get Amazon credentials.')
-            exit(1)
-        if not fetch_order_history(
-                args, webdriver_factory, indeterminate_progress_cli):
-            logger.critical('Failed to fetch Amazon order history.')
-            exit(1)
+    if not args.amazon_export:
+        logger.critical('Amazon Export Zip file is required.')
+        exit(1)
 
     if args.dry_run:
         logger.info('\nDry Run; no modifications being sent to Mint.\n')
