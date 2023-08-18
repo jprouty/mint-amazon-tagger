@@ -50,6 +50,8 @@ def parse_usd_as_float(amount):
         return amount
     # Remove any formatting/grouping commas.
     amount = amount.replace(',', '')
+    # Remove any quoting.
+    amount = amount.replace('\'', '')
     negate = False
     if '-' == amount[0]:
         negate = True

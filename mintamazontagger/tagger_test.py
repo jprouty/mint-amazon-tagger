@@ -210,7 +210,7 @@ class Tagger(unittest.TestCase):
 
     def test_get_mint_updates_verbose_itemize_arg(self):
         i1 = item()
-        o1 = order(shipping_charge='$3.99', total_promotions='$3.99')
+        o1 = order(shipping_charge='$3.99', total_discounts='$3.99')
         t1 = transaction()
 
         stats = Counter()
@@ -293,7 +293,7 @@ class Tagger(unittest.TestCase):
         self.assertEqual(new_trans[0].category.name, 'Shopping')
         self.assertEqual(new_trans[0].amount, -17000000)
 
-    def test_get_mint_updates_multi_orders_trans_same_date_and_amount(self):
+    def test_get_mint_updates_multi_charges_trans_same_date_and_amount(self):
         i1 = item(order_id='A')
         o1 = order(order_id='A')
         i2 = item(order_id='B')
@@ -319,7 +319,7 @@ class Tagger(unittest.TestCase):
 
         self.assertEqual(len(updates2), 1)
 
-    def test_get_mint_updates_one_trans_one_oid_multiple_orders(self):
+    def test_get_mint_updates_one_trans_one_oid_multiple_charges(self):
         # Test example from https://github.com/jprouty/mint-amazon-tagger/issues/133
         i1 = item(
             order_id='A',

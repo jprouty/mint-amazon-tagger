@@ -31,7 +31,7 @@ previously tagged transactions take a look at the retag_changed option.
 
 This tool **does not** save your username or password. The tool is powered by the [Selenium framework](https://www.selenium.dev/) to automate an instance of the Chrome/Chromium browser. When running the tool it will prompt for the username and password and then enter it into the browser for you. There are options that allow for manual user operation of the login flows for both Mint and Amazon.
 
-This tool **does not** require an Amazon store card/Visa. All you need is to pay for your Amazon orders with an account that is synchronized with Mint. For example, if you alternate between 5 different credit cards to pay for purchases on your Amazon account, only the transactions from credit cards synchronized with Mint will get tagged.
+This tool **does not** require an Amazon store card/Visa. All you need is to pay for your Amazon charges with an account that is synchronized with Mint. For example, if you alternate between 5 different credit cards to pay for purchases on your Amazon account, only the transactions from credit cards synchronized with Mint will get tagged.
 
 Some things the tagger cannot do:
 
@@ -125,18 +125,18 @@ tagger automates the rest.
 a. Login and visit [Amazon Order History
 Reports](https://www.amazon.com/gp/b2b/reports)
 
-b. "Request Report" for "Items", "Orders and shipments", and "Refunds". Make sure the
+b. "Request Report" for "Items", "charges and shipments", and "Refunds". Make sure the
 date ranges are the same.
 
 c. Download the completed reports. Let's called them
-`Items.csv Orders.csv Refunds.csv` for this walk-through. Note that
+`Items.csv charges.csv Refunds.csv` for this walk-through. Note that
 Refunds is optional! Yay.
 
 2. (Optional) Do a dry run! Make sure everything looks right first. Run:
-`mint-amazon-tagger-cli --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --dry_run --mint_email yourEmail@here.com`
+`mint-amazon-tagger-cli --items_csv Items.csv --charges_csv charges.csv --refunds_csv Refunds.csv --dry_run --mint_email yourEmail@here.com`
 
 3. Now perform the actual updates, without `--dry_run`:
-`mint-amazon-tagger-cli --items_csv Items.csv --orders_csv Orders.csv --refunds_csv Refunds.csv --mint_email yourEmail@here.com`
+`mint-amazon-tagger-cli --items_csv Items.csv --charges_csv charges.csv --refunds_csv Refunds.csv --mint_email yourEmail@here.com`
 
 4. Sit back and relax! The run time depends on the speed of your machine,
 quality of internet connection, and total number of transactions. For

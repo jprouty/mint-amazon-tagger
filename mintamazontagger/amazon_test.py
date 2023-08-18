@@ -25,7 +25,7 @@ class HelperMethods(unittest.TestCase):
             amazon.parse_amazon_date('1/23/1989'),
             date(1989, 1, 23))
 
-    def test_associate_items_with_orders_none_match(self):
+    def test_associate_items_with_charges_none_match(self):
         i1 = item(order_id='1', item_subtotal='$100.00')
         i2 = item(order_id='2')
         i3 = item(order_id='3')
@@ -34,23 +34,23 @@ class HelperMethods(unittest.TestCase):
         oa = order(order_id='A')
         o1 = order(order_id='1', subtotal='$5.00')
 
-        amazon.associate_items_with_orders([oa, o1], [i1, i2, i3, i4])
+        amazon.associate_items_with_charges([oa, o1], [i1, i2, i3, i4])
 
         self.assertFalse(oa.items_matched)
         self.assertEqual(oa.items, [])
         self.assertFalse(o1.items_matched)
         self.assertEqual(o1.items, [])
 
-    def test_associate_items_with_orders_single_item_subtotal_match(self):
+    def test_associate_items_with_charges_single_item_subtotal_match(self):
         i1 = item()
         o1 = order()
 
-        amazon.associate_items_with_orders([o1], [i1])
+        amazon.associate_items_with_charges([o1], [i1])
 
         self.assertTrue(o1.items_matched)
         self.assertEqual(o1.items, [i1])
 
-    def test_associate_items_with_orders_multi_single_matches(self):
+    def test_associate_items_with_charges_multi_single_matches(self):
         i1 = item(order_id='1')
         o1 = order(order_id='1')
         i2 = item(order_id='2')
@@ -58,7 +58,7 @@ class HelperMethods(unittest.TestCase):
         i3 = item(order_id='3')
         o3 = order(order_id='3')
 
-        amazon.associate_items_with_orders([o1, o2, o3], [i3, i2, i1])
+        amazon.associate_items_with_charges([o1, o2, o3], [i3, i2, i1])
 
         self.assertTrue(o1.items_matched)
         self.assertEqual(o1.items, [i1])
@@ -69,7 +69,7 @@ class HelperMethods(unittest.TestCase):
         self.assertTrue(o3.items_matched)
         self.assertEqual(o3.items, [i3])
 
-    def test_associate_items_with_orders_multiple_items_subtotal_match(self):
+    def test_associate_items_with_charges_multiple_items_subtotal_match(self):
         oid1 = 'Order1'
         i1 = item(order_id=oid1, item_subtotal='$20.21', quantity=6)
         i2 = item(order_id=oid1, item_subtotal='$2.01', quantity=1)
@@ -78,13 +78,13 @@ class HelperMethods(unittest.TestCase):
 
         o1 = order(order_id=oid1, subtotal='$22.63')
 
-        amazon.associate_items_with_orders([o1], items)
+        amazon.associate_items_with_charges([o1], items)
 
         self.assertTrue(o1.items_matched)
         self.assertEqual(o1.items, items)
 
-    def test_associate_items_with_orders_multi_orders_and_items_by_track(self):
-        # All items and orders have the same order id, but they shipped in
+    def test_associate_items_with_charges_multi_charges_and_items_by_track(self):
+        # All items and charges have the same order id, but they shipped in
         # different packages.
         oid = 'ABC'
         i1 = item(order_id=oid, item_subtotal='$20.21', tracking='A')
@@ -96,7 +96,7 @@ class HelperMethods(unittest.TestCase):
         o1 = order(order_id=oid, subtotal='$22.22', tracking='A')
         o2 = order(order_id=oid, subtotal='$0.41', tracking='B')
 
-        amazon.associate_items_with_orders([o1, o2], a_items + b_items)
+        amazon.associate_items_with_charges([o1, o2], a_items + b_items)
 
         self.assertTrue(o1.items_matched)
         self.assertEqual(o1.items, a_items)
@@ -104,7 +104,7 @@ class HelperMethods(unittest.TestCase):
         self.assertTrue(o2.items_matched)
         self.assertEqual(o2.items, b_items)
 
-    def test_associate_items_with_orders_multi_orders_and_items_by_combi(self):
+    def test_associate_items_with_charges_multi_charges_and_items_by_combi(self):
         # Sometimes the same item is shipped in different packages, so tracking
         # number doesn't work.
         items = [
@@ -116,7 +116,7 @@ class HelperMethods(unittest.TestCase):
         o2 = order(order_id='A', subtotal='$12.00', tracking='B')
         o3 = order(order_id='A', subtotal='$14.00', tracking='C')
 
-        amazon.associate_items_with_orders([o1, o2, o3], items)
+        amazon.associate_items_with_charges([o1, o2, o3], items)
 
         self.assertTrue(o1.items_matched)
         self.assertEqual(len(o1.items), 2)
@@ -141,7 +141,7 @@ class OrderClass(unittest.TestCase):
         self.assertEqual(o.tax_charged, 1050000)
         self.assertEqual(o.tax_before_promotions, 1050000)
         self.assertEqual(o.total_charged, 11950000)
-        self.assertEqual(o.total_promotions, 0)
+        self.assertEqual(o.total_discounts(), 0)
 
         # Dates are parsed:
         self.assertEqual(o.order_date, date(2014, 2, 26))
@@ -183,7 +183,7 @@ class OrderClass(unittest.TestCase):
         o3 = order(
             subtotal='$5.55',
             shipping_charge='$4.99',
-            total_promotions='$4.99')
+            total_discounts='$4.99')
         o3.set_items([
             item(item_total='$6.44'),
         ])
@@ -194,7 +194,7 @@ class OrderClass(unittest.TestCase):
             subtotal='$5.55',
             tax_charged='$0.61',
             shipping_charge='$4.99',
-            total_promotions='$4.99')
+            total_discounts='$4.99')
         self.assertEqual(o1.total_by_subtotals(), 6160000)
 
         o1.set_items([
@@ -206,7 +206,7 @@ class OrderClass(unittest.TestCase):
             subtotal='$5.55',
             tax_charged='$0.61',
             shipping_charge='$4.99',
-            total_promotions='$0.00')
+            total_discounts='$0.00')
         self.assertEqual(o2.total_by_subtotals(), 11150000)
 
     def test_transact_date(self):
@@ -448,7 +448,7 @@ class OrderClass(unittest.TestCase):
         o = order(
             total_charged='$20.00',
             shipping_charge='$3.99',
-            total_promotions='$3.99')
+            total_discounts='$3.99')
         i1 = item(title='Item 1', item_total='$6.00', quantity='1')
         i2 = item(title='Item 2', item_total='$14.00', quantity='3')
         o.set_items([i1, i2])
@@ -481,7 +481,7 @@ class OrderClass(unittest.TestCase):
         o = order(
             total_charged='$20.00',
             shipping_charge='$3.99',
-            total_promotions='$1.00')
+            total_discounts='$1.00')
         i = item(title='Item 1', item_total='$20.00', quantity='4')
         o.set_items([i])
 
@@ -510,7 +510,7 @@ class OrderClass(unittest.TestCase):
         self.assertEqual(merged.items[0].quantity, 4)
         self.assertEqual(merged.items[0].item_total, 23900000)
 
-    def test_merge_multi_orders(self):
+    def test_merge_multi_charges(self):
         o1 = order()
         i1 = item()
         i2 = item()

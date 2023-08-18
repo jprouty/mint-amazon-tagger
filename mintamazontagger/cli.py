@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # This script fetches Amazon "Order History Reports" and annotates your Mint
-# transactions based on actual items in each purchase. It can handle orders
+# transactions based on actual items in each purchase. It can handle charges
 # that are split into multiple shipments/charges, and can even itemized each
 # transaction for maximal control over categorization.
 
@@ -119,20 +119,20 @@ def main():
         logger.critical('Uncaught error from create_updates. Exiting')
         exit(1)
 
-    log_amazon_stats(results.items, results.orders, results.refunds)
+    log_amazon_stats(results.items, results.charges) #, results.refunds)
     log_processing_stats(results.stats)
 
-    if args.print_unmatched and results.unmatched_orders:
+    if args.print_unmatched and results.unmatched_charges:
         logger.warning(
             'The following were not matched to Mint transactions:\n')
         by_oid = defaultdict(list)
-        for uo in results.unmatched_orders:
+        for uo in results.unmatched_charges:
             by_oid[uo.order_id].append(uo)
         for unmatched_by_oid in by_oid.values():
-            orders = [o for o in unmatched_by_oid if not o.is_refund]
+            charges = [o for o in unmatched_by_oid if not o.is_refund]
             refunds = [o for o in unmatched_by_oid if o.is_refund]
-            if orders:
-                print_unmatched(amazon.Order.merge(orders))
+            if charges:
+                print_unmatched(amazon.Order.merge(charges))
             for r in amazon.Refund.merge(refunds):
                 print_unmatched(r)
 
@@ -183,30 +183,26 @@ def maybe_prompt_for_amazon_credentials(args):
     return True
 
 
-def log_amazon_stats(items, orders, refunds):
+def log_amazon_stats(items, charges):
     logger.info('\nAmazon Stats:')
-    if len(orders) == 0 or len(items) == 0:
-        logger.info('\tThere were not Amazon orders/items!')
+    if len(charges) == 0 or len(items) == 0:
+        logger.info('\tThere were not Amazon charges/items!')
         return
-    logger.info(
-        f'\n{len([o for o in orders if o.items_matched])} orders with '
-        f'{len([i for i in items if i.matched])} matching items')
-    logger.info(
-        f'{len([o for o in orders if not o.items_matched])} unmatched orders '
-        f'and {len([i for i in items if not i.matched])} unmatched items')
+    oid = set([i.order_id for i in items])
+    logger.info(f'\n{len(oid)} total Amazon orders\n{len(charges)} payment "charges"\n{sum([i.quantity for i in items])} total items ordered')
 
-    first_order_date = min([o.order_date for o in orders])
-    last_order_date = max([o.order_date for o in orders])
-    logger.info(f'Orders ranging from {first_order_date} to {last_order_date}')
+    first_order_date = min([o.transact_date() for o in charges if o.transact_date()])
+    last_order_date = max([o.transact_date() for o in charges if o.transact_date()])
+    logger.info(f'Charges ranging from {first_order_date} to {last_order_date}')
 
-    per_item_totals = [i.item_total for i in items]
-    per_order_totals = [o.total_charged for o in orders]
+    per_item_totals = [i.total() for i in items]
+    per_order_totals = [c.total_owed() for c in charges]
 
     logger.info(
         f'{micro_usd_to_usd_string(sum(per_order_totals))} total spend')
 
     logger.info(
-        f'{micro_usd_to_usd_string(sum(per_order_totals) / len(orders))} avg '
+        f'{micro_usd_to_usd_string(sum(per_order_totals) / len(oid))} avg '
         f'order total (range: {micro_usd_to_usd_string(min(per_order_totals))}'
         f' - {micro_usd_to_usd_string(max(per_order_totals))})')
     logger.info(
@@ -214,37 +210,38 @@ def log_amazon_stats(items, orders, refunds):
         f'item price (range: {micro_usd_to_usd_string(min(per_item_totals))}'
         f' - {micro_usd_to_usd_string(max(per_item_totals))})')
 
-    if refunds:
-        first_refund_date = min(
-            [r.refund_date for r in refunds if r.refund_date])
-        last_refund_date = max(
-            [r.refund_date for r in refunds if r.refund_date])
-        logger.info(
-            f'\n{len(refunds)} refunds dating from '
-            f'{first_refund_date} to {last_refund_date}')
+    # if refunds:
+    #     first_refund_date = min(
+    #         [r.refund_date for r in refunds if r.refund_date])
+    #     last_refund_date = max(
+    #         [r.refund_date for r in refunds if r.refund_date])
+    #     logger.info(
+    #         f'\n{len(refunds)} refunds dating from '
+    #         f'{first_refund_date} to {last_refund_date}')
 
-        per_refund_totals = [r.total_refund_amount for r in refunds]
+    #     per_refund_totals = [r.total_refund_amount for r in refunds]
 
-        logger.info(
-            f'{micro_usd_to_usd_string(sum(per_refund_totals))} '
-            'total refunded')
+    #     logger.info(
+    #         f'{micro_usd_to_usd_string(sum(per_refund_totals))} '
+    #         'total refunded')
 
 
 def log_processing_stats(stats):
+        # 'Refunds matched w/ transactions: {refund_match} (unmatched refunds: '
+        # '{refund_unmatch})\n'
+
     logger.info(
-        '\nTransactions: {trans}\n'
+        '\n{trans} Mint transactions from {earliest_transaction_date} to {latest_transaction_date}\n'
         'Transactions w/ "Amazon" in description: {amazon_in_desc}\n'
         'Transactions ignored: is pending: {pending}\n'
         '\n'
-        'Orders matched w/ transactions: {order_match} (unmatched orders: '
+        'charges matched w/ transactions: {order_match} (unmatched charges: '
         '{order_unmatch})\n'
-        'Refunds matched w/ transactions: {refund_match} (unmatched refunds: '
-        '{refund_unmatch})\n'
-        'Transactions matched w/ orders/refunds: {trans_match} (unmatched: '
+        'Transactions matched w/ charges: {trans_match} (unmatched: '
         '{trans_unmatch})\n'
         '\n'
-        'Orders skipped: not shipped: {skipped_orders_unshipped}\n'
-        'Orders skipped: gift card used: {skipped_orders_gift_card}\n'
+        'charges skipped: not shipped: {skipped_charges_unshipped}\n'
+        'charges skipped: gift card used: {skipped_charges_gift_card}\n'
         '\n'
         'Order fix-up: incorrect tax itemization: {adjust_itemized_tax}\n'
         'Order fix-up: has a misc charges (e.g. gift wrap): {misc_charge}\n'

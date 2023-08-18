@@ -54,7 +54,7 @@ class TransactionClass(unittest.TestCase):
         self.assertEqual(trans.amount, -11950000)
         self.assertEqual(trans.date, date(2014, 2, 28))
         self.assertFalse(trans.matched)
-        self.assertEqual(trans.orders, [])
+        self.assertEqual(trans.charges, [])
         self.assertEqual(trans.children, [])
 
         trans = transaction(amount=-423.12)
@@ -71,11 +71,11 @@ class TransactionClass(unittest.TestCase):
 
     def test_match(self):
         trans = transaction()
-        orders = [1, 2, 3]
-        trans.match(orders)
+        charges = [1, 2, 3]
+        trans.match(charges)
 
         self.assertTrue(trans.matched)
-        self.assertEqual(trans.orders, orders)
+        self.assertEqual(trans.charges, charges)
 
     def test_bastardize(self):
         child = transaction(parent_id=123)

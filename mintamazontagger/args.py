@@ -77,16 +77,16 @@ def define_common_args(parser):
     parser.add_argument(
         '--description_prefix_override', type=str,
         help=('The prefix to use when updating the description for each Mint '
-              'transaction. By default, the \'Website\' value from Amazon '
-              'Items/Orders csv is used. If a string is provided, use '
+              'transaction. By default, the \'Website\' value from the Amazon '
+              'Data Export is used. If a string is provided, use '
               'this instead for all matched transactions. If given, this is '
               'used in conjunction with amazon_domains to detect if a '
               'transaction has already been tagged by this tool.'))
     parser.add_argument(
         '--description_return_prefix_override', type=str,
         help=('The prefix to use when updating the description for each Mint '
-              'refund. By default, the \'Website\' value from Amazon '
-              'Items/Orders csv is used with refund appended (e.g. '
+              'refund. By default, the \'Website\' value from the Amazon '
+              'Data Export is used with refund appended (e.g. '
               '\'Amazon.com Refund: ...\'. If a string is provided here, use '
               'this instead for all matched refunds. If given, this is '
               'used in conjunction with amazon_domains to detect if a '
@@ -99,7 +99,7 @@ def define_common_args(parser):
                  'amazon.es,amazon.co.uk,amazon.ca,amazon.com.mx,'
                  'amazon.com.au,amazon.com.br'),
         help=('A list of all valid Amazon domains/websites. These should '
-              'match the website column from Items/Orders and is used to '
+              'match the website column from the Amazon Data Export and is used to '
               'detect if a transaction has already been tagged by this tool.'))
 
     # To itemize or not to itemize; that is the question:
@@ -128,9 +128,9 @@ def define_common_args(parser):
               'tagger won\'t know to leave it alone.'))
 
     parser.add_argument(
-        '--max_unmatched_order_combinations', type=int,
+        '--max_unmatched_charges_combinations', type=int,
         default=20,
-        help=('Maximum number of orders to attempt to combinatorically match with '
+        help=('Maximum number of charges to attempt to combinatorically match with '
               'transactions. The current implementation is pretty memory intensive, '
               'so setting this higher will potentially consume all available memory, '
               'and cause the tagger to take a while.'))
@@ -246,4 +246,4 @@ def define_cli_args(parser):
               '--retag_changed'))
     parser.add_argument(
         '--print_unmatched', action='store_true',
-        help=('At completion, print unmatched orders to help manual tagging.'))
+        help=('At completion, print unmatched charges to help manual tagging.'))

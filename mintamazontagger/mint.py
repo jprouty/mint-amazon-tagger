@@ -97,7 +97,8 @@ class Transaction(object):
     """A Mint tranaction."""
 
     matched = False
-    orders = []
+    # AmazonCharges:
+    charges = []
     item = None  # Set in the case of itemized new transactions.
     children = []
 
@@ -111,7 +112,7 @@ class Transaction(object):
         # Itemized should NOT have this info, otherwise there are some lovely
         # cycles.
         item.matched = False
-        item.orders = []
+        item.charges = []
         item.children = []
 
         item.amount = amount
@@ -121,9 +122,9 @@ class Transaction(object):
 
         return item
 
-    def match(self, orders):
+    def match(self, charges):
         self.matched = True
-        self.orders = orders
+        self.charges = charges
 
     def bastardize(self):
         """Severes the child from the parent, making this a parent itself."""

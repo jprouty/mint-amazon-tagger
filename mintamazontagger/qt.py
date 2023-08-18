@@ -50,7 +50,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
                 '\n'.join(descriptions),
                 '\n'.join(category_names),
                 '\n'.join(amounts),
-                orig_trans.orders[0].order_id,
+                orig_trans.charges[0].order_id,
             ])
 
         self.header = [
@@ -121,16 +121,16 @@ class MintUpdatesTableModel(QAbstractTableModel):
 
 
 class AmazonUnmatchedTableDialog(QDialog):
-    def __init__(self, unmatched_orders, **kwargs):
+    def __init__(self, unmatched_charges, **kwargs):
         super(AmazonUnmatchedTableDialog, self).__init__(**kwargs)
-        self.setWindowTitle('Unmatched Amazon Orders/Refunds')
+        self.setWindowTitle('Unmatched Amazon charges/Refunds')
         self.setModal(True)
-        self.model = AmazonUnmatchedTableModel(unmatched_orders)
+        self.model = AmazonUnmatchedTableModel(unmatched_charges)
         v_layout = QVBoxLayout()
         self.setLayout(v_layout)
 
         label = QLabel(
-            f'Below are the {len(unmatched_orders)} Amazon Orders/Refunds '
+            f'Below are the {len(unmatched_charges)} Amazon charges/Refunds '
             'which did not match a Mint transaction.')
         v_layout.addWidget(label)
 
@@ -180,7 +180,7 @@ class AmazonUnmatchedTableDialog(QDialog):
 
 
 class AmazonUnmatchedTableModel(QAbstractTableModel):
-    def __init__(self, unmatched_orders, **kwargs):
+    def __init__(self, unmatched_charges, **kwargs):
         super(AmazonUnmatchedTableModel, self).__init__(**kwargs)
 
         self.header = [
@@ -191,13 +191,13 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
         ]
         self.my_data = []
         by_oid = defaultdict(list)
-        for uo in unmatched_orders:
+        for uo in unmatched_charges:
             by_oid[uo.order_id].append(uo)
         for unmatched_by_oid in by_oid.values():
-            orders = [o for o in unmatched_by_oid if not o.is_refund]
+            charges = [o for o in unmatched_by_oid if not o.is_refund]
             refunds = [o for o in unmatched_by_oid if o.is_refund]
-            if orders:
-                merged = amazon.Order.merge(orders)
+            if charges:
+                merged = amazon.Order.merge(charges)
                 self.my_data.append(self._create_row(merged))
             for r in amazon.Refund.merge(refunds):
                 self.my_data.append(self._create_row(r))
@@ -251,17 +251,17 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
 
 
 class AmazonStatsDialog(QDialog):
-    def __init__(self, items, orders, refunds, **kwargs):
+    def __init__(self, items, charges, refunds, **kwargs):
         super(AmazonStatsDialog, self).__init__(**kwargs)
-        self.setWindowTitle('Amazon Stats for Items/Orders/Refunds')
+        self.setWindowTitle('Amazon Stats for Items/charges/Refunds')
         self.setModal(True)
         v_layout = QVBoxLayout()
         self.setLayout(v_layout)
 
         v_layout.addWidget(QLabel('Amazon Stats:'))
-        if len(orders) == 0 or len(items) == 0:
+        if len(charges) == 0 or len(items) == 0:
             v_layout.addWidget(QLabel(
-                'There were not Amazon orders/items!'))
+                'There were not Amazon charges/items!'))
 
             close_button = QPushButton('Close')
             v_layout.addWidget(close_button)
@@ -269,26 +269,26 @@ class AmazonStatsDialog(QDialog):
             return
 
         v_layout.addWidget(QLabel(
-            f'\n{len([o for o in orders if o.items_matched])} orders with '
+            f'\n{len([o for o in charges if o.items_matched])} charges with '
             f'{len([i for i in items if i.matched])} matching items'))
         v_layout.addWidget(QLabel(
-            f'{len([o for o in orders if not o.items_matched])} unmatched '
-            f'orders and {len([i for i in items if not i.matched])} unmatched '
+            f'{len([o for o in charges if not o.items_matched])} unmatched '
+            f'charges and {len([i for i in items if not i.matched])} unmatched '
             'items'))
 
-        first_order_date = min([o.order_date for o in orders])
-        last_order_date = max([o.order_date for o in orders])
+        first_order_date = min([o.order_date for o in charges])
+        last_order_date = max([o.order_date for o in charges])
 
         v_layout.addWidget(QLabel(
-            f'Orders ranging from {first_order_date} to {last_order_date}'))
+            f'charges ranging from {first_order_date} to {last_order_date}'))
 
         per_item_totals = [i.item_total for i in items]
-        per_order_totals = [o.total_charged for o in orders]
+        per_order_totals = [o.total_charged for o in charges]
 
         v_layout.addWidget(QLabel(
             f'{micro_usd_to_usd_string(sum(per_order_totals))} total spend'))
         v_layout.addWidget(QLabel(
-            f'{micro_usd_to_usd_string(sum(per_order_totals) / len(orders))} '
+            f'{micro_usd_to_usd_string(sum(per_order_totals) / len(charges))} '
             'avg order total (range: '
             f'{micro_usd_to_usd_string(min(per_order_totals))} - '
             f'{micro_usd_to_usd_string(max(per_order_totals))})'))
@@ -331,17 +331,17 @@ class TaggerStatsDialog(QDialog):
             'Transactions w/ "Amazon" in description: {amazon_in_desc}\n'
             'Transactions ignored: is pending: {pending}\n'
             '\n'
-            'Orders matched w/ transactions: {order_match} (unmatched orders: '
+            'charges matched w/ transactions: {order_match} (unmatched charges: '
             '{order_unmatch})\n'
             'Refunds matched w/ transactions: {refund_match} '
             '(unmatched refunds: '
             '{refund_unmatch})\n'
-            'Transactions matched w/ orders/refunds: {trans_match} '
+            'Transactions matched w/ charges/refunds: {trans_match} '
             '(unmatched: '
             '{trans_unmatch})\n'
             '\n'
-            'Orders skipped: not shipped: {skipped_orders_unshipped}\n'
-            'Orders skipped: gift card used: {skipped_orders_gift_card}\n'
+            'charges skipped: not shipped: {skipped_charges_unshipped}\n'
+            'charges skipped: gift card used: {skipped_charges_gift_card}\n'
             '\n'
             'Order fix-up: incorrect tax itemization: {adjust_itemized_tax}\n'
             'Order fix-up: has a misc charges (e.g. gift wrap): '

@@ -95,8 +95,10 @@ class MintClient():
             return []
         logger.info(
             f'Getting all Mint transactions since {from_date} to {to_date}.')
+        
+        limit = 10000
         params = {
-            'limit': '100000',
+            'limit': limit,
             'fromDate': from_date,
             'toDate': to_date,
         }

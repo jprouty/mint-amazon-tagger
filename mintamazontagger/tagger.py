@@ -1,5 +1,5 @@
 # This script takes Amazon "Order History Reports" and annotates your Mint
-# transactions based on actual items in each purchase. It can handle orders
+# transactions based on actual items in each purchase. It can handle charges
 # that are split into multiple shipments/charges, and can even itemized each
 # transaction for maximal control over categorization.
 
@@ -29,10 +29,10 @@ UpdatesResult = namedtuple(
     'UpdatesResult',
     field_names=(
         'success',
-        'items', 'updates', 'unmatched_orders', 'stats'),
+        'items', 'charges', 'updates', 'unmatched_charges', 'stats'),
     defaults=(
         False,
-        None, None, None, None))
+        None, None, None, None, None))
 
 
 import pprint
@@ -70,6 +70,37 @@ def create_updates(
             'The Items report contains no data. Try '
             f'downloading again. Reports used: {order_history_csvs}')
         return UpdatesResult()
+    
+    # Combine items into a charge that have matching:
+    # - 'order id'
+    # - 'shipment item subtotal'
+    # - 'shipment item subtotal tax' 
+
+    # Merge charges if both the order id and the shipment item amount + shipment item tax align with total owed.
+    oid_to_items = defaultdict(list)
+    for i in items:
+        oid_to_items[(i.order_id, i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
+    
+    charges = []
+    for items_same_id in oid_to_items.values():
+        if len(items_same_id) == 1:
+            charges.append(amazon.Charge(items_same_id))
+            continue
+        first_item = items_same_id[0]
+        item_subtotal = first_item.shipment_item_subtotal + first_item.shipment_item_subtotal_tax
+        discounts = sum(i.total_discounts for i in items_same_id)
+        shipping_charges = sum(i.shipping_charge for i in items_same_id)
+        total_owed = item_subtotal + discounts + shipping_charges
+        is_same_charge = all([
+            (i.shipment_item_subtotal == first_item.shipment_item_subtotal and
+             i.shipment_item_subtotal_tax == first_item.shipment_item_subtotal_tax)
+            for i in items_same_id]) and total_owed == sum(i.total_owed for i in items_same_id)
+        if is_same_charge:
+            charges.append(amazon.Charge(items_same_id))
+        else:
+            # Something doesn't match up (could be same charge but two different shipments).
+            # These will be cleaned up later with the combo matching logic per same order.
+            charges.extend([amazon.Charge([i]) for i in items_same_id])
 
     # Initialize the stats. Explicitly initialize stats that might not be
     # accumulated (conditionals).
@@ -140,14 +171,15 @@ def create_updates(
                 args.mint_pickle_location)
             pickle_progress.finish()
 
-    updates, unmatched_orders = get_mint_updates(
+    updates, unmatched_charges = get_mint_updates(
         items,
+        charges,
         mint_trans,
         args, stats,
         mint_categories,
         progress_factory=determinate_progress_factory)
     return UpdatesResult(
-        True, items, updates, unmatched_orders, stats)
+        True, items, charges, updates, unmatched_charges, stats)
 
 
 def get_mint_category_history_for_items(trans, args):
@@ -200,6 +232,7 @@ def get_mint_category_history_for_items(trans, args):
 
 def get_mint_updates(
         items,
+        charges,
         trans,
         args, stats,
         mint_categories,
@@ -207,30 +240,33 @@ def get_mint_updates(
     mint_historic_category_renames = get_mint_category_history_for_items(
         trans, args)
 
-    # Remove items from canceled orders or pending orders.
-    items = [i for i in items if i.order_status != 'Closed']
+    # Remove items from canceled charges or pending charges.
+    charges = [c for c in charges if c.order_status() == 'Closed']
     # Remove items that haven't shipped yet / aren't charged / or cancelled items out of an otherwise valid order.
-    items = [i for i in items if i.order_status != 'Not Available']
-    # Remove items with zero quantity (it happens!)
-    items = [i for i in items if i.quantity > 0]
+    charges = [c for c in charges if c.ship_status() != 'Not Available']
+
     # Re-evaluate the following:
+    # # Remove items with zero quantity:
+    # charges = [c for c in charges if c.total_quantity() > 0]
+    
     # Make more Items such that every item is quantity 1. This is critical
-    # prior to associate_items_with_orders such that items with non-1
+    # prior to associate_items_with_charges such that items with non-1
     # quantities split into different packages can be associated with the
     # appropriate order.
     # items = [si for i in items for si in i.split_by_quantity()]
 
     # itemProgress = progress_factory(
-    #     'Matching Amazon Items with Orders',
+    #     'Matching Amazon Items with charges',
     #     len(items))
-    # amazon.associate_items_with_orders(orders, items, itemProgress)
+    # amazon.associate_items_with_charges(charges, items, itemProgress)
     # itemProgress.finish()
 
-    # Only match orders that have items.
-    # orders = [o for o in orders if o.items]
+    # Only match charges that have items.
+    # charges = [o for o in charges if o.items]
 
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
+
     # Skip t if the original description doesn't contain 'amazon'
     merch_whitelist = args.mint_input_description_filter.lower().split(',')
 
@@ -265,14 +301,14 @@ def get_mint_updates(
             args.mint_input_categories_filter.lower().split(','))
         trans = [t for t in trans if t.category.name.lower() in cat_whitelist]
 
-    # Match orders.
+    # Match charges.
     orderMatchProgress = progress_factory(
         'Matching Amazon Items w/ Mint Trans',
         len(items))
-    match_transactions(trans, items, args, orderMatchProgress)
+    match_transactions(trans, charges, args, orderMatchProgress)
     orderMatchProgress.finish()
 
-    unmatched_trans = [t for t in trans if not t.orders]
+    unmatched_trans = [t for t in trans if not t.charges]
 
     # Match refunds.
     # refundMatchProgress = progress_factory(
@@ -281,29 +317,32 @@ def get_mint_updates(
     # match_transactions(unmatched_trans, refunds, args, refundMatchProgress)
     # refundMatchProgress.finish()
 
-    unmatched_orders = [o for o in items if not o.matched]
-    unmatched_trans = [t for t in trans if not t.orders]
+    unmatched_charges = [c for c in charges if not c.matched]
+    matched_charges = [c for c in charges if c.matched]
+
+    unmatched_trans = [t for t in trans if not t.charges]
+    matched_trans = [t for t in trans if t.charges]
+
     # unmatched_refunds = [r for r in refunds if not r.matched]
 
-    num_gift_card = len([o for o in unmatched_orders
-                         if 'Gift Certificate' in o.payment_instrument_type])
-    num_unshipped = len([o for o in unmatched_orders if not o.shipment_date])
+    num_gift_card = 0
+    # num_gift_card = len([c for c in unmatched_charges
+    #                      if 'Gift Certificate' in c.payment_instrument_type])
+    num_unshipped = len([c for c in unmatched_charges if not c.transact_date()])
 
-    matched_orders = [o for o in items if o.matched]
-    matched_trans = [t for t in trans if t.orders]
-    matched_refunds = [r for r in refunds if r.matched]
+    # matched_refunds = [r for r in refunds if r.matched]
+
+    stats['earliest_transaction_date'] = min([t.date for t in unmatched_trans])
+    stats['latest_transaction_date'] = max([t.date for t in unmatched_trans])
 
     stats['trans_unmatch'] = len(unmatched_trans)
-    stats['order_unmatch'] = len(unmatched_orders)
+    stats['order_unmatch'] = len(unmatched_charges)
     # stats['refund_unmatch'] = len(unmatched_refunds)
     stats['trans_match'] = len(matched_trans)
-    stats['order_match'] = len(matched_orders)
-    stats['refund_match'] = len(matched_refunds)
-    stats['skipped_orders_gift_card'] = num_gift_card
-    stats['skipped_orders_unshipped'] = num_unshipped
-
-    merged_orders = []
-    merged_refunds = []
+    stats['order_match'] = len(matched_charges)
+    # stats['refund_match'] = len(matched_refunds)
+    stats['skipped_charges_gift_card'] = num_gift_card
+    stats['skipped_charges_unshipped'] = num_unshipped
 
     updateCounter = progress_factory(
         'Determining Mint Updates',
@@ -312,44 +351,43 @@ def get_mint_updates(
     for t in matched_trans:
         updateCounter.next()
         if t.amount < 0:
-            order = amazon.Order.merge(t.orders)
-            merged_orders.extend(orders)
+            charge = amazon.Charge.merge(t.charges)
 
-            prefix = f'{order.website}: '
+            prefix = f'{charge.website()}: '
             if args.description_prefix_override:
                 prefix = args.description_prefix_override
 
-            if order.attribute_subtotal_diff_to_misc_charge():
-                stats['misc_charge'] += 1
+            # if charge.attribute_subtotal_diff_to_misc_charge():
+            #     stats['misc_charge'] += 1
             # It's nice when "free" shipping cancels out with the shipping
             # promo, even though there is tax on said free shipping. Spread
             # that out across the items instead.
             # if order.attribute_itemized_diff_to_shipping_tax():
             #     stats['add_shipping_tax'] += 1
-            if order.attribute_itemized_diff_to_per_item_tax():
-                stats['adjust_itemized_tax'] += 1
+            # if charge.attribute_itemized_diff_to_per_item_tax():
+            #     stats['adjust_itemized_tax'] += 1
 
-            assert micro_usd_nearly_equal(t.amount, order.transact_amount())
-            assert micro_usd_nearly_equal(
-                t.amount, -order.total_by_subtotals())
-            assert micro_usd_nearly_equal(t.amount, -order.total_by_items())
+            assert micro_usd_nearly_equal(t.amount, charge.transact_amount())
+            # TODO: Re-establish and verify based on examples:
+            # assert micro_usd_nearly_equal(
+            #     t.amount, -charge.total_by_subtotals())
+            # assert micro_usd_nearly_equal(t.amount, -charge.total_by_items())
 
-            new_transactions = order.to_mint_transactions(
+            new_transactions = charge.to_mint_transactions(
                 t,
                 skip_free_shipping=not args.verbose_itemize)
 
-        else:
-            refunds = amazon.Refund.merge(t.orders)
-            merged_refunds.extend(refunds)
-            prefix = f'{refunds[0].website} refund: '
+        # else:
+        #     refunds = amazon.Refund.merge(t.charges)
+        #     prefix = f'{refunds[0].website} refund: '
 
-            if args.description_return_prefix_override:
-                prefix = args.description_return_prefix_override
+        #     if args.description_return_prefix_override:
+        #         prefix = args.description_return_prefix_override
 
-            new_transactions = []
-            for r in refunds:
-                new_tran = r.to_mint_transaction(t)
-                new_transactions.append(new_tran)
+        #     new_transactions = []
+        #     for r in refunds:
+        #         new_tran = r.to_mint_transaction(t)
+        #         new_transactions.append(new_tran)
 
         assert micro_usd_nearly_equal(
             t.amount,
@@ -369,7 +407,7 @@ def get_mint_updates(
             nt.update_category_id(mint_categories)
 
         summarize_single_item_order = (
-            t.amount < 0 and len(order.items) == 1
+            t.amount < 0 and len(charge.items) == 1
             and not args.verbose_itemize)
         if args.no_itemize or summarize_single_item_order:
             new_transactions = mint.summarize_new_trans(
@@ -418,11 +456,12 @@ def get_mint_updates(
     if args.num_updates > 0:
         updates = updates[:args.num_updates]
 
-    return updates, unmatched_orders + unmatched_refunds
+    return updates, unmatched_charges
+    # return updates, unmatched_charges + unmatched_refunds
 
 
-def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
-    if not list_of_orders_or_refunds:
+def mark_best_as_matched(t, list_of_charges_or_refunds, args, progress=None):
+    if not list_of_charges_or_refunds:
         return
 
     # Only consider it a match if the posted date (transaction date) is
@@ -431,18 +470,18 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
     closest_match_num_days = max_days + 365  # Large number
     closest_match = None
 
-    for orders in list_of_orders_or_refunds:
-        an_order = next((o for o in orders if o.transact_date()), None)
+    for charges in list_of_charges_or_refunds:
+        an_order = next((o for o in charges if o.transact_date()), None)
         if not an_order:
             continue
         num_days = (t.date - an_order.transact_date()).days
-        # TODO: consider orders even if it has a matched_transaction if this
+        # TODO: consider charges even if it has a matched_transaction if this
         # transaction is closer.
-        already_matched = any([o.matched for o in orders])
-        if (abs(num_days) <= max_days
+        already_matched = any([o.matched for o in charges])
+        if (num_days <= max_days and num_days >= 0
                 and abs(num_days) < closest_match_num_days
                 and not already_matched):
-            closest_match = orders
+            closest_match = charges
             closest_match_num_days = abs(num_days)
 
     if closest_match:
@@ -454,47 +493,50 @@ def mark_best_as_matched(t, list_of_orders_or_refunds, args, progress=None):
             progress.next(len(closest_match))
 
 
-def match_transactions(unmatched_trans, unmatched_orders, args, progress=None):
+def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
     # Also works with Refund objects.
     # First pass: Match up transactions that exactly equal an order's charged
     # amount.
-    amount_to_orders = defaultdict(list)
+    amount_to_charges = defaultdict(list)
 
-    for o in unmatched_orders:
-        amount_to_orders[o.transact_amount()].append([o])
+    for c in unmatched_charges:
+        amount_to_charges[c.transact_amount()].append([c])
 
     for t in unmatched_trans:
-        mark_best_as_matched(t, amount_to_orders[t.amount], args, progress)
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
 
-    unmatched_orders = [o for o in unmatched_orders if not o.matched]
-    unmatched_trans = [t for t in unmatched_trans if not t.orders]
+    unmatched_charges = [c for c in unmatched_charges if not c.matched]
+    unmatched_trans = [t for t in unmatched_trans if not t.charges]
 
-    # Second pass: Match up transactions to a combination of orders (sometimes
+    # Second pass: Match up transactions to a combination of charges (sometimes
     # they are charged together).
-    oid_to_orders = defaultdict(list)
-    for o in unmatched_orders:
-        oid_to_orders[o.order_id].append(o)
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
 
-    amount_to_orders = defaultdict(list)
-    for orders_same_id in oid_to_orders.values():
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        if len(charges_same_id) == 1:
+            continue
+
         # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
-        if len(orders_same_id) > args.max_unmatched_order_combinations:
+        if len(charges_same_id) > args.max_unmatched_charges_combinations:
             continue
 
         combos = []
-        for r in range(2, len(orders_same_id) + 1):
-            combos.extend(itertools.combinations(orders_same_id, r))
+        for r in range(2, len(charges_same_id) + 1):
+            combos.extend(itertools.combinations(charges_same_id, r))
         for c in combos:
-            orders_total = sum([o.transact_amount() for o in c])
-            amount_to_orders[orders_total].append(c)
+            charges_total = sum([charge.transact_amount() for charge in c])
+            amount_to_charges[charges_total].append(c)
 
     for t in unmatched_trans:
-        mark_best_as_matched(t, amount_to_orders[t.amount], args, progress)
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
 
 
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):
     for orig_trans, new_trans in orig_trans_to_tagged:
-        oid = orig_trans.orders[0].order_id
+        oid = orig_trans.charges[0].order_id()
         order_type = "Order" if orig_trans.amount < 0 else "Refund"
         print(
             f'\nFor Amazon {order_type}: {oid}\n'

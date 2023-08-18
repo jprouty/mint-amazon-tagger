@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # This tool takes an Amazon Data Export and annotates Mint
-# transactions based on the actual items in each order. It can handle orders
+# transactions based on the actual items in each order. It can handle charges
 # that are split into multiple shipments/charges and can itemized each
 # transaction for maximal control over categorization.
 
@@ -509,17 +509,17 @@ class TaggerDialog(QDialog):
 
         self.v_layout.insertWidget(2, self.updates_table)
 
-        unmatched_button = QPushButton('View Unmatched Amazon orders')
+        unmatched_button = QPushButton('View Unmatched Amazon charges')
         self.button_bar.addWidget(unmatched_button)
         unmatched_button.clicked.connect(
-            partial(self.on_open_unmatched, results.unmatched_orders))
+            partial(self.on_open_unmatched, results.unmatched_charges))
 
         amazon_stats_button = QPushButton('Amazon Stats')
         self.button_bar.addWidget(amazon_stats_button)
         amazon_stats_button.clicked.connect(
             partial(self.on_open_amazon_stats,
                     results.items,
-                    results.orders,
+                    results.charges,
                     results.refunds))
 
         tagger_stats_button = QPushButton('Tagger Stats')
@@ -542,8 +542,8 @@ class TaggerDialog(QDialog):
         self.unmatched_dialog = AmazonUnmatchedTableDialog(unmatched)
         self.unmatched_dialog.show()
 
-    def on_open_amazon_stats(self, items, orders, refunds):
-        self.amazon_stats_dialog = AmazonStatsDialog(items, orders, refunds)
+    def on_open_amazon_stats(self, items, charges, refunds):
+        self.amazon_stats_dialog = AmazonStatsDialog(items, charges, refunds)
         self.amazon_stats_dialog.show()
 
     def on_open_tagger_stats(self, stats):
