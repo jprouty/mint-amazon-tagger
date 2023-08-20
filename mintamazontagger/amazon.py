@@ -278,15 +278,15 @@ class Charge:
     # def hidden_shipping_fee_note(self):
     #     return 'CO Retail Delivery Fee'
 
-    # def total_by_items(self):
-    #     return (
-    #         Item.sum_totals(self.items)
-    #         + self.shipping_charge - self.total_discounts())
+    def total_by_items(self):
+        return (
+            Item.sum_totals(self.items)
+            + self.shipping_charge() + self.total_discounts())
 
     # def total_by_subtotals(self):
     #     return (
     #         self.subtotal + self.tax_charged
-    #         + self.shipping_charge - self.total_discounts())
+    #         + self.shipping_charge + self.total_discounts())
 
     def set_items(self, items, assert_unmatched=False):
         # Make a new list (to prevent retaining the given list).
@@ -362,89 +362,72 @@ class Charge:
             f'Tracking: {self.tracking_numbers()}\n'
             f'Invoice url: {get_invoice_url(self.order_id())}')
 
-    # def attribute_subtotal_diff_to_misc_charge(self):
-    #     diff = self.total_charged - self.total_by_subtotals()
-    #     if diff < MICRO_USD_EPS:
-    #         return False
+    def attribute_subtotal_diff_to_misc_charge(self):
+        """Sometimes gift wrapping or other misc charge is captured within 'total_owed' for an item but it doesn't belong there."""
+        diff = self.total_owed() - self.total_by_items()
+        if diff < MICRO_USD_EPS:
+            return False
 
-    #     self.subtotal += diff
+        adjustments = 0
+        for i in self.items:
+            item_diff = i.total_owed - i.total_owed_by_parts()
+            if item_diff > MICRO_USD_EPS:
+                i.total_owed -= item_diff
 
-    #     adjustment = deepcopy(self.items[0])
-    #     adjustment.title = 'Misc Charge (Gift wrap, etc)'
-    #     adjustment.category = 'Shopping'
-    #     adjustment.quantity = 1
-    #     adjustment.item_total = diff
-    #     adjustment.item_subtotal = diff
-    #     adjustment.item_subtotal_tax = 0
+                adjustment = deepcopy(self.items[0])
+                adjustment.product_name = 'Misc Charge (Gift wrap, etc)'
+                adjustment.category = 'Shopping'
+                adjustment.quantity = 1
+                adjustment.shipping_charge = 0
+                adjustment.total_discounts = 0
 
-    #     self.items.append(adjustment)
-    #     return True
+                adjustment.unit_price = item_diff
+                adjustment.shipment_item_subtotal = item_diff
+                adjustment.total_owed = item_diff
 
-    # def attribute_itemized_diff_to_shipping_tax(self):
-    #     # Shipping [sometimes] has tax. Include this in the shipping charge.
-    #     # Unfortunately Amazon doesn't provide this anywhere; it must be
-    #     # inferred as of now.
-    #     if not self.shipping_charge:
-    #         return False
+                adjustment.unit_price_tax = 0
+                adjustment.shipment_item_subtotal_tax = 0
+                adjustment.unit_price_tax = 0
 
-    #     diff = self.total_charged - self.total_by_items()
-    #     if diff < MICRO_USD_EPS:
-    #         return False
+                self.items.append(adjustment)
+                adjustments += 1
 
-    #     self.shipping_charge += diff
+        return adjustments > 0
 
-    #     self.tax_charged -= diff
-    #     self.tax_before_promotions -= diff
+    def attribute_itemized_diff_to_shipping_error(self):
+        # Shipping is sometimes wrong. Remove shipping off of items if it is the only thing preventing a clean reconcile.
+        if not self.shipping_charge():
+            return False
 
-    #     return True
+        diff = self.total_by_items() - self.total_owed()
+        if diff < MICRO_USD_EPS:
+            return False
 
-    # def attribute_itemized_diff_to_per_item_tax(self):
-    #     itemized_diff = self.total_charged - self.total_by_items()
-    #     if abs(itemized_diff) < MICRO_USD_EPS:
-    #         return False
+        # Find an item with a non-zero shipping charge and add on the tax.
+        adjustments = 0
+        for i in self.items:
+            item_diff = i.total_owed_by_parts() - i.total_owed
+            if micro_usd_nearly_equal(item_diff, i.shipping_charge):
+                i.shipping_charge = 0
+                adjustments += 1
+        return adjustments > 0
 
-    #     tax_diff = self.tax_charged - Item.sum_subtotals_tax(self.items)
-    #     if abs(itemized_diff - tax_diff) > MICRO_USD_EPS:
-    #         return False
-
-    #     # The per-item tax was not computed correctly; the tax miscalculation
-    #     # matches the itemized difference. Sometimes AMZN is bad at math (lol),
-    #     # and most of the time it's simply a rounding error. To keep the line
-    #     # items adding up correctly, spread the tax difference across the
-    #     # items.
-    #     tax_rate_per_item = [i.tax_rate() for i in self.items]
-    #     while abs(tax_diff) > MICRO_USD_EPS:
-    #         if abs(tax_diff) < CENT_MICRO_USD:
-    #             # If the difference is under a penny, round that
-    #             # partial cent to the first item.
-    #             adjust_amount = tax_diff
-    #             adjust_idx = 0
-    #         elif tax_diff > 0:
-    #             # The order has more tax than the sum of all items.
-    #             # Find the lowest taxed item (by rate) and add a penny. Try to
-    #             # ignore items that have no tax (a rate of zero) however
-    #             # default to the first item if no items were taxed.
-    #             adjust_amount = CENT_MICRO_USD
-    #             adjust_idx = 0
-    #             min_rate = None
-    #             for (idx, rate) in enumerate(tax_rate_per_item):
-    #                 if rate != 0 and (not min_rate or rate < min_rate):
-    #                     adjust_idx = idx
-    #                     min_rate = rate
-    #         else:
-    #             # The order has less tax than the sum of all items.
-    #             # Find the highest taxed item (by rate) and discount it
-    #             # a penny.
-    #             (adjust_idx, _) = max(
-    #                 enumerate(tax_rate_per_item), key=lambda x: x[1])
-    #             adjust_amount = -CENT_MICRO_USD
-
-    #         adjust_item = self.items[adjust_idx]
-    #         adjust_item.item_subtotal_tax += adjust_amount
-    #         adjust_item.item_total += adjust_amount
-    #         tax_diff -= adjust_amount
-    #         tax_rate_per_item[adjust_idx] = adjust_item.tax_rate()
-    #     return True
+    def attribute_itemized_diff_to_item_fractional_tax(self):
+        """Correct for a slight mismatch when multiple quantities cause per-item taxes to not add up."""
+        if self.total_quantity() < 2:
+            return False
+        
+        itemized_diff = self.total_owed() - self.total_by_items()
+        if abs(itemized_diff) < MICRO_USD_EPS:
+            return False
+        
+        # Only correct for a maximum amount of rounding errors up to the quantity of items in the charge.
+        if itemized_diff < CENT_MICRO_USD * self.total_quantity():
+            per_item_tax_adjustment = itemized_diff / self.total_quantity()
+            for i in self.items:
+                i.unit_price_tax += per_item_tax_adjustment
+            return True
+        return False
 
     def to_mint_transactions(self,
                              t,
@@ -530,8 +513,9 @@ class Charge:
 
     def __repr__(self):
         return (
-            f'Order ({self.order_id()}): {self.ship_dates() or self.order_dates()}'
+            f'Charge ({self.order_id()}): {self.ship_dates() or self.order_dates()}'
             f' Total {micro_usd_to_usd_string(self.total_owed())}\t'
+            f' Total by part {micro_usd_to_usd_string(self.total_by_items())}\t'
             f'Subtotal {micro_usd_to_usd_string(self.subtotal())}\t'
             f'Tax {micro_usd_to_usd_string(self.tax())}\t'
             f'Promo {micro_usd_to_usd_string(self.total_discounts())}\t'
@@ -583,53 +567,43 @@ class Item:
         """Prior to shipping_charge and total_discounts."""
         return self.subtotal() + self.subtotal_tax()
 
-    # def tax_rate(self):
-    #     return round(self.item_subtotal_tax * 100.0 / self.item_subtotal, 1)
+    def total_owed_by_parts(self):
+        """Prior to shipping_charge and total_discounts."""
+        return self.total() + self.total_discounts + self.shipping_charge
+
+    # def adjust_unit_tax_based_on_total_owed(self):
+    #     """
+    #     Returns true if per unit taxes are fractionally adjusted to align total_owed with per unit prices.
+
+    #     This happens when quantity is greater than one and is illustrated as:
+    #       total_owed != quantity * (unit_price + unit_price_tax) + total_discounts + shipping_charge
+    #     unit_price_tax is rounded, which causes a mismatch when devining total_owed from per-unit prices.
+    #     """
+    #     subtotal = self.total_owed - self.total_discounts - self.shipping_charge
+    #     per_unit_subtotal = self.total()
+    #     if subtotal == per_unit_subtotal:
+    #         return False
+        
+    #     print(subtotal)
+    #     print(per_unit_subtotal)
+    #     print(self.__dict__)
+    #     # exit()
+    #     #     # TODO: Adjust tax to be fractional - more precise. Do this for all of the original charges (prior to merge). Adjust per-item amounts such that the total_owed always works out (Within reason - ie 2 cents?)
+    #     # if i.total() + i.total_discounts != i.total_owed:
+    #     #     print(i.total() + i.total_discounts)
+    #     #     print(i.total_owed)
+    #     #     print(i)
+
+# 9990000 + 1010000
+
+    def tax_rate(self):
+        return round(self.unit_price_tax * 100.0 / self.unit_price, 1)
 
     def get_title(self, target_length=100):
         return get_title(self, target_length)
 
     def is_cancelled(self):
         return self.order_status == 'Cancelled'
-    
-    # def set_quantity(self, new_quantity, total_discounts=0, shipping_charge=0):
-    #     """Sets the quantity of this item and updates all prices."""
-    #     assert new_quantity > 0
-
-    #     self.quantity = new_quantity
-    #     self.total_discounts = total_discounts
-    #     self.shipping_charge = shipping_charge
-
-    # def split_by_quantity(self):
-    #     """Splits this item into 'quantity' items."""
-    #     if self.quantity == 1:
-    #         return [self]
-    #     orig_qty = self.quantity
-    #     self.set_quantity(1)
-    #     return [deepcopy(self) for i in range(orig_qty)]
-
-    # @classmethod
-    # def merge(cls, items):
-    #     """Collapses identical items by using quantity."""
-    #     if len(items) < 2:
-    #         return items
-    #     unique_items = defaultdict(list)
-    #     for i in items:
-    #         # key = f'{i.product_name}-{i.asin}-{i.unit_price}'
-    #         unique_items[(i.product_name, i.asin, i.unit_price)].append(i)
-    #     results = []
-    #     for same_items in unique_items.values():
-    #         qty = sum([i.quantity for i in same_items])
-    #         if qty == 1:
-    #             results.extend(same_items)
-    #             continue
-
-    #         item = deepcopy(same_items[0])
-    #         item.set_quantity(qty,
-    #                           sum(i.total_discounts for i in same_items),
-    #                           sum(i.shipping_charge for i in same_items))
-    #         results.append(item)
-    #     return results
 
     def __repr__(self):
         return (

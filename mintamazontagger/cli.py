@@ -95,7 +95,6 @@ def main():
 
     mint_client = MintClient(args, webdriver_factory)
 
-    # Attempt to fetch the order history if csv files are not already provided.
     if not args.amazon_export:
         logger.critical('Amazon Export Zip file is required.')
         exit(1)
@@ -127,14 +126,10 @@ def main():
             'The following were not matched to Mint transactions:\n')
         by_oid = defaultdict(list)
         for uo in results.unmatched_charges:
-            by_oid[uo.order_id].append(uo)
+            by_oid[uo.order_id()].append(uo)
         for unmatched_by_oid in by_oid.values():
-            charges = [o for o in unmatched_by_oid if not o.is_refund]
-            refunds = [o for o in unmatched_by_oid if o.is_refund]
-            if charges:
-                print_unmatched(amazon.Order.merge(charges))
-            for r in amazon.Refund.merge(refunds):
-                print_unmatched(r)
+            print_unmatched(amazon.Charge.merge(unmatched_by_oid))
+            exit()
 
     if not results.updates:
         logger.info(
@@ -244,6 +239,7 @@ def log_processing_stats(stats):
         'charges skipped: gift card used: {skipped_charges_gift_card}\n'
         '\n'
         'Order fix-up: incorrect tax itemization: {adjust_itemized_tax}\n'
+        'Order fix-up: remove erroneous shipping: {rm_shipping_error}\n'
         'Order fix-up: has a misc charges (e.g. gift wrap): {misc_charge}\n'
         '\n'
         'Transactions ignored; already tagged & up to date: '
@@ -259,16 +255,15 @@ def log_processing_stats(stats):
 
 def print_unmatched(amzn_obj):
     proposed_mint_desc = mint.summarize_title(
-        [i.get_title() for i in amzn_obj.items]
-        if not amzn_obj.is_refund else [amzn_obj.get_title()],
-        f"{amzn_obj.website}{'' if not amzn_obj.is_refund else ' refund'}: ")
+        [i.get_title() for i in amzn_obj.items],
+        f"{amzn_obj.website()}: ")
     logger.warning(proposed_mint_desc)
     logger.warning('\t{}\t{}\t{}'.format(
         amzn_obj.transact_date()
         if amzn_obj.transact_date()
         else 'Never shipped!',
         micro_usd_to_usd_string(amzn_obj.transact_amount()),
-        amazon.get_invoice_url(amzn_obj.order_id)))
+        amazon.get_invoice_url(amzn_obj.order_id())))
     logger.warning('')
 
 

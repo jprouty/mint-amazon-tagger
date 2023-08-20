@@ -85,9 +85,8 @@ class Category(object):
         self.__dict__.update(pythonify_mint_category_dict(raw_dict))
 
     def update_category_id(self, mint_categories):
-        # Assert the category name is valid then update the id.
-        assert self.name in mint_categories
-        self.id = mint_categories[self.name]['id']
+        if self.name in mint_categories:
+            self.id = mint_categories[self.name]['id']
 
     def __repr__(self):
         return f'{self.name}({self.id})'
@@ -211,9 +210,9 @@ class FinancialInstitutionData(object):
 
     def __repr__(self):
         return (
-            f'Mint FI Trans({self.id}): '
+            f'Mint FI Trans: '
             f'{micro_usd_to_usd_string(self.amount)} {self.date} '
-            f'{self.description} {self.inferred_category}')
+            f'{self.description} ({self.inferred_description}) {self.inferred_category}')
 
 
 def itemize_new_trans(new_trans, prefix):

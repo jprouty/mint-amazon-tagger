@@ -18,12 +18,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
 
-MINT_API_VERSION = 'pfm/v1'
-
 MINT_HOME = 'https://mint.intuit.com'
 MINT_OVERVIEW = f'{MINT_HOME}/overview'
-MINT_TRANSACTIONS = f'{MINT_HOME}/{MINT_API_VERSION}/transactions'
-MINT_CATEGORIES = f'{MINT_HOME}/{MINT_API_VERSION}/categories'
+MINT_API_ENDPOINT = f'{MINT_HOME}/pfm'
+MINT_API_VERSION = 'v1'
+MINT_TRANSACTIONS = f'{MINT_API_ENDPOINT}/{MINT_API_VERSION}/transactions'
+MINT_CATEGORIES = f'{MINT_API_ENDPOINT}{MINT_API_VERSION}/categories'
 
 
 class MintClient():
@@ -102,35 +102,44 @@ class MintClient():
             'fromDate': from_date,
             'toDate': to_date,
         }
-
         response = self.webdriver.request(
             'GET', MINT_TRANSACTIONS, headers=self.get_api_header(),
             params=params)
-        if not _is_json_response_success('transactions', response):
-            return []
-        response_json = response.json()
-        if not response_json['metaData']['totalSize']:
-            logger.warning('No transactions found')
-            return []
-        if (response_json['metaData']['totalSize']
-                > response_json['metaData']['pageSize']):
-            # TODO(jprouty): Add pagination support.
-            # Look at: response_json['metaData']['link'][1]['href']
-            logger.error('More transactions are available than max page size '
-                         '- try reducing the date range.')
-        if self.args.mint_save_json:
-            json_path = os.path.join(
-                self.args.mint_json_location,
-                f'Mint {int(time.time())} Transactions.json')
-            logger.info(f'Saving Mint Transactions to json file: {json_path}')
-            with open(json_path, "w") as json_out:
-                pprint(response_json, json_out)
-        # Remove all transactions that do not have a fiData message. These are
-        # user entered expesnes and do not have a fiData entry.
-        result = [trans for trans in response_json['Transaction']
-                  if 'fiData' in trans]
-        return result
+        results = []
 
+        while True:
+            if not _is_json_response_success('transactions', response):
+                return results
+            response_json = response.json()
+            if not response_json['metaData']['totalSize']:
+                logger.warning('No transactions found')
+                return results
+            if self.args.mint_save_json:
+                json_path = os.path.join(
+                    self.args.mint_json_location,
+                    f'Mint {int(time.time())} Transactions.json')
+                logger.info(f'Saving Mint Transactions to json file: {json_path}')
+                with open(json_path, "w") as json_out:
+                    pprint(response_json, json_out)
+            # Remove all transactions that do not have a fiData message. These are
+            # user entered expenses and do not have a fiData entry.
+            results.extend([trans for trans in response_json['Transaction']
+                            if 'fiData' in trans])
+            
+            page_size = response_json['metaData']['pageSize']
+            total_records = response_json['metaData']['totalSize']
+
+            next_page = _get_next_link_href(response_json['metaData']['link'])
+            if not next_page:
+                # No more transactions.
+                logger.info(f'Done fetching transactions: {total_records}')
+                return results
+            else:
+                next_page_url = f'{MINT_API_ENDPOINT}/{next_page}'
+                logger.info(f'Fetched {page_size} transactions - more available. Fetching next page via {next_page}')
+                response = self.webdriver.request(
+                    'GET', next_page_url, headers=self.get_api_header())
+            
     def get_categories(self):
         if not self.login():
             logger.error('Cannot login')
@@ -219,6 +228,13 @@ class MintClient():
 
         progress.finish()
         return num_requests
+
+
+def _get_next_link_href(links):
+    for l in links:
+        if l['rel'] == 'next':
+            return l['href']
+    return None
 
 
 def _is_json_response_success(request_string, response):

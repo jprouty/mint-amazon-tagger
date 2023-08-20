@@ -17,7 +17,7 @@ def round_usd(curr):
 
 
 def round_micro_usd_to_cent(micro_usd):
-    return int(round_usd(micro_usd_to_float_usd(micro_usd)) * 1000000)
+    return round(round_usd(micro_usd_to_float_usd(micro_usd)) * 1000000)
 
 
 def micro_usd_to_float_usd(micro_usd):
@@ -25,7 +25,7 @@ def micro_usd_to_float_usd(micro_usd):
 
 
 def float_usd_to_micro_usd(float_usd):
-    return int(float_usd * 1000000)
+    return round(float_usd * 1000000)
 
 
 def micro_usd_to_usd_string(micro_usd):

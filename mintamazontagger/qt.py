@@ -50,7 +50,7 @@ class MintUpdatesTableModel(QAbstractTableModel):
                 '\n'.join(descriptions),
                 '\n'.join(category_names),
                 '\n'.join(amounts),
-                orig_trans.charges[0].order_id,
+                orig_trans.charges[0].order_id(),
             ])
 
         self.header = [
@@ -76,25 +76,25 @@ class MintUpdatesTableModel(QAbstractTableModel):
                      else 'Skip')
         else:
             value = self.my_data[index.row()][index.column() + 1]
-        if role == Qt.EditRole:
+        if role == Qt.ItemDataRole.EditRole:
             return value
-        elif role == Qt.DisplayRole:
+        elif role == Qt.ItemDataRole.DisplayRole:
             return value
-        elif role == Qt.CheckStateRole:
+        elif role == Qt.ItemDataRole.CheckStateRole:
             if index.column() == 0:
                 return (
-                    Qt.Checked if self.my_data[index.row()][index.column() + 1]
-                    else Qt.Unchecked)
+                    Qt.CheckState.Checked if self.my_data[index.row()][index.column() + 1]
+                    else Qt.CheckState.Unchecked)
 
     def headerData(self, col, orientation, role):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
             return self.header[col]
         return None
 
     def sort(self, col, order):
         self.layoutAboutToBeChanged.emit()
         self.my_data = sorted(self.my_data, key=operator.itemgetter(col + 1))
-        if order == Qt.DescendingOrder:
+        if order == Qt.SortOrder.DescendingOrder:
             self.my_data.reverse()
         self.layoutChanged.emit()
 
@@ -103,16 +103,20 @@ class MintUpdatesTableModel(QAbstractTableModel):
             return None
         if index.column() == 0:
             return (
-                Qt.ItemIsEnabled | Qt.ItemIsSelectable
-                | Qt.ItemIsUserCheckable)
+                Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+                | Qt.ItemFlag.ItemIsUserCheckable)
         else:
-            return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+            return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
     def setData(self, index, value, role):
         if not index.isValid():
             return False
-        if role == Qt.CheckStateRole and index.column() == 0:
-            self.my_data[index.row()][index.column() + 1] = value == Qt.Checked
+        if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
+            print(self.my_data[index.row()][index.column() + 1])
+            print(value)
+            print(Qt.CheckState.Checked)
+            self.my_data[index.row()][index.column() + 1] = value == Qt.CheckState.Checked.value
+            print(self.my_data[index.row()][index.column() + 1])
         self.dataChanged.emit(index, index)
         return True
 
@@ -145,8 +149,8 @@ class AmazonUnmatchedTableDialog(QDialog):
                 table.columnWidth(i) for i in range(5))
             table.setMinimumSize(min_width + 20, 600)
 
-        table.setSelectionMode(QAbstractItemView.SingleSelection)
-        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setModel(self.model)
         table.setSortingEnabled(True)
         resize()
@@ -167,7 +171,7 @@ class AmazonUnmatchedTableDialog(QDialog):
         # Only handle clicks on the order_id cell.
         if index.column() != 3:
             return
-        order_id = self.model.data(index, Qt.DisplayRole)
+        order_id = self.model.data(index, Qt.ItemDataRole.DisplayRole)
         self.open_amazon_order_id(order_id)
 
     def on_double_click(self, index):
@@ -175,7 +179,7 @@ class AmazonUnmatchedTableDialog(QDialog):
             # Ignore double clicks on the order_id cell.
             return
         order_id_cell = self.model.createIndex(index.row(), 3)
-        order_id = self.model.data(order_id_cell, Qt.DisplayRole)
+        order_id = self.model.data(order_id_cell, Qt.ItemDataRole.DisplayRole)
         self.open_amazon_order_id(order_id)
 
 
@@ -192,29 +196,23 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
         self.my_data = []
         by_oid = defaultdict(list)
         for uo in unmatched_charges:
-            by_oid[uo.order_id].append(uo)
+            by_oid[uo.order_id()].append(uo)
         for unmatched_by_oid in by_oid.values():
-            charges = [o for o in unmatched_by_oid if not o.is_refund]
-            refunds = [o for o in unmatched_by_oid if o.is_refund]
-            if charges:
-                merged = amazon.Order.merge(charges)
-                self.my_data.append(self._create_row(merged))
-            for r in amazon.Refund.merge(refunds):
-                self.my_data.append(self._create_row(r))
+            merged = amazon.Charge.merge(unmatched_by_oid)
+            self.my_data.append(self._create_row(merged))
 
     def _create_row(self, amzn_obj):
         proposed_mint_desc = mint.summarize_title(
-            [i.get_title() for i in amzn_obj.items]
-            if not amzn_obj.is_refund else [amzn_obj.get_title()],
-            f'{amzn_obj.website}'
-            f'{"" if not amzn_obj.is_refund else " refund"}: ')
+            [i.get_title() for i in amzn_obj.items],
+            f'{amzn_obj.website()}'
+            f': ')
         return [
-            amzn_obj.transact_date().strftime('%m/%d/%y')
+            amzn_obj.transact_date().strftime('%Y/%m/%d')
             if amzn_obj.transact_date()
             else 'Never shipped!',
             proposed_mint_desc,
             micro_usd_to_usd_string(amzn_obj.transact_amount()),
-            amzn_obj.order_id,
+            amzn_obj.order_id(),
         ]
 
     def rowCount(self, parent):
@@ -224,25 +222,25 @@ class AmazonUnmatchedTableModel(QAbstractTableModel):
         return len(self.header)
 
     def data(self, index, role):
-        if index.isValid() and role == Qt.DisplayRole:
+        if index.isValid() and role == Qt.ItemDataRole.DisplayRole:
             return self.my_data[index.row()][index.column()]
 
     def headerData(self, col, orientation, role):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
             return self.header[col]
         return None
 
     def sort(self, col, order):
         self.layoutAboutToBeChanged.emit()
         self.my_data = sorted(self.my_data, key=operator.itemgetter(col))
-        if order == Qt.DescendingOrder:
+        if order == Qt.SortOrder.DescendingOrder:
             self.my_data.reverse()
         self.layoutChanged.emit()
 
     def flags(self, index):
         if not index.isValid():
             return None
-        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
     def setData(self, index, value, role):
         if not index.isValid():
@@ -268,22 +266,14 @@ class AmazonStatsDialog(QDialog):
             close_button.clicked.connect(self.close)
             return
 
-        v_layout.addWidget(QLabel(
-            f'\n{len([o for o in charges if o.items_matched])} charges with '
-            f'{len([i for i in items if i.matched])} matching items'))
-        v_layout.addWidget(QLabel(
-            f'{len([o for o in charges if not o.items_matched])} unmatched '
-            f'charges and {len([i for i in items if not i.matched])} unmatched '
-            'items'))
-
-        first_order_date = min([o.order_date for o in charges])
-        last_order_date = max([o.order_date for o in charges])
+        first_order_date = min([d for c in charges for d in c.order_dates()])
+        last_order_date = max([d for c in charges for d in c.order_dates()])
 
         v_layout.addWidget(QLabel(
             f'charges ranging from {first_order_date} to {last_order_date}'))
 
-        per_item_totals = [i.item_total for i in items]
-        per_order_totals = [o.total_charged for o in charges]
+        per_item_totals = [i.total() for i in items]
+        per_order_totals = [c.total_owed() for c in charges]
 
         v_layout.addWidget(QLabel(
             f'{micro_usd_to_usd_string(sum(per_order_totals))} total spend'))
@@ -333,9 +323,6 @@ class TaggerStatsDialog(QDialog):
             '\n'
             'charges matched w/ transactions: {order_match} (unmatched charges: '
             '{order_unmatch})\n'
-            'Refunds matched w/ transactions: {refund_match} '
-            '(unmatched refunds: '
-            '{refund_unmatch})\n'
             'Transactions matched w/ charges/refunds: {trans_match} '
             '(unmatched: '
             '{trans_unmatch})\n'

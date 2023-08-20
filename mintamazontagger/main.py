@@ -471,7 +471,7 @@ class TaggerDialog(QDialog):
         # Only handle clicks on the order_id cell.
         if index.column() != 5:
             return
-        order_id = self.updates_table_model.data(index, Qt.DisplayRole)
+        order_id = self.updates_table_model.data(index, Qt.ItemDataRole.DisplayRole)
         self.open_amazon_order_id(order_id)
 
     def on_double_click(self, index):
@@ -479,7 +479,7 @@ class TaggerDialog(QDialog):
             # Ignore double clicks on the order_id cell.
             return
         order_id_cell = self.updates_table_model.createIndex(index.row(), 5)
-        order_id = self.updates_table_model.data(order_id_cell, Qt.DisplayRole)
+        order_id = self.updates_table_model.data(order_id_cell, Qt.ItemDataRole.DisplayRole)
         self.open_amazon_order_id(order_id)
 
     def on_review_ready(self, results):
@@ -500,8 +500,8 @@ class TaggerDialog(QDialog):
                 self.updates_table.columnWidth(i) for i in range(6))
             self.updates_table.setMinimumSize(min_width + 20, 600)
 
-        self.updates_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.updates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.updates_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.updates_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.updates_table.setModel(self.updates_table_model)
         self.updates_table.setSortingEnabled(True)
         resize()
@@ -520,7 +520,7 @@ class TaggerDialog(QDialog):
             partial(self.on_open_amazon_stats,
                     results.items,
                     results.charges,
-                    results.refunds))
+                    []))
 
         tagger_stats_button = QPushButton('Tagger Stats')
         self.button_bar.addWidget(tagger_stats_button)
