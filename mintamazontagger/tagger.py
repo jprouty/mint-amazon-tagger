@@ -18,7 +18,7 @@ from mintamazontagger import amazon
 from mintamazontagger import category
 from mintamazontagger import mint
 from mintamazontagger.my_progress import no_progress_factory
-from mintamazontagger.currency import micro_usd_nearly_equal
+from mintamazontagger.currency import micro_usd_nearly_equal, round_micro_usd_to_cent
 
 from mintamazontagger.mint import (
     get_trans_and_categories_from_pickle, dump_trans_and_categories)
@@ -71,12 +71,31 @@ def create_updates(
             f'downloading again. Reports used: {order_history_csvs}')
         return UpdatesResult()
     
-    # Combine items into a charge that have matching:
+    # Initialize the stats. Explicitly initialize stats that might not be
+    # accumulated (conditionals).
+    stats = Counter(
+        adjust_itemized_tax=0,
+        already_up_to_date=0,
+        misc_charge=0,
+        new_tag=0,
+        no_retag=0,
+        retag=0,
+        user_skipped_retag=0,
+        personal_cat=0,
+    )
+
+    # Remove items from canceled charges or pending charges (only accept "Closed" orders).
+    items = [i for i in items if i.order_status == 'Closed']
+    # Remove items that haven't shipped yet / aren't charged / or cancelled items out of an otherwise valid order.
+    items = [i for i in items if i.shipment_status != 'Not Available']
+    # Remove items with zero quantity.
+    items = [i for i in items if i.quantity > 0]
+
+    # Merge charges if both the order id and the shipment item amount + shipment item tax align with total owed.
+    # ie: Combine items into a charge that have matching:
     # - 'order id'
     # - 'shipment item subtotal'
     # - 'shipment item subtotal tax' 
-
-    # Merge charges if both the order id and the shipment item amount + shipment item tax align with total owed.
     oid_to_items = defaultdict(list)
     for i in items:
         oid_to_items[(i.order_id, i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
@@ -102,19 +121,6 @@ def create_updates(
             # These will be cleaned up later with the combo matching logic per same order.
             charges.extend([amazon.Charge([i]) for i in items_same_id])
 
-    # Initialize the stats. Explicitly initialize stats that might not be
-    # accumulated (conditionals).
-    stats = Counter(
-        adjust_itemized_tax=0,
-        already_up_to_date=0,
-        misc_charge=0,
-        new_tag=0,
-        no_retag=0,
-        retag=0,
-        user_skipped_retag=0,
-        personal_cat=0,
-    )
-
     if args.pickled_epoch:
         pickle_progress = indeterminate_progress_factory(
             f'Un-pickling Mint transactions from epoch: {args.pickled_epoch} ')
@@ -124,22 +130,10 @@ def create_updates(
         pickle_progress.finish()
     else:
         # Get the date of the oldest Amazon order.
-        start_date = min([i.order_date.date() for i in items])
-        # if refunds:
-        #     start_date = min(
-        #         start_date,
-        #         min([o.order_date for o in refunds]))
-
-        # Double the length of transaction history to help aid in
-        # personalized category tagging overrides.
-        # TODO: Revise this logic/date range.
-        today = datetime.date.today()
-        start_date = today - (today - start_date) * 2
+        start_date = min([date.date() for i in items for date in i.order_date])
 
         login_progress = indeterminate_progress_factory(
             'Logging in to mint.com')
-        # DNS - TEMPORARY:
-        login_progress.finish()
         if not mint_client.login():
             login_progress.finish()
             on_critical('Cannot log in to mint.com. Check credentials')
@@ -240,30 +234,6 @@ def get_mint_updates(
     mint_historic_category_renames = get_mint_category_history_for_items(
         trans, args)
 
-    # Remove items from canceled charges or pending charges.
-    charges = [c for c in charges if c.order_status() == 'Closed']
-    # Remove items that haven't shipped yet / aren't charged / or cancelled items out of an otherwise valid order.
-    charges = [c for c in charges if c.ship_status() != 'Not Available']
-
-    # Re-evaluate the following:
-    # # Remove items with zero quantity:
-    # charges = [c for c in charges if c.total_quantity() > 0]
-    
-    # Make more Items such that every item is quantity 1. This is critical
-    # prior to associate_items_with_charges such that items with non-1
-    # quantities split into different packages can be associated with the
-    # appropriate order.
-    # items = [si for i in items for si in i.split_by_quantity()]
-
-    # itemProgress = progress_factory(
-    #     'Matching Amazon Items with charges',
-    #     len(items))
-    # amazon.associate_items_with_charges(charges, items, itemProgress)
-    # itemProgress.finish()
-
-    # Only match charges that have items.
-    # charges = [o for o in charges if o.items]
-
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
 
@@ -310,20 +280,11 @@ def get_mint_updates(
 
     unmatched_trans = [t for t in trans if not t.charges]
 
-    # Match refunds.
-    # refundMatchProgress = progress_factory(
-    #     'Matching Amazon Refunds w/ Mint Trans',
-    #     len(refunds))
-    # match_transactions(unmatched_trans, refunds, args, refundMatchProgress)
-    # refundMatchProgress.finish()
-
     unmatched_charges = [c for c in charges if not c.matched]
     matched_charges = [c for c in charges if c.matched]
 
     unmatched_trans = [t for t in trans if not t.charges]
     matched_trans = [t for t in trans if t.charges]
-
-    # unmatched_refunds = [r for r in refunds if not r.matched]
 
     num_gift_card = 0
     # num_gift_card = len([c for c in unmatched_charges
@@ -357,37 +318,19 @@ def get_mint_updates(
             if args.description_prefix_override:
                 prefix = args.description_prefix_override
 
-            # if charge.attribute_subtotal_diff_to_misc_charge():
-            #     stats['misc_charge'] += 1
-            # It's nice when "free" shipping cancels out with the shipping
-            # promo, even though there is tax on said free shipping. Spread
-            # that out across the items instead.
-            # if order.attribute_itemized_diff_to_shipping_tax():
-            #     stats['add_shipping_tax'] += 1
-            # if charge.attribute_itemized_diff_to_per_item_tax():
-            #     stats['adjust_itemized_tax'] += 1
+            if charge.attribute_subtotal_diff_to_misc_charge():
+                stats['misc_charge'] += 1
+            if charge.attribute_itemized_diff_to_shipping_error():
+                stats['rm_shipping_error'] += 1
+            if charge.attribute_itemized_diff_to_item_fractional_tax():
+                stats['adjust_itemized_tax'] += 1
 
             assert micro_usd_nearly_equal(t.amount, charge.transact_amount())
-            # TODO: Re-establish and verify based on examples:
-            # assert micro_usd_nearly_equal(
-            #     t.amount, -charge.total_by_subtotals())
-            # assert micro_usd_nearly_equal(t.amount, -charge.total_by_items())
+            assert micro_usd_nearly_equal(t.amount, -charge.total_by_items())
 
             new_transactions = charge.to_mint_transactions(
                 t,
                 skip_free_shipping=not args.verbose_itemize)
-
-        # else:
-        #     refunds = amazon.Refund.merge(t.charges)
-        #     prefix = f'{refunds[0].website} refund: '
-
-        #     if args.description_return_prefix_override:
-        #         prefix = args.description_return_prefix_override
-
-        #     new_transactions = []
-        #     for r in refunds:
-        #         new_tran = r.to_mint_transaction(t)
-        #         new_transactions.append(new_tran)
 
         assert micro_usd_nearly_equal(
             t.amount,
@@ -531,6 +474,11 @@ def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
             amount_to_charges[charges_total].append(c)
 
     for t in unmatched_trans:
+        # if t.id == '10062128_1818107173_0':
+        #     print(t.__dict__)
+        #     print(amount_to_charges[t.amount])
+        #     exit()
+
         mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
 
 
