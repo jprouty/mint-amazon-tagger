@@ -148,7 +148,7 @@ def define_common_args(parser):
               'find items that you have manually changed categories for.'))
     parser.add_argument(
         '--max_days_between_payment_and_shipping', type=int,
-        default=3,
+        default=5,
         help=('How many days are allowed to pass between when Amazon has '
               'shipped an order and when the payment has posted to your '
               'bank account (as per Mint\'s view).'))

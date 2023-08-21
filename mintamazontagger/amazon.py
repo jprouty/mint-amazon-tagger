@@ -66,6 +66,13 @@ RENAME_FIELD_NAMES = {
     'Website"': 'website',
 }
 
+MULTI_SPLIT_BY_AND = set([
+    'Order Date',
+    'Ship Date',
+    'tracking',
+    'Payment Instrument Type'
+])
+
 def parse_from_csv_common(
         cls,
         csv_file,
@@ -101,24 +108,19 @@ def pythonify_amazon_dict(raw_dict):
     for ck in keys & CURRENCY_FIELD_NAMES:
         raw_dict[ck] = parse_usd_as_micro_usd(raw_dict[ck])
 
+    # Split fields with multiples by " and ":
+    for split_key in keys & MULTI_SPLIT_BY_AND:
+        raw_dict[split_key] = raw_dict[split_key].split(" and ")
+
     # Convert to datetime.date
     for dk in keys & DATE_FIELD_NAMES:
-        date_str = raw_dict[dk]
-        # Can have more than one ship date:
-        if " and " in date_str:
-            raw_dict[dk] = [parse_amazon_date(d) for d in date_str.split(" and ")]
-        else:
-            raw_dict[dk] = [parse_amazon_date(date_str)]
+        raw_dict[dk] = [parse_amazon_date(d) for d in raw_dict[dk]]
 
     # Rename long or unpythonic names:
     for old_key in keys & RENAME_FIELD_NAMES.keys():
         new_key = RENAME_FIELD_NAMES[old_key]
         raw_dict[new_key] = raw_dict[old_key]
         del raw_dict[old_key]
-
-    # Can have more than one tracking number:
-    if " and " in raw_dict['tracking']:
-        raw_dict['tracking'] = raw_dict['tracking'].split(" and ")
 
     return dict([
         (k.lower().replace(' ', '_').replace('/', '_'), v)
@@ -314,6 +316,9 @@ class Charge:
     def website(self):
         return self.items[0].website
     
+    def payment_instrument_types(self):
+        return set([pit for i in self.items for pit in i.payment_instrument_type])
+    
     def order_dates(self):
         return [date for items in self.items for date in items.order_date]
     
@@ -344,8 +349,17 @@ class Charge:
         return self.items[0].website
     
     def transact_date(self):
-        if self.items[0].ship_date and self.items[0].ship_date[0]:
-            return self.items[0].ship_date[0].date()
+        """The latest ship date in local time zone."""
+        dates = [d for i in self.items if i.ship_date for d in i.ship_date]
+        if not dates:
+            return None
+        # Use the local timezone (report has them in UTC).
+        # UTC will cause matching to be incorrect.
+        return max(dates).astimezone().date()
+    
+        # if self.items[0].ship_date and self.items[0].ship_date[0]:
+        #     
+        #     return self.items[0].ship_date[0].astimezone().date()
 
     def transact_amount(self):
         return -self.total_owed()

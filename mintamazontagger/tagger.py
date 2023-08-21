@@ -287,8 +287,8 @@ def get_mint_updates(
     matched_trans = [t for t in trans if t.charges]
 
     num_gift_card = 0
-    # num_gift_card = len([c for c in unmatched_charges
-    #                      if 'Gift Certificate' in c.payment_instrument_type])
+    num_gift_card = len([c for c in unmatched_charges
+                         if 'Gift Certificate/Card' in c.payment_instrument_types()])
     num_unshipped = len([c for c in unmatched_charges if not c.transact_date()])
 
     # matched_refunds = [r for r in refunds if r.matched]
@@ -414,13 +414,13 @@ def mark_best_as_matched(t, list_of_charges_or_refunds, args, progress=None):
     closest_match = None
 
     for charges in list_of_charges_or_refunds:
-        an_order = next((o for o in charges if o.transact_date()), None)
-        if not an_order:
+        last_shipment = max([c.transact_date() for c in charges if c.transact_date()])
+        if not last_shipment:
             continue
-        num_days = (t.date - an_order.transact_date()).days
+        num_days = (t.date - last_shipment).days
         # TODO: consider charges even if it has a matched_transaction if this
         # transaction is closer.
-        already_matched = any([o.matched for o in charges])
+        already_matched = any([c.matched for c in charges])
         if (num_days <= max_days and num_days >= 0
                 and abs(num_days) < closest_match_num_days
                 and not already_matched):
@@ -444,8 +444,15 @@ def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
 
     for c in unmatched_charges:
         amount_to_charges[c.transact_amount()].append([c])
+        if c.order_id() == '112-1083564-0845003':
+            pprint.pprint(c.__dict__)
 
     for t in unmatched_trans:
+        if t.amount == -588420000:
+            pprint.pprint(t.__dict__)
+            pprint.pprint(amount_to_charges[t.amount])
+            exit()
+
         mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
 
     unmatched_charges = [c for c in unmatched_charges if not c.matched]
@@ -474,11 +481,6 @@ def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
             amount_to_charges[charges_total].append(c)
 
     for t in unmatched_trans:
-        # if t.id == '10062128_1818107173_0':
-        #     print(t.__dict__)
-        #     print(amount_to_charges[t.amount])
-        #     exit()
-
         mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
 
 

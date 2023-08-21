@@ -127,9 +127,12 @@ def main():
         by_oid = defaultdict(list)
         for uo in results.unmatched_charges:
             by_oid[uo.order_id()].append(uo)
+        i = 0
         for unmatched_by_oid in by_oid.values():
             print_unmatched(amazon.Charge.merge(unmatched_by_oid))
-            exit()
+            i += 1
+            if i > 5:
+                exit()
 
     if not results.updates:
         logger.info(
