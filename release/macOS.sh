@@ -75,7 +75,7 @@ sleep 2
 
 chmod -Rf go-w "${mount_path}" &> /dev/null || true
 
-bless --folder "${mount_path}" --openfolder "${mount_path}"
+bless --folder "${mount_path}"
 
 # tell the volume that it has a special file attribute for the icons.
 SetFile -a C "${mount_path}"
