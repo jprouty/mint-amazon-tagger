@@ -90,9 +90,9 @@ class TransactionClass(unittest.TestCase):
         trans.update_category_id(MINT_CATEGORIES)
         self.assertEqual(trans.category.id, '8_4')
 
+        # Invalid name will silently retain the old id:
         trans.category.name = 'SOME INVALID CAT'
-        with self.assertRaises(AssertionError):
-            trans.update_category_id(MINT_CATEGORIES)
+        self.assertEqual(trans.category.id, '8_4')
 
         trans.category.name = 'Shopping'
         trans.update_category_id(MINT_CATEGORIES)

@@ -303,8 +303,8 @@ def get_mint_updates(
 
     # matched_refunds = [r for r in refunds if r.matched]
 
-    stats['earliest_transaction_date'] = min([t.date for t in unmatched_trans])
-    stats['latest_transaction_date'] = max([t.date for t in unmatched_trans])
+    stats['earliest_transaction_date'] = min([t.date for t in unmatched_trans]) if unmatched_trans else None
+    stats['latest_transaction_date'] = max([t.date for t in unmatched_trans]) if unmatched_trans else None
 
     stats['trans_unmatch'] = len(unmatched_trans)
     stats['order_unmatch'] = len(unmatched_charges)

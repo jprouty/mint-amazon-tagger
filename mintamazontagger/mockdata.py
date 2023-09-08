@@ -8,16 +8,8 @@ def transaction(*args, **kwargs):
     return mint.Transaction(transaction_json(*args, **kwargs))
 
 
-def order(*args, **kwargs):
-    return amazon.Order(order_dict(*args, **kwargs))
-
-
 def item(*args, **kwargs):
     return amazon.Item(item_dict(*args, **kwargs))
-
-
-def refund(*args, **kwargs):
-    return amazon.Refund(refund_dict(*args, **kwargs))
 
 
 def transaction_json(
@@ -83,44 +75,44 @@ def category_json(name='Personal Care', id=4):
     }
 
 
-def order_dict(
-        subtotal='$10.90',
-        shipping_charge='$0.00',
-        tax_charged='$1.05',
-        total_charged='$11.95',
-        tax_before_promotions='$1.05',
-        total_discounts='$0.00',
-        tracking='AMZN(ABC123)',
-        order_status='Shipped',
-        order_id='123-3211232-7655671',
-        order_date='02/26/14',
-        shipment_date='02/28/14',
-        payment_type='Great Credit Card'):
-    return OrderedDict([
-        ('Order Date', order_date),
-        ('Order ID', order_id),
-        ('Payment Instrument Type', payment_type),
-        ('Website', 'Amazon.com'),
-        ('Purchase Order Number', ''),
-        ('Ordering Customer Email', 'yup@aol.com'),
-        ('Shipment Date', shipment_date),
-        ('Shipping Address Name', 'Some Great Buyer'),
-        ('Shipping Address Street 1', 'The best city'),
-        ('Shipping Address Street 2', 'But can be rainy, sometimes'),
-        ('Shipping Address City', 'SEATTLE'),
-        ('Shipping Address State', 'WA'),
-        ('Shipping Address Zip', '98101-1001'),
-        ('Order Status', order_status),
-        ('Carrier Name & Tracking Number', tracking),
-        ('Subtotal', subtotal),
-        ('Shipping Charge', shipping_charge),
-        ('Tax Before Promotions', tax_before_promotions),
-        ('Total Promotions', total_discounts),
-        ('Tax Charged', tax_charged),
-        ('Total Charged', total_charged),
-        ('Buyer Name', 'Some Great Buyer'),
-        ('Group Name', 'Optional Group'),
-    ])
+# def order_dict(
+#         subtotal='$10.90',
+#         shipping_charge='$0.00',
+#         tax_charged='$1.05',
+#         total_charged='$11.95',
+#         tax_before_promotions='$1.05',
+#         total_discounts='$0.00',
+#         tracking='AMZN(ABC123)',
+#         order_status='Shipped',
+#         order_id='123-3211232-7655671',
+#         order_date='02/26/14',
+#         shipment_date='02/28/14',
+#         payment_type='Great Credit Card'):
+#     return OrderedDict([
+#         ('Order Date', order_date),
+#         ('Order ID', order_id),
+#         ('Payment Instrument Type', payment_type),
+#         ('Website', 'Amazon.com'),
+#         ('Purchase Order Number', ''),
+#         ('Ordering Customer Email', 'yup@aol.com'),
+#         ('Shipment Date', shipment_date),
+#         ('Shipping Address Name', 'Some Great Buyer'),
+#         ('Shipping Address Street 1', 'The best city'),
+#         ('Shipping Address Street 2', 'But can be rainy, sometimes'),
+#         ('Shipping Address City', 'SEATTLE'),
+#         ('Shipping Address State', 'WA'),
+#         ('Shipping Address Zip', '98101-1001'),
+#         ('Order Status', order_status),
+#         ('Carrier Name & Tracking Number', tracking),
+#         ('Subtotal', subtotal),
+#         ('Shipping Charge', shipping_charge),
+#         ('Tax Before Promotions', tax_before_promotions),
+#         ('Total Promotions', total_discounts),
+#         ('Tax Charged', tax_charged),
+#         ('Total Charged', total_charged),
+#         ('Buyer Name', 'Some Great Buyer'),
+#         ('Group Name', 'Optional Group'),
+#     ])
 
 
 def item_dict(
@@ -175,37 +167,6 @@ def item_dict(
         ('Group Name', 'Optional Group'),
     ])
 
-
-def refund_dict(
-        title='Duracell Procell AA 24 Pack PC1500BKD09',
-        refund_amount='$10.90',
-        refund_tax_amount='$1.05',
-        tracking='AMZN(ABC123)',
-        status='Shipped',
-        quantity=2,
-        order_id='123-3211232-7655671',
-        order_date='02/26/14',
-        refund_date='03/16/14'):
-    return OrderedDict([
-        ('Order Date', order_date),
-        ('Order ID', order_id),
-        ('Title', title),
-        ('Category', 'Apparel'),
-        ('ASIN/ISBN', 'B0174V9GZW'),
-        ('Website', 'Amazon.com'),
-        ('Purchase Order Number', ''),
-        ('Refund Date', refund_date),
-        ('Refund Condition', 'Completed'),
-        ('Refund Amount', refund_amount),
-        ('Refund Tax Amount', refund_tax_amount),
-        ('Tax Exemption Applied', ''),
-        ('Refund Reason', 'Customer Return'),
-        ('Quantity', quantity),
-        ('Seller', 'Customonaco'),
-        ('Seller Credentials', ''),
-        ('Buyer Name', 'Some Great Buyer'),
-        ('Group Name', 'Optional Group'),
-    ])
 
 
 # Pulled mid 2022.
