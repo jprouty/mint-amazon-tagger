@@ -1,7 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
 import csv
-from datetime import datetime, date
+from datetime import datetime, timezone
 from dateutil import parser
 import io
 import os
@@ -15,7 +15,7 @@ from mintamazontagger import category
 from mintamazontagger.currency import float_usd_to_micro_usd
 from mintamazontagger.currency import micro_usd_nearly_equal
 from mintamazontagger.currency import micro_usd_to_usd_string
-from mintamazontagger.currency import parse_usd_as_micro_usd
+from mintamazontagger.currency import parse_usd_as_micro_usd, round_micro_usd_to_cent
 from mintamazontagger.currency import CENT_MICRO_USD, MICRO_USD_EPS
 from mintamazontagger.mint import truncate_title
 from mintamazontagger.my_progress import NoProgress, no_progress_factory
@@ -142,85 +142,6 @@ def get_invoice_url(order_id):
         f'orderID={order_id}')
 
 
-def associate_items_with_charges(
-        all_charges, all_items, item_progress=NoProgress()):
-    items_by_oid = defaultdict(list)
-    for i in all_items:
-        items_by_oid[i.order_id].append(i)
-    charges_by_oid = defaultdict(list)
-    for o in all_charges:
-        charges_by_oid[o.order_id].append(o)
-
-    for oid, charges in charges_by_oid.items():
-        oid_items = items_by_oid[oid]
-
-        if not micro_usd_nearly_equal(
-                Order.sum_subtotals(charges),
-                Item.sum_subtotals(oid_items)):
-            # This is likely due to reports being pulled before all outstanding
-            # charges have shipped. Just skip this order for now.
-            continue
-
-        if len(charges) == 1:
-            charges[0].set_items(oid_items, assert_unmatched=True)
-            item_progress.next(len(oid_items))
-            continue
-
-        # First try to divy up the items by tracking.
-        items_by_tracking = defaultdict(list)
-        for i in oid_items:
-            items_by_tracking[i.tracking].append(i)
-
-        # It is never the case that multiple charges with the same order id will
-        # have the same tracking number. Try using tracking number to split up
-        # the items between the charges.
-        for order in charges:
-            items = items_by_tracking[order.tracking]
-            if micro_usd_nearly_equal(
-                    Item.sum_subtotals(items),
-                    order.subtotal):
-                # A perfect fit.
-                order.set_items(items, assert_unmatched=True)
-                item_progress.next(len(items))
-                # Remove the selected items.
-                oid_items = [i for i in oid_items if i not in items]
-        # Remove charges that have items.
-        charges = [o for o in charges if not o.items]
-        if not charges and not oid_items:
-            continue
-
-        charges = sorted(charges, key=lambda o: o.subtotal)
-
-        # Partition the remaining items into every possible arrangement and
-        # validate against the remaining charges.
-        # TODO: Make a custom algorithm with backtracking.
-
-        # The number of combinations are factorial, so limit the number of
-        # attempts (by a 1 sec timeout) before giving up.
-        # Also catch any recursion depth exceptions.
-        try:
-            start_time = time.time()
-            for item_groupings in algorithm_u(oid_items, len(charges)):
-                if time.time() - start_time > 1:
-                    break
-                subtotals_with_groupings = sorted(
-                    [(Item.sum_subtotals(itms), itms)
-                     for itms in item_groupings],
-                    key=lambda g: g[0])
-                if all([micro_usd_nearly_equal(
-                        subtotals_with_groupings[i][0],
-                        charges[i].subtotal) for i in range(len(charges))]):
-                    for idx, order in enumerate(charges):
-                        items = subtotals_with_groupings[idx][1]
-                        order.set_items(items,
-                                        assert_unmatched=True)
-                        item_progress.next(len(items))
-                    break
-        except RecursionError:
-            break
-    item_progress.finish()
-
-
 # ORDER_MERGE_FIELDS = {
 #     'original_shipping_charge',
 #     'shipping_charge',
@@ -258,31 +179,34 @@ class Charge:
     # def sum_subtotals(charges):
     #     return sum([o.subtotal for o in charges])
 
-    # def has_hidden_shipping_fee(self):
-    #     # Colorado - https://tax.colorado.gov/retail-delivery-fee
-    #     # "Effective July 1, 2022, Colorado imposes a retail delivery fee on
-    #     # all deliveries by motor vehicle to a location in Colorado with at
-    #     # least one item of tangible personal property subject to state sales
-    #     # or use tax."
-    #     # Rate July 2022 to June 2023: $0.27
-    #     # This is not the case as of 8/31/2022 for Amazon Order Reports.
-    #     # "Retailers that make retail deliveries must show the total of the
-    #     # fees on the receipt or invoice as one item called “retail delivery
-    #     # fees”."
-    #     return (
-    #         self.shipping_address_state == 'CO'
-    #         and self.tax_charged > 0
-    #         and self.shipment_date >= date(2022, 7, 1))
+    def has_hidden_shipping_fee(self):
+        # Colorado - https://tax.colorado.gov/retail-delivery-fee
+        # "Effective July 1, 2022, Colorado imposes a retail delivery fee on
+        # all deliveries by motor vehicle to a location in Colorado with at
+        # least one item of tangible personal property subject to state sales
+        # or use tax."
+        # Rate July 2022 to June 2023: $0.27
+        # This is not the case as of 8/31/2022 for Amazon Order Reports.
+        # "Retailers that make retail deliveries must show the total of the
+        # fees on the receipt or invoice as one item called “retail delivery
+        # fees”."
+        # TODO: Improve the ' CO ' Matching, consider a regex w/ a zip code element.
+        ship_dates = self.ship_dates()
+        return (
+            ' CO ' in self.ship_address() 
+            and self.tax() > 0
+            and ship_dates and max(ship_dates) >= datetime(2022, 7, 1, tzinfo=timezone.utc))
 
-    # def hidden_shipping_fee(self):
-    #     return float_usd_to_micro_usd(0.27)
+    def hidden_shipping_fee(self):
+        return float_usd_to_micro_usd(0.27)
 
-    # def hidden_shipping_fee_note(self):
-    #     return 'CO Retail Delivery Fee'
+    def hidden_shipping_fee_note(self):
+        return 'CO Retail Delivery Fee'
 
     def total_by_items(self):
         return (
             Item.sum_totals(self.items)
+            + (self.hidden_shipping_fee() if self.has_hidden_shipping_fee() else 0)
             + self.shipping_charge() + self.total_discounts())
 
     # def total_by_subtotals(self):
@@ -315,6 +239,9 @@ class Charge:
 
     def website(self):
         return self.items[0].website
+
+    def ship_address(self):
+        return self.items[0].shipping_address
     
     def payment_instrument_types(self):
         return set([pit for i in self.items for pit in i.payment_instrument_type])
@@ -362,11 +289,17 @@ class Charge:
         #     return self.items[0].ship_date[0].astimezone().date()
 
     def transact_amount(self):
+        if self.has_hidden_shipping_fee():
+            return -round_micro_usd_to_cent(self.total_owed() + self.hidden_shipping_fee())
         return -self.total_owed()
 
     def match(self, trans):
         self.matched = True
         self.trans_id = trans.id
+        # if self.order_id() in ('112-9523119-2065026', '113-7797306-4423467', '112-5028447-9842607'):
+        #     print('A match made in MAT')
+        #     print(self)
+        #     print(trans)
 
     def get_notes(self):
         return (
@@ -463,13 +396,13 @@ class Charge:
                 notes=self.get_notes())
             new_transactions.append(item)
 
-        # if self.has_hidden_shipping_fee():
-        #     ship_fee = t.split(
-        #         amount=-self.hidden_shipping_fee(),
-        #         category_name='Shipping',
-        #         description=self.hidden_shipping_fee_note(),
-        #         notes=self.get_notes())
-        #     new_transactions.append(ship_fee)
+        if self.has_hidden_shipping_fee():
+            ship_fee = t.split(
+                amount=-self.hidden_shipping_fee(),
+                category_name='Shipping',
+                description=self.hidden_shipping_fee_note(),
+                notes=self.get_notes())
+            new_transactions.append(ship_fee)
 
         # Itemize the shipping cost, if any.
         is_free_shipping = (

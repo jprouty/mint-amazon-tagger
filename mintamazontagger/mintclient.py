@@ -132,11 +132,9 @@ class MintClient():
             next_page = _get_next_link_href(response_json['metaData']['link'])
             if not next_page:
                 # No more transactions.
-                logger.info(f'Done fetching transactions: {total_records}')
                 return results
             else:
                 next_page_url = f'{MINT_API_ENDPOINT}/{next_page}'
-                logger.info(f'Fetched {page_size} transactions - more available. Fetching next page via {next_page}')
                 response = self.webdriver.request(
                     'GET', next_page_url, headers=self.get_api_header())
             

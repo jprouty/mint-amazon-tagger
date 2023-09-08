@@ -45,37 +45,44 @@ def create_updates(
         determinate_progress_factory=no_progress_factory,
         counter_progress_factory=no_progress_factory):
     items = []
-    with zipfile.ZipFile(args.amazon_export.name) as zip_file:
-        order_history_csvs = [f for f in zip_file.namelist() if amazon.is_order_history_csv(f)]
-        if not order_history_csvs:
-            on_critical(
-                'Cannot find any order history data in the given Amazon Export.')
-            return UpdatesResult()
+    for export_zip in args.amazon_export:
+        with zipfile.ZipFile(export_zip.name) as zip_file:
+            order_history_csvs = [f for f in zip_file.namelist() if amazon.is_order_history_csv(f)]
+            if not order_history_csvs:
+                on_critical(
+                    'Cannot find any order history data in the given Amazon Export.')
+                return UpdatesResult()
 
-        try:
-            for csv in order_history_csvs:
-                items.extend(amazon.Item.parse_from_csv(
-                    zip_file.open(csv),
-                    progress_factory=determinate_progress_factory))
-        except AttributeError as e:
-            msg = (
-                'Error while parsing Amazon Order history report CSV files: '
-                f'{e}')
-            logger.exception(msg)
-            on_critical(msg)
-            return UpdatesResult()
+            try:
+                for csv in order_history_csvs:
+                    items.extend(amazon.Item.parse_from_csv(
+                        zip_file.open(csv),
+                        progress_factory=determinate_progress_factory))
+            except AttributeError as e:
+                msg = (
+                    'Error while parsing Amazon Order history report CSV files: '
+                    f'{e}')
+                logger.exception(msg)
+                on_critical(msg)
+                return UpdatesResult()
 
     if not len(items):
         on_critical(
             'The Items report contains no data. Try '
             f'downloading again. Reports used: {order_history_csvs}')
         return UpdatesResult()
-    
+
+    # Sort all items by date, newest first. This is useful when multiple export zips are given.
+    items = sorted(items,
+           key=lambda i: i.ship_date[0] if i.ship_date[0] else datetime.datetime.now(datetime.timezone.utc),
+           reverse=True)
+
     # Initialize the stats. Explicitly initialize stats that might not be
     # accumulated (conditionals).
     stats = Counter(
         adjust_itemized_tax=0,
         already_up_to_date=0,
+        rm_shipping_error=0,
         misc_charge=0,
         new_tag=0,
         no_retag=0,
@@ -91,35 +98,37 @@ def create_updates(
     # Remove items with zero quantity.
     items = [i for i in items if i.quantity > 0]
 
+    charges = [amazon.Charge([i]) for i in items]
+    # THIS IS NOT ALWAYS THE CASE: I HAVE FOUND A CASE WERE THE SHIPMENT ITEM AMOUNTS WERE ACTUALLY SPLIT INTO TWO CC CHARGES FOR THE SAME CARD FOR AN ORDER THAT SHIPPED IN ONE BOX.
     # Merge charges if both the order id and the shipment item amount + shipment item tax align with total owed.
     # ie: Combine items into a charge that have matching:
     # - 'order id'
     # - 'shipment item subtotal'
     # - 'shipment item subtotal tax' 
-    oid_to_items = defaultdict(list)
-    for i in items:
-        oid_to_items[(i.order_id, i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
+    # oid_to_items = defaultdict(list)
+    # for i in items:
+    #     oid_to_items[(i.order_id, i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
     
-    charges = []
-    for items_same_id in oid_to_items.values():
-        if len(items_same_id) == 1:
-            charges.append(amazon.Charge(items_same_id))
-            continue
-        first_item = items_same_id[0]
-        item_subtotal = first_item.shipment_item_subtotal + first_item.shipment_item_subtotal_tax
-        discounts = sum(i.total_discounts for i in items_same_id)
-        shipping_charges = sum(i.shipping_charge for i in items_same_id)
-        total_owed = item_subtotal + discounts + shipping_charges
-        is_same_charge = all([
-            (i.shipment_item_subtotal == first_item.shipment_item_subtotal and
-             i.shipment_item_subtotal_tax == first_item.shipment_item_subtotal_tax)
-            for i in items_same_id]) and total_owed == sum(i.total_owed for i in items_same_id)
-        if is_same_charge:
-            charges.append(amazon.Charge(items_same_id))
-        else:
-            # Something doesn't match up (could be same charge but two different shipments).
-            # These will be cleaned up later with the combo matching logic per same order.
-            charges.extend([amazon.Charge([i]) for i in items_same_id])
+    # charges = []
+    # for items_same_id in oid_to_items.values():
+    #     if len(items_same_id) == 1:
+    #         charges.append(amazon.Charge(items_same_id))
+    #         continue
+    #     first_item = items_same_id[0]
+    #     item_subtotal = first_item.shipment_item_subtotal + first_item.shipment_item_subtotal_tax
+    #     discounts = sum(i.total_discounts for i in items_same_id)
+    #     shipping_charges = sum(i.shipping_charge for i in items_same_id)
+    #     total_owed = item_subtotal + discounts + shipping_charges
+    #     is_same_charge = all([
+    #         (i.shipment_item_subtotal == first_item.shipment_item_subtotal and
+    #          i.shipment_item_subtotal_tax == first_item.shipment_item_subtotal_tax)
+    #         for i in items_same_id]) and total_owed == sum(i.total_owed for i in items_same_id)
+    #     if is_same_charge:
+    #         charges.append(amazon.Charge(items_same_id))
+    #     else:
+    #         # Something doesn't match up (could be same charge but two different shipments).
+    #         # These will be cleaned up later with the combo matching logic per same order.
+    #         charges.extend([amazon.Charge([i]) for i in items_same_id])
 
     if args.pickled_epoch:
         pickle_progress = indeterminate_progress_factory(
@@ -236,6 +245,7 @@ def get_mint_updates(
 
     trans = mint.Transaction.unsplit(trans)
     stats['trans'] = len(trans)
+    trans = sorted(trans, key=lambda t: t.date)
 
     # Skip t if the original description doesn't contain 'amazon'
     merch_whitelist = args.mint_input_description_filter.lower().split(',')
@@ -275,7 +285,7 @@ def get_mint_updates(
     orderMatchProgress = progress_factory(
         'Matching Amazon Items w/ Mint Trans',
         len(items))
-    match_transactions(trans, charges, args, orderMatchProgress)
+    match_transactions_orig_with_shipment_merge2(trans, charges, args, orderMatchProgress)
     orderMatchProgress.finish()
 
     unmatched_trans = [t for t in trans if not t.charges]
@@ -422,37 +432,34 @@ def mark_best_as_matched(t, list_of_charges_or_refunds, args, progress=None):
         # transaction is closer.
         already_matched = any([c.matched for c in charges])
         if (num_days <= max_days and num_days >= 0
-                and abs(num_days) < closest_match_num_days
+                and num_days < closest_match_num_days
                 and not already_matched):
             closest_match = charges
-            closest_match_num_days = abs(num_days)
+            closest_match_num_days = num_days
 
     if closest_match:
-        for o in closest_match:
-            o.match(t)
+        for c in closest_match:
+            c.match(t)
 
         t.match(closest_match)
         if progress:
             progress.next(len(closest_match))
 
 
-def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
-    # Also works with Refund objects.
+def match_transactions_orig(unmatched_trans, unmatched_charges, args, progress=None):
     # First pass: Match up transactions that exactly equal an order's charged
     # amount.
     amount_to_charges = defaultdict(list)
 
     for c in unmatched_charges:
         amount_to_charges[c.transact_amount()].append([c])
-        if c.order_id() == '112-1083564-0845003':
-            pprint.pprint(c.__dict__)
+        # if c.has_hidden_shipping_fee():
+        #     amount_with_hidden_shipping = round_micro_usd_to_cent(c.transact_amount() - c.hidden_shipping_fee())
+            
+            # print(f'CO CO CO CO CO: {amount_with_hidden_shipping}')
+            # amount_to_charges[amount_with_hidden_shipping].append([c])
 
     for t in unmatched_trans:
-        if t.amount == -588420000:
-            pprint.pprint(t.__dict__)
-            pprint.pprint(amount_to_charges[t.amount])
-            exit()
-
         mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
 
     unmatched_charges = [c for c in unmatched_charges if not c.matched]
@@ -482,6 +489,302 @@ def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
 
     for t in unmatched_trans:
         mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+
+def match_transactions_orig_inverted(unmatched_trans, unmatched_charges, args, progress=None):
+    # Second pass: Match up transactions to a combination of charges (sometimes
+    # they are charged together).
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
+
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        if len(charges_same_id) == 1:
+            continue
+
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(charges_same_id) > args.max_unmatched_charges_combinations:
+            continue
+
+        combos = []
+        for r in range(2, len(charges_same_id) + 1):
+            combos.extend(itertools.combinations(charges_same_id, r))
+        for c in combos:
+            charges_total = sum([charge.transact_amount() for charge in c])
+            amount_to_charges[charges_total].append(c)
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+    unmatched_charges = [c for c in unmatched_charges if not c.matched]
+    unmatched_trans = [t for t in unmatched_trans if not t.charges]
+
+    # First pass: Match up transactions that exactly equal an order's charged
+    # amount.
+    amount_to_charges = defaultdict(list)
+
+    for c in unmatched_charges:
+        amount_to_charges[c.transact_amount()].append([c])
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+
+def match_transactions_all_combo_singles(unmatched_trans, unmatched_charges, args, progress=None):
+    # First pass: Match up transactions where all charges are charged together for orders with more than one item:
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
+
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        if len(charges_same_id) == 1:
+            continue
+
+        charges_total = sum([charge.transact_amount() for charge in charges_same_id])
+        amount_to_charges[charges_total].append(charges_same_id)
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+    unmatched_charges = [c for c in unmatched_charges if not c.matched]
+    unmatched_trans = [t for t in unmatched_trans if not t.charges]
+
+    # Second pass: Match up transactions to a combination of charges (but not all, and not singletons).
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
+
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        if len(charges_same_id) == 1:
+            continue
+
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(charges_same_id) > args.max_unmatched_charges_combinations:
+            continue
+
+        combos = []
+        for r in range(2, len(charges_same_id)):
+            combos.extend(itertools.combinations(charges_same_id, r))
+        for c in combos:
+            charges_total = sum([charge.transact_amount() for charge in c])
+            amount_to_charges[charges_total].append(c)
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+    unmatched_charges = [c for c in unmatched_charges if not c.matched]
+    unmatched_trans = [t for t in unmatched_trans if not t.charges]
+
+    # Third pass: Match up transactions that exactly equal an order's charged
+    # amount.
+    amount_to_charges = defaultdict(list)
+
+    for c in unmatched_charges:
+        amount_to_charges[c.transact_amount()].append([c])
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+
+def match_transactions_single_pass_singletons(unmatched_trans, unmatched_charges, args, progress=None):
+    # First pass: Match up transactions that exactly equal an order's charged
+    # amount.
+    amount_to_charges = defaultdict(list)
+
+    for c in unmatched_charges:
+        amount_to_charges[c.transact_amount()].append([c])
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+
+def match_transactions_single_pass_multi_combos(unmatched_trans, unmatched_charges, args, progress=None):
+    # Match up transactions to a combination of charges (sometimes they are charged together).
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
+
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        if len(charges_same_id) == 1:
+            continue
+
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(charges_same_id) > args.max_unmatched_charges_combinations:
+            continue
+
+        combos = []
+        for r in range(2, len(charges_same_id) + 1):
+            combos.extend(itertools.combinations(charges_same_id, r))
+        for c in combos:
+            charges_total = sum([charge.transact_amount() for charge in c])
+            amount_to_charges[charges_total].append(c)
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+
+def match_transactions_single_pass_all_combos(unmatched_trans, unmatched_charges, args, progress=None):
+    # Match up transactions to a combination of charges (sometimes they are charged together).
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
+
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(charges_same_id) > args.max_unmatched_charges_combinations:
+            continue
+
+        combos = []
+        for r in range(1, len(charges_same_id) + 1):
+            combos.extend(itertools.combinations(charges_same_id, r))
+        for c in combos:
+            charges_total = sum([charge.transact_amount() for charge in c])
+            amount_to_charges[charges_total].append(c)
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+
+
+def match_transactions_orig_with_shipment_merge1(unmatched_trans, unmatched_charges, args, progress=None):
+    # THIS IS NOT ALWAYS THE CASE: I HAVE FOUND A CASE WERE THE SHIPMENT ITEM AMOUNTS WERE ACTUALLY SPLIT INTO TWO CC CHARGES FOR THE SAME CARD FOR AN ORDER THAT SHIPPED IN ONE BOX.
+    # Merge charges if both the order id and the shipment item amount + shipment item tax align with total owed.
+    # ie: Combine items into a charge that have matching:
+    # - 'order id'
+    # - 'shipment item subtotal'
+    # - 'shipment item subtotal tax' 
+    oid_to_items = defaultdict(list)
+    for c in unmatched_charges:
+        for i in c.items:
+            oid_to_items[(i.order_id, i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
+    
+    unmatched_charges.clear()
+    for items_same_id in oid_to_items.values():
+        if len(items_same_id) == 1:
+            unmatched_charges.append(amazon.Charge(items_same_id))
+            continue
+        first_item = items_same_id[0]
+        item_subtotal = first_item.shipment_item_subtotal + first_item.shipment_item_subtotal_tax
+        discounts = sum(i.total_discounts for i in items_same_id)
+        shipping_charges = sum(i.shipping_charge for i in items_same_id)
+        total_owed = item_subtotal + discounts + shipping_charges
+        is_same_charge = all([
+            (i.shipment_item_subtotal == first_item.shipment_item_subtotal and
+             i.shipment_item_subtotal_tax == first_item.shipment_item_subtotal_tax)
+            for i in items_same_id]) and total_owed == sum(i.total_owed for i in items_same_id)
+        if is_same_charge:
+            unmatched_charges.append(amazon.Charge(items_same_id))
+        else:
+            # Something doesn't match up (could be same charge but two different shipments).
+            # These will be cleaned up later with the combo matching logic per same order.
+            unmatched_charges.extend([amazon.Charge([i]) for i in items_same_id])
+    match_transactions_orig(unmatched_trans, unmatched_charges, args, progress=None)
+
+
+def match_transactions_orig_with_shipment_merge2(unmatched_trans, unmatched_charges, args, progress=None):
+    # THIS IS NOT ALWAYS THE CASE: I HAVE FOUND A CASE WERE THE SHIPMENT ITEM AMOUNTS WERE ACTUALLY SPLIT INTO TWO CC CHARGES FOR THE SAME CARD FOR AN ORDER THAT SHIPPED IN ONE BOX.
+    # Merge charges if both the order id and the shipment item amount + shipment item tax align with total owed.
+    # ie: Combine items into a charge that have matching:
+    # - 'order id'
+    # - 'shipment item subtotal'
+    # - 'shipment item subtotal tax' 
+    oid_to_items = defaultdict(list)
+    for c in unmatched_charges:
+        for i in c.items:
+            oid_to_items[(i.order_id, i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
+    
+    unmatched_charges.clear()
+    for items_same_id in oid_to_items.values():
+        if len(items_same_id) == 1:
+            unmatched_charges.append(amazon.Charge(items_same_id))
+            continue
+
+        items_by_shipment = defaultdict(list)
+        for i in items_same_id:
+            items_by_shipment[(i.shipment_item_subtotal, i.shipment_item_subtotal_tax)].append(i)
+        
+        for items in items_by_shipment.values():
+            charge = amazon.Charge(items)
+            if len(items) == 1:
+                unmatched_charges.append(charge)
+                continue
+            total_owed_by_shipment_details = items[0].shipment_item_subtotal + items[0].shipment_item_subtotal_tax + charge.total_discounts() + charge.shipping_charge()
+            if total_owed_by_shipment_details == charge.total_owed():
+                unmatched_charges.append(charge)
+            else:
+                unmatched_charges.extend([amazon.Charge([i]) for i in items_same_id])
+
+    match_transactions_orig(unmatched_trans, unmatched_charges, args, progress=None)
+
+
+def match_transactions(unmatched_trans, unmatched_charges, args, progress=None):
+    # Also works with Refund objects.
+    # First pass: Match up transactions that exactly equal an order's charged
+    # amount.
+    amount_to_charges = defaultdict(list)
+
+    for c in unmatched_charges:
+        amount_to_charges[c.transact_amount()].append([c])
+        
+    # '10062128_1679233873_0', '10062128_1679233875_0', 
+    help_me = set(['10062128_1806890543_0'])
+    for t in unmatched_trans:
+        # if t.amount == -121080000:
+        #     print()
+        #     pprint.pprint(t)
+        #     exit()
+        # if t.id in help_me:
+        #     pprint.pprint(t.__dict__)
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+        if t.id in help_me:
+            pprint.pprint(t.id)
+            pprint.pprint(t.matched)
+
+    unmatched_charges = [c for c in unmatched_charges if not c.matched]
+    unmatched_trans = [t for t in unmatched_trans if not t.charges]
+
+    # Second pass: Match up transactions to a combination of charges (sometimes
+    # they are charged together).
+    oid_to_charges = defaultdict(list)
+    for c in unmatched_charges:
+        oid_to_charges[c.order_id()].append(c)
+
+    amount_to_charges = defaultdict(list)
+    for charges_same_id in oid_to_charges.values():
+        if charges_same_id[0].order_id() == '112-5293178-5879431':
+            # for i in charges_same_id[0].items:
+            #     pprint.pprint(i.__dict__)
+            pprint.pprint(charges_same_id)
+        if len(charges_same_id) == 1:
+            continue
+
+        # Expanding all combinations does not scale, so short-circuit out order ids that have a high unmatched count
+        if len(charges_same_id) > args.max_unmatched_charges_combinations:
+            continue
+
+        combos = []
+        for r in range(2, len(charges_same_id) + 1):
+            combos.extend(itertools.combinations(charges_same_id, r))
+        for c in combos:
+            charges_total = sum([charge.transact_amount() for charge in c])
+            if charges_same_id[0].order_id() == '112-5293178-5879431':
+                print(charges_total)
+            amount_to_charges[charges_total].append(c)
+
+        if charges_same_id[0].order_id() == '112-5293178-5879431':
+            charges_total = sum([charge.transact_amount() for charge in charges_same_id])
+            print(charges_total)
+            exit()
+
+    for t in unmatched_trans:
+        mark_best_as_matched(t, amount_to_charges[t.amount], args, progress)
+        if t.id in help_me:
+            pprint.pprint(t.id)
+            pprint.pprint(t.matched)
 
 
 def print_dry_run(orig_trans_to_tagged, ignore_category=False):

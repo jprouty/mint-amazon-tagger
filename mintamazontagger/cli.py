@@ -96,7 +96,7 @@ def main():
     mint_client = MintClient(args, webdriver_factory)
 
     if not args.amazon_export:
-        logger.critical('Amazon Export Zip file is required.')
+        logger.critical('One or more Amazon Export Zip files required.')
         exit(1)
 
     if args.dry_run:
@@ -127,12 +127,10 @@ def main():
         by_oid = defaultdict(list)
         for uo in results.unmatched_charges:
             by_oid[uo.order_id()].append(uo)
-        i = 0
+
         for unmatched_by_oid in by_oid.values():
-            print_unmatched(amazon.Charge.merge(unmatched_by_oid))
-            i += 1
-            if i > 5:
-                exit()
+            c = amazon.Charge.merge(unmatched_by_oid)
+            print_unmatched(c)
 
     if not results.updates:
         logger.info(

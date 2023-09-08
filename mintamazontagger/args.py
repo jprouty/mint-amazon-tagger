@@ -13,8 +13,8 @@ def define_common_args(parser):
     """Parseargs shared between both CLI & GUI programs."""
     # Amazon Input, as zip file:
     parser.add_argument(
-        '--amazon_export', type=argparse.FileType('r', encoding='utf-8'),
-        help=('The Amazon Data Export zip file.'))
+        '--amazon_export', nargs='+', type=argparse.FileType('r', encoding='utf-8'),
+        help=('One or more Amazon Data Exports zip file (type either "Orders" or "All Data").'))
 
     # Mint creds:
     parser.add_argument(
