@@ -82,7 +82,7 @@ setuptools.setup(
         "Topic :: Office/Business :: Financial",
     ],
     install_requires=[
-        'PyQt5',
+        'PyQt6',
         'mintapi>=2.12',
         'mock',
         'oathtool',

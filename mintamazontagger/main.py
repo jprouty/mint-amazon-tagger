@@ -119,7 +119,7 @@ class TaggerGui:
             self.create_line_label('MFA Code: ', 'mint_mfa_preferred_method'),
             self.create_combobox(
                 'mint_mfa_preferred_method',
-                ['SMS', 'Email'],
+                ['sms', 'email'],
                 lambda x: x.lower()))
         mint_layout.addRow(
             self.create_line_label('I will login myself',
@@ -176,7 +176,7 @@ class TaggerGui:
                 'Max days between payment/shipment', 'max_days_between_payment_and_shipping'),
             self.create_combobox(
                 'max_days_between_payment_and_shipping',
-                ['3', '4', '5', '6', '7', '8', '9', '10'],
+                [3, 4, 5, 6, 7, 8, 9, 10],
                 lambda x: int(x)))
 
         tagger_layout.addLayout(tagger_left)
@@ -221,14 +221,12 @@ class TaggerGui:
     def on_tagger_dialog_closed(self):
         self.start_button.setEnabled(True)
         # Reset any csv file handles, as there might have been an error and
-        # they user may try again (could already be consumed/closed).
+        # the user may try again (could already be consumed/closed).
         attr_name = 'amazon_export'
-        file = getattr(self.args, attr_name)
-        if file:
-            setattr(
-                self.args,
-                attr_name,
-                open(file.name, 'r', encoding='utf-8'))
+        files = getattr(self.args, attr_name)
+        if files:
+            files = [open(file.name, 'r', encoding='utf-8') for file in files]
+            setattr(self.args, attr_name, files)
 
     def on_start_button_clicked(self):
         self.start_button.setEnabled(False)
@@ -301,8 +299,8 @@ class TaggerGui:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             line_edit.setToolTip(tool_tip)
-        # if password:
-        #     line_edit.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+        if password:
+            line_edit.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
 
         def on_changed(state):
             setattr(self.args, name, state)
@@ -347,9 +345,14 @@ class TaggerGui:
     def create_file_edit(
             self, name, popup_title, filter='Zip files (*.zip)',
             tool_tip=None):
-        file_button = QPushButton(
-            'Select a file' if not getattr(self.args, name)
-            else os.path.split(getattr(self.args, name).name)[1])
+        label = 'Select a file'
+        files = getattr(self.args, name)
+        if files:
+            if not isinstance(files, list):
+                files = [files]
+            
+            label = ' AND '.join([os.path.split(file.name)[1] for file in files])
+        file_button = QPushButton(label)
 
         if not tool_tip:
             tool_tip = self.arg_name_to_help[name]
@@ -358,17 +361,17 @@ class TaggerGui:
 
         def on_button():
             dlg = QFileDialog()
-            selection = dlg.getOpenFileName(
+            selection = dlg.getOpenFileNames(
                 self.window, popup_title, filter=filter)
             if selection[0]:
-                prev_file = getattr(self.args, name)
-                if prev_file:
-                    prev_file.close()
-                setattr(
-                    self.args,
-                    name,
-                    open(selection[0], 'r', encoding='utf-8'))
-                file_button.setText(os.path.split(selection[0])[1])
+                prev_files = getattr(self.args, name)
+                if prev_files:
+                    for file in prev_files:
+                        file.close()
+                new_files = [open(file, 'r', encoding='utf-8') for file in selection[0]]
+                setattr(self.args, name, new_files)
+                label = ' AND '.join([os.path.split(file.name)[1] for file in new_files])
+                file_button.setText(label)
 
         file_button.clicked.connect(on_button)
         return file_button
@@ -380,7 +383,10 @@ class TaggerGui:
             tool_tip = self.arg_name_to_help[name]
         if tool_tip:
             combo.setToolTip(tool_tip)
-        combo.addItems(items)
+        combo.addItems([str(i) for i in items])
+
+        default_value = getattr(self.args, name)
+        combo.setCurrentIndex(items.index(default_value))
 
         def on_change(option):
             setattr(self.args, name, transform(option))
