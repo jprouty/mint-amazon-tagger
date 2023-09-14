@@ -57,7 +57,8 @@ def pythonify_mint_transaction_dict(raw_dict, is_fi_data=False):
     raw_dict['amount'] = parse_float_usd_as_micro_usd(raw_dict['amount'])
 
     if is_fi_data:
-        raw_dict['inferredCategory'] = Category(raw_dict['inferredCategory'])
+        if 'inferredCategory' in raw_dict:
+            raw_dict['inferredCategory'] = Category(raw_dict['inferredCategory'])
     else:
         if 'category' not in raw_dict:
             logger.fatal(f'No category for mint transaction: {raw_dict}')

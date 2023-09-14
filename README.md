@@ -1,24 +1,23 @@
 # Mint Transactions Tagger for Amazon Purchases
 
-## Amazon to Sunset Required Export Tool ##
+## UPDATE - Now works with Amazon "Request My Data" Export ##
 
-**Amazon is planning to sunset the "Order History Reports" tool on March 20th. The Amazon report tool is the primary source for tagging. Please follow [this issue](https://github.com/jprouty/mint-amazon-tagger/issues/147) for more information.**
+This tool originally worked with the "Order History Reports", which gave one slice of information about Amazon order history. Amazon sunset this export/reporting tool on 3/20/2023. I have since adapted this tool to work with the slower, cumbersome, and more comprehensive "Request My Data" tool - for details on this migration, see  
+[this issue](https://github.com/jprouty/mint-amazon-tagger/issues/151).
+
+The most important change is that category information is not present in this export, meaning the tool cannot help you categorize never before seen items. For previously purchased items, by default the tool use the most common tagged category, based on an exact string match of the line item description.
 
 ## Overview ##
 
 Do you order a lot from Amazon? Tired of everything showing up as "Amazon"
 and category "Shopping" in mint.com? Then this tool is for you!
 
-This tool requests "Amazon Order History Reports" on your behalf and matches
-your order history with your Mint transactions. If it finds an exact matches
+This tool takes an Amazon "Request your data" Order export and matches
+your Amazon order history with your Mint transactions. If it finds an exact matches
 it will either:
 
 - Update the transaction description and category if there was only 1 item
 - Itemize the transaction - one line-item per item in the order (via Mint transaction splits)
-
-The tagger will try to guess the best Mint category for you. The tool will
-lookup the best category via each item's UNSPSC category code. See
-`category.py` for the UNSPSC code to Mint category mappings.
 
 If the tool chooses poor categories for your transactions simply change it! The next time you run the tool it will remember your past personalized category edits and attempt to apply it to future purchases of the same
 item. This only works if the item names match exactly. Also, you must
@@ -38,18 +37,11 @@ Some things the tagger cannot do:
 - Amazon credit card award points are not reported anywhere in the order/item reports.
 - Amazon gift cards are not yet supported (see [issue #59](https://github.com/jprouty/mint-amazon-tagger/issues/59))
 
-## Support ##
+## Sponsorship ##
 
 This project has been a passion project of [mine](https://github.com/jprouty) to better understand cashflow (critical to trend analysis and budgeting).
 
-If you have found this tool useful, please consider showing your support:
-
-- [CashApp](https://cash.app/$JeffProuty)
-- [Venmo](https://www.venmo.com/u/jeff-prouty)
-- [Paypal.me](https://paypal.me/jeffprouty)
-- [Patreon](https://patreon.com/jeffprouty) - **recurring**
-- Bitcoin - BTC Address: `3JfvxXzJJ85pxk7wnUmjTUKc6MfDXFWjpg`
-- Ethereum - ETH Address: `0xFcd385b3D18DABa5231a64EEA2327fE1F1b1Ff15`
+If you have found this tool useful, please consider [sponsoring me](https://github.com/sponsors/jprouty).
 
 ## Install and Getting started ##
 

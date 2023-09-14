@@ -34,6 +34,7 @@ pyinstaller \
   --name="${app_name}" \
   --icon="${icon_icns}" \
   --osx-bundle-identifier="${bundle_ident}" \
+  --target_arch="universal2" \
   mintamazontagger/main.py
 
 deactivate
