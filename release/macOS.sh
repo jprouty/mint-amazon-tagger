@@ -29,12 +29,13 @@ mkdir build
 # Create an icns file
 iconutil -c icns icons/mac.iconset --output="${icon_icns}"
 
+# TODO: Add support for universal2 binaries. Try this:
+# https://github.com/pyinstaller/pyinstaller/issues/5315#issuecomment-971341261
 pyinstaller \
   --windowed \
   --name="${app_name}" \
   --icon="${icon_icns}" \
   --osx-bundle-identifier="${bundle_ident}" \
-  --target-arch="universal2" \
   mintamazontagger/main.py
 
 deactivate
