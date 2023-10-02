@@ -2,7 +2,7 @@
 
 ## UPDATE - Now works with Amazon "Request My Data" Export ##
 
-This tool originally worked with the "Order History Reports", which gave one slice of information about Amazon order history. Amazon sunset this export/reporting tool on 3/20/2023. I have since adapted this tool to work with the slower, cumbersome, and more comprehensive "Request My Data" tool - for details on this migration, see  
+This tool originally worked with the "Order History Reports", which gave one slice of information about Amazon order history. Amazon sunset this export/reporting tool on 3/20/2023. I have since adapted this tool to work with the zipfile of data produced by that slower, cumbersome, and more comprehensive "Request My Data" tool - for details on this migration, see  
 [this issue](https://github.com/jprouty/mint-amazon-tagger/issues/151).
 
 The most important change is that category information is not present in this export, meaning the tool cannot help you categorize never before seen items. For previously purchased items, by default the tool use the most common tagged category, based on an exact string match of the line item description.
