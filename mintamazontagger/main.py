@@ -20,14 +20,13 @@ import webbrowser
 from PyQt6.QtCore import (
     Q_ARG, QDate, QEventLoop, Qt, QMetaObject, QObject, QTimer, QThread,
     QUrl, pyqtSlot, pyqtSignal)
-from PyQt6.QtGui import QDesktopServices, QKeySequence
+from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCalendarWidget,
     QCheckBox, QComboBox, QDialog, QErrorMessage, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QInputDialog,
     QLabel, QLineEdit, QMainWindow, QProgressBar,
     QPushButton, QTableView, QWidget, QVBoxLayout)
-# from PyQt6.QtWidgets import QShortcut
 from outdated import check_outdated
 
 from mintamazontagger import amazon
@@ -67,11 +66,10 @@ class TaggerGui:
         self.window.setWindowTitle(version_string)
 
         self.quit_shortcuts = []
-        # REVIVE
-        # for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
-        #     s = QShortcut(QKeySequence(seq), self.window)
-        #     s.activated.connect(app.exit)
-        #     self.quit_shortcuts.append(s)
+        for seq in ("Ctrl+Q", "Ctrl+C", "Ctrl+W", "ESC"):
+            s = QShortcut(QKeySequence(seq), self.window)
+            s.activated.connect(app.exit)
+            self.quit_shortcuts.append(s)
 
         logger.info(f'Running version {VERSION}')
         try:

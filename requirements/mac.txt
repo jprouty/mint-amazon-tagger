@@ -1,4 +1,1 @@
 PyInstaller
-# 5.15.2 works. 5.15.3 and 5.15.4 are broken on MacOS Big Sur (for me at least).
-# Causes a seg fault when packaging with PyInstaller 4.1/4.2/4.3.
-# PyQt5==5.15.2

@@ -1,16 +1,13 @@
-from collections import defaultdict
 from copy import deepcopy
 import csv
 from datetime import datetime, timezone
 from dateutil import parser
 import io
-import os
-from pprint import pformat, pprint
+import logging
+from pprint import pformat
 import re
 import string
-import time
 
-from mintamazontagger.algorithm_u import algorithm_u
 from mintamazontagger import category
 from mintamazontagger.currency import float_usd_to_micro_usd
 from mintamazontagger.currency import micro_usd_nearly_equal
@@ -18,7 +15,9 @@ from mintamazontagger.currency import micro_usd_to_usd_string
 from mintamazontagger.currency import parse_usd_as_micro_usd, round_micro_usd_to_cent
 from mintamazontagger.currency import CENT_MICRO_USD, MICRO_USD_EPS
 from mintamazontagger.mint import truncate_title
-from mintamazontagger.my_progress import NoProgress, no_progress_factory
+from mintamazontagger.my_progress import no_progress_factory
+
+logger = logging.getLogger(__name__)
 
 PRINTABLE = set(string.printable)
 
@@ -153,6 +152,10 @@ def get_invoice_url(order_id):
 # }
 
 
+def datetime_list_to_dates_str(dates):
+    return ', '.join([d.strftime("%Y-%m-%d") for d in dates])
+
+
 class Charge:
     """A Charge represents a set of items corresponding to one payment.
 
@@ -252,6 +255,12 @@ class Charge:
     def ship_dates(self):
         return [date for items in self.items for date in items.ship_date]
     
+    def unique_order_dates(self):
+        return list(set([d.date() for d in self.order_dates()]))
+
+    def unique_ship_dates(self):
+        return list(set([d.date() for d in self.ship_dates()]))
+
     def subtotal(self):
         return Item.sum_subtotals(self.items)
     
@@ -273,7 +282,7 @@ class Charge:
         return sum([i.total_owed for i in self.items])
     
     def tracking_numbers(self):
-        return self.items[0].website
+        return list(set([items.tracking for items in self.items]))
     
     def transact_date(self):
         """The latest ship date in local time zone."""
@@ -302,12 +311,17 @@ class Charge:
         #     print(trans)
 
     def get_notes(self):
-        return (
-            f'Amazon order id: {self.order_id()}\n'
-            f'Order date: {self.order_dates()}\n'
-            f'Ship date: {self.ship_dates()}\n'
-            f'Tracking: {self.tracking_numbers()}\n'
+        note = (f'Amazon order id: {self.order_id()}\n'
+            f'Order date: {datetime_list_to_dates_str(self.unique_order_dates())}\n'
+            f'Ship date: {datetime_list_to_dates_str(self.unique_ship_dates())}\n'
+            f'Tracking: {", ".join(self.tracking_numbers())}\n'
             f'Invoice url: {get_invoice_url(self.order_id())}')
+        # Notes max out at 1000 as of 2023/12/31. If at or above the limit, use a simplified note:
+        if len(note) >= 1000:
+            logger.warn('Truncating note for Amazon Charge due to excessive length')
+            note = (f'Amazon order id: {self.order_id()}\n'
+                    f'Invoice url: {get_invoice_url(self.order_id())}')
+        return note
 
     def attribute_subtotal_diff_to_misc_charge(self):
         """Sometimes gift wrapping or other misc charge is captured within 'total_owed' for an item but it doesn't belong there."""

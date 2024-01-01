@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import os
 
 TAGGER_BASE_PATH = os.path.join(os.path.expanduser("~"), 'MintAmazonTagger')

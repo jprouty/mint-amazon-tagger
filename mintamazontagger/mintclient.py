@@ -1,13 +1,10 @@
-from datetime import datetime
 import logging
 import os
 from pprint import pprint
-import random
 import requests
 import time
 
 from mintamazontagger.currency import micro_usd_to_float_usd
-from mintamazontagger.webdriver import get_element_by_id, is_visible
 
 from mintapi.api import Mint
 

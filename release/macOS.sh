@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# To release for Intel, run:
+#   /usr/bin/arch -x86_64 ./release/macOS.sh
+
 # exit when any command fails
 set -e
 
@@ -23,6 +26,7 @@ python3 -m venv release_venv
 source release_venv/bin/activate
 pip install --upgrade pip
 pip install --upgrade -r requirements/base.txt -r requirements/mac.txt
+# --no-binary psutil,pandas,numpy numpy==1.25.2 pandas==1.5.3
 
 mkdir build
 
@@ -31,12 +35,15 @@ iconutil -c icns icons/mac.iconset --output="${icon_icns}"
 
 # TODO: Add support for universal2 binaries. Try this:
 # https://github.com/pyinstaller/pyinstaller/issues/5315#issuecomment-971341261
+# Hidden Import: https://github.com/Ousret/charset_normalizer/issues/253
+  # --target-arch="universal2" \
+  # --hidden-import="charset_normalizer.md__mypyc" \
 pyinstaller \
   --windowed \
   --name="${app_name}" \
   --icon="${icon_icns}" \
   --osx-bundle-identifier="${bundle_ident}" \
-  mintamazontagger/main.py
+   mintamazontagger/main.py
 
 deactivate
 rm -rf release_venv

@@ -2,8 +2,7 @@ from collections import Counter
 import unittest
 
 from mintamazontagger import tagger
-from mintamazontagger.mockdata import (
-    item, transaction, MINT_CATEGORIES)
+from mintamazontagger.mockdata import MINT_CATEGORIES
 
 
 class Args:

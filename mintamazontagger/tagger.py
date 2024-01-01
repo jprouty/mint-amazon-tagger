@@ -18,7 +18,7 @@ from mintamazontagger import amazon
 from mintamazontagger import category
 from mintamazontagger import mint
 from mintamazontagger.my_progress import no_progress_factory
-from mintamazontagger.currency import micro_usd_nearly_equal, round_micro_usd_to_cent
+from mintamazontagger.currency import micro_usd_nearly_equal
 
 from mintamazontagger.mint import (
     get_trans_and_categories_from_pickle, dump_trans_and_categories)
