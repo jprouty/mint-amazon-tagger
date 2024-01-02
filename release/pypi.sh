@@ -8,8 +8,8 @@ cd "$(dirname "$0")/.."
 # python3 setup.py block_on_version |
 python3 setup.py block_on_version clean sdist bdist_wheel || exit
 
-# Publish to max_days_between_payment_and_shipping.
-python3 -m twine upload dist/*
+# Publish.
+python3 -m twine upload --repository mint-amazon-tagger dist/*
 
 # Verify the package is installable in a virtual env.
 python3 -m venv pypi_test_venv
@@ -27,3 +27,4 @@ cd ..
 
 deactivate
 rm -rf pypi_test_venv
+    
