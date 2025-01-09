@@ -1,6 +1,9 @@
 # Mint Transactions Tagger for Amazon Purchases
 
-## UPDATE - Now works with Amazon "Request My Data" Export ##
+## MINT IS GONE ##
+This project is no longer functional - [Mint shutdown on March 23, 2024](https://en.wikipedia.org/wiki/Intuit_Mint). I am leaving the repo up for archival purposes.
+
+## Now works with Amazon "Request My Data" Export ##
 
 This tool originally worked with the "Order History Reports", which gave one slice of information about Amazon order history. Amazon sunset this export/reporting tool on 3/20/2023. I have since adapted this tool to work with the zipfile of data produced by that slower, cumbersome, and more comprehensive "Request My Data" tool - for details on this migration, see  
 [this issue](https://github.com/jprouty/mint-amazon-tagger/issues/151).
